@@ -1,4 +1,4 @@
-# Omagara v1.5.1
+# Omagara v1.5.2
 
 Niagara-inspired OWL 21 home face for [Omalauncher](https://github.com/SimonSchubert/omalauncher). No extra packages or shell commands.
 
@@ -8,10 +8,12 @@ Niagara-inspired OWL 21 home face for [Omalauncher](https://github.com/SimonSchu
 - **Apps:** Buffered full-height browser with elastic ends, adjustable scale, padded A–Z headings, and two compact bottom settings actions without a separate heading. Holding the cog previews only Omagara settings and Omalauncher settings. Empty Search places the most recently opened app first.
 - **Notifications:** Compact grouped cards, consistent magnetic swipe feedback, expandable actions/replies, bottom scroll clearance, and pull feedback.
 - **Appearance:** Connected, content-fitted shade for the clock, date, and event, with theme-aware alphabet, notification, and app-label shades. Optional shading and independent corner rounding.
-- **Controls:** Theme/Light/Dark text colors, contrast, icon overlays, fonts, and Reduce Motion.
+- **Controls:** 12-hour or 24-hour time (12-hour default), theme/light/dark text colors, contrast, icon overlays, fonts, and Reduce Motion.
 - **Utilities:** Calendar, next alarm, timer, stopwatch, and world clocks.
 
 Slide onto the cog below the last alphabet letter (with haptic feedback) to navigate to the bottom settings menu. Select Omagara settings or Omalauncher settings there. Long-press Search still opens Omagara settings directly.
+
+Time format is selected in Omagara settings. OWL 21 does not currently expose Android's 12/24-hour system preference.
 
 ## Limitation
 
