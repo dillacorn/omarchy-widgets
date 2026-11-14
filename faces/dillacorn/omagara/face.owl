@@ -872,7 +872,11 @@ face "Omagara" {
           }
         }
         Column {
-          lazy: true
+          // Experimental: a single collapsed notification needs no native
+          // scroller. Let vertical swipes reach Omalauncher's home gesture
+          // (including its configured swipe-down action). Two or more rows,
+          // expanded content and reply controls retain native lazy scrolling.
+          lazy: len(noticeRows) != 1 || expandedNoticeActions != "" || replyKey != "" || expandedStack != ""
           weight: 1
           fill: width
           gap: 4
