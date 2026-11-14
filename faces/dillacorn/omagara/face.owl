@@ -876,6 +876,18 @@ face "Omagara" {
           weight: 1
           fill: width
           gap: 4
+          // Native lazy-list overscroll reaches this callback only when a
+          // pull starts inside the list and crosses its actual TOP boundary.
+          // Keep native scrolling, horizontal card swipes and lazy rows.
+          // Omalauncher draws its own pull indicator while dragging.
+          onPull: {
+            if !cfg.reduceMotion {
+              noticeTopPull = 0
+              noticeTopFrom = 64
+              noticeTopStarted = time
+              noticeTopReturning = true
+            }
+          }
           for noticeRow in noticeRows key noticeRow.id {
             NotificationRow { item: noticeRow.item; stack: noticeRow.stack; summary: noticeRow.summary }
           }
