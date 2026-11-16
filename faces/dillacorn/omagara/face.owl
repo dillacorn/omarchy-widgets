@@ -114,6 +114,9 @@ face "Omagara" {
   state settingsSection = "Home"
   // Manual holiday previews are temporary; returning to Auto restores the local-date rule.
   state holidayPreview = "Auto"
+  state holidayAnimPlaying = false
+  state holidayAnimStarted = 0
+  state holidayPlayedStamp = ""
   state homeApplyPage = ""
   state homeApplySerial = 0
   state homeApplyStatus = ""
@@ -152,6 +155,14 @@ face "Omagara" {
   let holidayDate = fmtTime(now, "MM-dd")
   let holidayMode = holidayPreview != "Auto" ? holidayPreview : !cfg.holidayEasterEggs ? "None" : holidayDate == "10-31" ? "Halloween" : holidayDate == "12-25" ? "Christmas" : holidayDate == "01-01" ? "New Year" : "None"
   let holidayTint = holidayMode == "Halloween" ? #F28B2D : holidayMode == "Christmas" ? #7ADDCB : #E9CB76
+  let holidayStamp = fmtTime(now, "yyyy-MM-dd") + "|" + holidayMode
+  let holidaySpent = holidayPlayedStamp == holidayStamp
+  let holidayAge = holidayAnimPlaying ? max(0, time - holidayAnimStarted) : 0
+  let holidayDuration = holidayMode == "Halloween" ? 2.4 : holidayMode == "Christmas" ? 3.2 : 1.25
+  let holidayAnimDone = holidayAnimPlaying && holidayAge >= holidayDuration
+  on holidayAnimDone {
+    if value { holidayAnimPlaying = false; holidayPlayedStamp = holidayStamp }
+  }
   // Only tint the Theme alphabet shade. Respect explicitly configured shade colors.
   let alphabetShade = alpha(holidayMode != "None" && cfg.shadeColorMode == "Theme" ? mix(shadeBase, holidayTint, 0.42) : shadeBase, cfg.shadeAlphabetOpacity / 100)
   let noticeHeadingShade = alpha(shadeBase, cfg.shadeNoticeOpacity / 100)
@@ -948,6 +959,9 @@ face "Omagara" {
       // Hit region stays fixed; the glyph transforms are visual only.
       ripple: false
       onPress: {
+        // Each alphabet opening re-arms the charm for this day.
+        holidayAnimPlaying = false
+        holidayPlayedStamp = ""
         appTracking = false
         appScroll = appOffset
         appVelocity = 0
@@ -1041,7 +1055,7 @@ face "Omagara" {
         replyKey = ""
         replyDraft = ""
       }
-      onTap: { browsing = true; activeSide = 0; railHeld = false; railSettingsSelected = false; railPull = 0 }
+      onTap: { holidayAnimPlaying = false; holidayPlayedStamp = ""; browsing = true; activeSide = 0; railHeld = false; railSettingsSelected = false; railPull = 0 }
       // A press is cancelled when the drag detector consumes its first move.
       // Keep the curve active in either detector order at that transition;
       // a real drag release/cancellation always clears both states below.
@@ -1737,18 +1751,21 @@ face "Omagara" {
         }
       }
     }
-    // Purely decorative and pointer-free. Floats beside the six-dot grip when
-    // Search is on either edge, even if the ordinary gesture cue is hidden.
-    if holidayMode != "None" && !browsing && activeSide == 0 {
+    // Only a 40x34dp area near the ornament accepts a tap.
+    // Search, notification scrolling, alphabet and native swipe remain clear.
+    if holidayMode != "None" && !holidaySpent && !holidayAnimPlaying && !browsing && activeSide == 0 {
       Box {
         fill: true
         align: controlSide == -1 ? "bottomStart" : "bottomEnd"
         padding: controlSide == -1 ? [controlLeft, 0, 0, searchBottom - 28] : [0, 0, controlRight, searchBottom - 28]
-        Canvas {
+        Box {
           width: 126
           height: 58
           let ornamentX = controlSide == -1 ? 90 : 32
-          if holidayMode == "Halloween" {
+          Canvas {
+            width: 126
+            height: 58
+            if holidayMode == "Halloween" {
             let glow = cfg.reduceMotion ? 0.18 : 0.16 + 0.08 * (1 + sin(time * 1.8))
             circle(ornamentX, 17, 12, fill: alpha(#F5A347, glow))
             circle(ornamentX, 17, 9, fill: #E9852C)
@@ -1783,7 +1800,80 @@ face "Omagara" {
             circle(ornamentX, 17, 2.6, fill: #FFEBB0)
             circle(ornamentX - 15, 8, 1.4, fill: alpha(#FFDA81, shine))
             circle(ornamentX + 15, 26, 1.4, fill: alpha(#FFDA81, shine))
+            }
           }
+          Box {
+            width: 40
+            height: 34
+            offset: [ornamentX - 20, 0]
+            ripple: false
+            onTap: {
+              if cfg.reduceMotion {
+                holidayPlayedStamp = holidayStamp
+              } else {
+                holidayAnimStarted = time
+                holidayAnimPlaying = true
+              }
+            }
+          }
+        }
+      }
+    }
+    // Draw only during the active animation. This Canvas is pointer-free.
+    if holidayAnimPlaying && holidayMode != "None" && !browsing && activeSide == 0 && !cfg.reduceMotion {
+      Canvas {
+        width: tileWidth ?? 400
+        height: tileHeight ?? 800
+        let originX = controlSide == -1 ? controlLeft + 90 : (tileWidth ?? 400) - controlRight - 94
+        let originY = (tileHeight ?? 800) - searchBottom - 13
+        if holidayMode == "Halloween" {
+          // Roll inward, reverse, and disappear beyond the near screen edge.
+          let offscreen = controlSide == -1 ? originX + 24 : (tileWidth ?? 400) - originX + 24
+          let forward = clamp(holidayAge / 0.7, 0, 1)
+          let reverseT = clamp((holidayAge - 0.7) / 1.7, 0, 1)
+          let travel = holidayAge < 0.7 ? 55 * forward : 55 - (55 + offscreen) * reverseT
+          let x = originX + (controlSide == -1 ? 1 : -1) * travel
+          let y = originY - 1.4 * abs(sin(travel / 6))
+          circle(x, y, 13, fill: alpha(#F5A347, 0.18))
+          rotate((controlSide == -1 ? 1 : -1) * travel * 6.37, x, y) {
+            circle(x, y, 9, fill: #E9852C)
+            line(x, y - 9, x + 1.2, y - 12, stroke: #68A26A, width: 2.2, cap: round)
+            line(x - 4, y - 5, x - 4, y + 5, stroke: #AE5B1B, width: 1)
+            line(x + 4, y - 5, x + 4, y + 5, stroke: #AE5B1B, width: 1)
+            path([[x - 5, y - 3], [x - 2, y - 6], [x - 1, y - 2]], closed: true, fill: #39261E)
+            path([[x + 1, y - 2], [x + 2, y - 6], [x + 5, y - 3]], closed: true, fill: #39261E)
+            path([[x - 5, y + 2], [x - 2, y + 5], [x + 2, y + 5], [x + 5, y + 2]], closed: true, fill: #39261E)
+          }
+        } else if holidayMode == "Christmas" {
+          // Brief snow over the whole display; the ornament falls away.
+          let fade = clamp(holidayAge / 0.35, 0, 1) * clamp((holidayDuration - holidayAge) / 0.6, 0, 1)
+          for i in range(30) {
+            let snowX = 12 + (i * 73) % max(1, (tileWidth ?? 400) - 24) + 5 * sin(holidayAge * 1.25 + i * 2.4)
+            let snowY = ((i * 109) % max(1, (tileHeight ?? 800) + 40) + holidayAge * (34 + (i % 5) * 12)) % max(1, (tileHeight ?? 800) + 40) - 20
+            circle(snowX, snowY, i % 5 == 0 ? 2 : 1.2, fill: alpha(#DFF5FF, (i % 3 == 0 ? 0.85 : 0.58) * fade))
+          }
+          let x = originX + 11 * sin(holidayAge * 2.4)
+          let y = originY - 22 + holidayAge * 32
+          for i in range(6) {
+            rotate(i * 60 + holidayAge * 22, x, y) {
+              line(x, y - 3, x, y - 11, stroke: alpha(#D7F5FF, fade), width: 1.8, cap: round)
+              line(x, y - 8, x - 3, y - 10, stroke: alpha(#A6DFEE, fade), width: 1.2, cap: round)
+              line(x, y - 8, x + 3, y - 10, stroke: alpha(#A6DFEE, fade), width: 1.2, cap: round)
+            }
+          }
+          circle(x, y, 2.3, fill: alpha(#FFFFFF, fade))
+        } else if holidayMode == "New Year" {
+          // One brief expanding glow that fades entirely away.
+          let progress = clamp(holidayAge / holidayDuration, 0, 1)
+          let fade = clamp((holidayDuration - holidayAge) / 0.7, 0, 1)
+          circle(originX, originY, 15 + progress * 19, fill: alpha(#FFD36B, 0.21 * fade))
+          circle(originX, originY, 11 + progress * 5, fill: alpha(#FFE9A1, 0.30 * fade))
+          for i in range(8) {
+            rotate(i * 45, originX, originY) {
+              line(originX, originY - 4, originX, originY - (13 + 15 * progress), stroke: alpha(#FFD778, fade), width: 2.2, cap: round)
+            }
+          }
+          circle(originX, originY, 3.2, fill: alpha(#FFF5CB, fade))
         }
       }
     }
@@ -2127,12 +2217,12 @@ face "Omagara" {
                 for holidayChoice in holidayPreviewChoices {
                   Button {
                     text: (holidayPreview == holidayChoice ? "✓ " : "") + (holidayChoice == "Auto" ? "Stop preview / Auto" : "Preview " + holidayChoice)
-                    onTap: { holidayPreview = holidayChoice; close() }
+                    onTap: { holidayPreview = holidayChoice; holidayAnimPlaying = false; holidayPlayedStamp = ""; close() }
                   }
                 }
               }
-              Text { text: "Preview returns to the home screen and stays active until you choose Auto or reload Omagara. Preview works even with automatic effects OFF."; font: chosenFont; fontSize: 12; color: secondaryText }
-              Text { text: "Reduce motion keeps holiday artwork static."; font: chosenFont; fontSize: 12; color: secondaryText }
+              Text { text: "Tap the holiday ornament near Search to play it. When it disappears, opening the alphabet resets it. Previews work even with automatic effects OFF."; font: chosenFont; fontSize: 12; color: secondaryText }
+              Text { text: "Reduce motion skips animation: tap the ornament to dismiss it."; font: chosenFont; fontSize: 12; color: secondaryText }
             } else {
               Text { text: "Backup & reset"; color: accent; font: chosenFont; fontSize: 18; padding: [0, 8, 0, 4] }
               Text { text: "Export or restore Omagara preferences."; font: chosenFont; fontSize: 13; color: secondaryText }
@@ -2155,7 +2245,7 @@ face "Omagara" {
         if resetConfirm {
           Text { text: "Reset Omagara appearance and world clocks?"; font: chosenFont }
           Row {
-            Button { text: "Confirm reset"; onTap: { letter = highlightedLetter; appTracking = false; prefs = {}; worldZones = []; holidayPreview = "Auto"; resetConfirm = false; importText = ""; customTextEntry = ""; customShadeEntry = ""; importStatus = "" } }
+            Button { text: "Confirm reset"; onTap: { letter = highlightedLetter; appTracking = false; prefs = {}; worldZones = []; holidayPreview = "Auto"; holidayAnimPlaying = false; holidayPlayedStamp = ""; resetConfirm = false; importText = ""; customTextEntry = ""; customShadeEntry = ""; importStatus = "" } }
             Button { text: "Cancel"; onTap: resetConfirm = false }
           }
         }
