@@ -2297,7 +2297,6 @@ face "Omagara" {
           Box {
             width: 30
             height: folderViewportHeight
-            ripple: false
             onPress: { folderScroll = clamp(y / max(1, folderViewportHeight) * folderMaxScroll, 0, folderMaxScroll); menu = "" }
             onDrag: { folderScroll = clamp(y / max(1, folderViewportHeight) * folderMaxScroll, 0, folderMaxScroll) }
             Canvas {
