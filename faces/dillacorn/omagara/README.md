@@ -1,10 +1,10 @@
-# Omagara v1.8
+# Omagara v1.9
 
 Niagara-inspired OWL 21 home face for [Omalauncher](https://github.com/SimonSchubert/omalauncher). No additional packages required.
 
 ## Features
 
-- **Alphabet:** Elastic A–Z navigation, frequently launched app previews, hide apps from the worm without hiding them from Search, optional launch-score sorting within letters, a Settings cog, optional opposite-edge input, and configurable haptics.
+- **Alphabet:** Elastic A–Z navigation, frequently launched app previews, hide apps from the worm without hiding them from Search, optional launch-score or persistent manual ordering within letters, a Settings cog, optional opposite-edge input, and configurable haptics.
 - **Apps:** Buffered full-height browser with elastic ends, adjustable scale, padded A–Z headings, and two compact bottom settings actions without a separate heading. Holding the cog previews only Omagara settings and Omalauncher settings. Empty Search places the most recently opened app first.
 - **Notifications:** Grouped cards, optional per-app hiding (Omagara only) and alert compression, adjustable start height with automatic space recovery, optional timestamps, swipe feedback, expandable actions/replies, and native scrolling.
 - **Appearance:** Clock, date and event alignment with the notification column (or screen center), automatic centering when the home alphabet is hidden, adjustable text/shade colors, opacity, and corners.
@@ -15,6 +15,13 @@ Niagara-inspired OWL 21 home face for [Omalauncher](https://github.com/SimonSchu
 Slide onto the cog below the last alphabet letter (with haptic feedback) to navigate to the bottom settings menu. Select Omagara settings or Omalauncher settings there. Long-press Search still opens Omagara settings directly.
 
 Time format is selected under **Clock** in Omagara settings; OWL does not expose Android's system format. **Home** offers two buttons to set the persistent default: Omagara (`home.home-page = 0`) or the original tile home (`home.home-page = 1`). An optional background command changes `~/.config/omalauncher/style/style.toml` without opening a terminal. Omagara displays success or failure in Home settings and saves a backup. Omalauncher Linux is required for these two buttons, not for the face itself. Separate page-navigation buttons do not change the default. World clocks appear under Clock, corner rounding under Appearance, and export/import/reset under Backup.
+
+## v1.9 changes
+
+- Add optional **Manual** app order in Apps settings, alongside Alphabetical (default) and Most used.
+- In Manual mode, long-press an app in the alphabetical browser to move it up or down one visible position within its letter. Hidden apps retain their saved slots, including work-profile and cloned copies.
+- Keep Search independent of manual order and preserve the existing shortcut and native app actions.
+- Include manual order in settings exports, imports and reset; older v1 backups remain supported.
 
 ## v1.8 changes
 
