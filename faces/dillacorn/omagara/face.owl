@@ -120,12 +120,10 @@ face "Omagara" {
   state folderEditId = ""
   state folderPickAppKey = ""
   state folderPickReturnMode = "face"
-  state folderReturnMode = "face"
   state folderDraft = ""
   state folderEditName = ""
   state folderAppQuery = ""
   state folderDeleteConfirm = false
-  state folderScroll = 0
   state railFolderSelected = -1
   state railFolderLongPressed = false
   state heldAlphabet = []
@@ -435,10 +433,6 @@ face "Omagara" {
   let editingFolder = find(customFolders, f => f.id == folderEditId)
   let folderApps = activeFolder == null ? [] : activeFolder.keys.map(k => find(installed ?? [], a => a.key == k)).filter(a => a != null)
   let folderKeys = folderApps.map(a => a.key)
-  let folderViewportHeight = max(170, min(520, availableHeight - 150))
-  let folderMaxScroll = max(0, len(folderApps) * appRowHeight - folderViewportHeight)
-  let folderStart = max(0, floor(min(folderScroll, folderMaxScroll) / appRowHeight) - 2)
-  let folderWindow = take(drop(folderApps, folderStart), ceil(folderViewportHeight / appRowHeight) + 5)
   let appSafeTop = screenTop
   let appSafeBottom = max(appSafeTop, (tileHeight ?? 800) - screenInset)
   let appPanelHeight = max(0, appSafeBottom - appSafeTop)
@@ -1626,7 +1620,8 @@ face "Omagara" {
         appAnchor = ""
         menu = ""
         queryText = ""
-        if searchView || folderView { close() }
+        if folderView { folderOpenId = "" }
+        if searchView { close() }
         androidApp(launchKey)
         }
       }
@@ -1712,20 +1707,20 @@ face "Omagara" {
             menu = ""
             folderPickAppKey = a.key
             folderDraft = ""
-            folderPickReturnMode = folderView ? "folder" : searchView ? "search" : "face"
+            folderPickReturnMode = searchView ? "search" : "face"
             screenMode = "folderPick"
-            if !folderView && !searchView { appVelocity = 0; railHeld = false; activeSide = 0; screen() }
+            if !searchView { appVelocity = 0; railHeld = false; activeSide = 0; folderOpenId = ""; screen() }
           }
         }
         for shortcut in menuShortcuts ?? [] key shortcut.key {
-          Text { text: shortcut.name; fill: width; padding: [12, 14]; maxLines: 2; onTap: { menu = ""; appVelocity = 0; browsing = false; activeSide = 0; railHeld = false; draggingSide = 0; letter = first(liveAlphabet) ?? "A"; appScroll = 0; appAnchor = ""; queryText = ""; if folderView { close() }; open(shortcut.key) } }
+          Text { text: shortcut.name; fill: width; padding: [12, 14]; maxLines: 2; onTap: { menu = ""; appVelocity = 0; browsing = false; activeSide = 0; railHeld = false; draggingSide = 0; letter = first(liveAlphabet) ?? "A"; appScroll = 0; appAnchor = ""; queryText = ""; if folderView { folderOpenId = "" }; open(shortcut.key) } }
         }
         for actionWord in (find(drawer.apps ?? [], d => d.key == a.key || d.key == "a:" + a.key).actions ?? []) {
           Text {
             text: get({pin: "Add to home", info: "App info", uninstall: "Uninstall", remove: "Remove", edit: "Edit", share: "Share"}, actionWord, actionWord)
             fill: width
             padding: [12, 14]
-            onTap: { menu = ""; appVelocity = 0; browsing = false; activeSide = 0; railHeld = false; draggingSide = 0; letter = first(liveAlphabet) ?? "A"; appScroll = 0; appAnchor = ""; queryText = ""; if folderView { close() }; appAction(actionWord, a.key) }
+            onTap: { menu = ""; appVelocity = 0; browsing = false; activeSide = 0; railHeld = false; draggingSide = 0; letter = first(liveAlphabet) ?? "A"; appScroll = 0; appAnchor = ""; queryText = ""; if folderView { folderOpenId = "" }; appAction(actionWord, a.key) }
           }
         }
       }
@@ -2387,55 +2382,8 @@ face "Omagara" {
   }
 
   screen {
-    title: screenMode == "folder" ? (activeFolder == null ? "Folder" : activeFolder.name) : screenMode == "folderList" ? "Folders" : screenMode == "folderEdit" ? "Edit folder" : screenMode == "folderPick" ? "Add to folder" : screenMode == "calendarAdd" ? "Add event · calendar app" : screenMode == "settings" ? "Omagara Settings" : screenMode == "clock" ? "Clock" : screenMode == "calendar" ? "Calendar" : "Search apps"
-    if screenMode == "folder" {
-      Column {
-        fill: true
-        gap: 12
-        Row {
-          fill: width; align: center; gap: 10
-          Button { text: "‹ Back"; onTap: { menu = ""; folderScroll = 0; if folderReturnMode == "folderList" { screenMode = "folderList" } else { close() } } }
-          Text { text: activeFolder == null ? "Folder removed" : activeFolder.name; weight: 1; font: chosenFont; fontSize: 22; maxLines: 1 }
-          Button {
-            text: "Edit"
-            onTap: { if activeFolder != null { folderEditId = activeFolder.id; folderEditName = activeFolder.name; folderAppQuery = ""; folderDeleteConfirm = false; screenMode = "folderEdit" } }
-          }
-        }
-        Text { text: str(len(folderApps)) + " apps · Slide the bar to navigate"; font: chosenFont; fontSize: 12; color: muted }
-        Row {
-          fill: width
-          height: folderViewportHeight
-          gap: 4
-          Box {
-            weight: 1
-            height: folderViewportHeight
-            clip: true
-            onDrag: { folderScroll = clamp(folderScroll - dy, 0, folderMaxScroll); menu = "" }
-            for a, i in folderWindow key a.key {
-              Box {
-                width: appPanelWidth
-                height: appRowHeight
-                offset: [0, (folderStart + i) * appRowHeight - min(folderScroll, folderMaxScroll)]
-                AppRow { a: a; thumbView: true; folderView: true }
-              }
-            }
-            if len(folderApps) == 0 { Text { text: "Folder is empty. Edit it to add apps."; font: chosenFont; fontSize: 14; color: muted; padding: [14, 12] } }
-          }
-          Box {
-            width: 30
-            height: folderViewportHeight
-            onPress: { folderScroll = clamp(y / max(1, folderViewportHeight) * folderMaxScroll, 0, folderMaxScroll); menu = "" }
-            onDrag: { folderScroll = clamp(y / max(1, folderViewportHeight) * folderMaxScroll, 0, folderMaxScroll) }
-            Canvas {
-              width: 30
-              height: folderViewportHeight
-              line(15, 8, 15, folderViewportHeight - 8, stroke: alpha(secondaryText, 0.35), width: 3, cap: round)
-              line(15, 8 + min(folderScroll, folderMaxScroll) / max(1, folderMaxScroll) * max(0, folderViewportHeight - 40), 15, 32 + min(folderScroll, folderMaxScroll) / max(1, folderMaxScroll) * max(0, folderViewportHeight - 40), stroke: accent, width: 5, cap: round)
-            }
-          }
-        }
-      }
-    } else if screenMode == "folderList" {
+    title: screenMode == "folderList" ? "Folders" : screenMode == "folderEdit" ? "Edit folder" : screenMode == "folderPick" ? "Add to folder" : screenMode == "calendarAdd" ? "Add event · calendar app" : screenMode == "settings" ? "Omagara Settings" : screenMode == "clock" ? "Clock" : screenMode == "calendar" ? "Calendar" : "Search apps"
+    if screenMode == "folderList" {
       Column {
         fill: true
         gap: 10
@@ -2463,7 +2411,12 @@ face "Omagara" {
               background: alpha(surface, 0.20)
               Column {
                 weight: 1
-                onTap: { folderOpenId = f.id; folderReturnMode = "folderList"; folderScroll = 0; menu = ""; screenMode = "folder" }
+                onTap: {
+                  appScroll = clamp(appFolderTop + appLabelHeight + i * appRowHeight - appPanelHeight * 0.35, 0, appMaxScroll)
+                  appVelocity = 0; browsing = true; activeSide = 0; railHeld = false; menu = ""
+                  folderOpenId = f.id
+                  close()
+                }
                 onLongPress: { folderEditId = f.id; folderEditName = f.name; folderAppQuery = ""; folderDeleteConfirm = false; screenMode = "folderEdit" }
                 Text { text: f.name + " · " + str(len(f.keys)); font: chosenFont; fontSize: 16; maxLines: 1 }
               }
