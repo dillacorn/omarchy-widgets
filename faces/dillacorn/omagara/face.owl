@@ -434,17 +434,11 @@ face "Omagara" {
   // The notification list must not capture touches in the native home gesture
   // area. Stop 12dp above Search, leaving the lower screen clear for up/down
   // swipes even when notifications are present. Its scroll footer remains inside.
-  let noticeBottom = max(noticeTop, (tileHeight ?? 800) - searchBottom - 60)
+  let noticeBottom = max(screenTop + 12, (tileHeight ?? 800) - searchBottom - 60)
   // One source of truth: 20dp outer left; 12dp clear of the 44dp right rail.
   let noticeWidth = max(0, availableWidth - 80)
-  // Cap pin height so regular notifications retain screen space.
-  let pinnedNoticeAvailableHeight = max(0, noticeBottom - noticeTop - (hasMedia || showMusicApps ? 92 : 0))
-  // The compact Notifications/Clear all header saves roughly 6dp.
-  // Give that space to pins when ordinary notifications share the panel.
-  let pinnedHomeHeight = min((cfg.compactPins ? 46 : len(pinnedApps) * 52) + (expandedPinnedKey != "" ? 192 : 0), max(0, pinnedNoticeAvailableHeight * (cfg.notifications && len(regularNoticeItems) > 0 ? 0.56 : 0.84) + (cfg.notifications && len(regularNoticeItems) > 0 ? 6 : 0)))
-  // Additional content after the last card: it can scroll above the Search
-  // button rather than remaining partly hidden underneath it.
-  let noticeTailSpace = max(120, searchBottom - screenInset + 100)
+  // One native vertical document: no separate pin quota or fixed notification
+  // start offset. Collapsing/dismissing a notification closes the gap naturally.
   // Matching 64dp resistance and 240ms rebound at both notification ends.
   // Read time only while returning; keep native lazy scrolling untouched.
   let noticeEndAge = noticeEndReturning ? max(0, time - noticeEndStarted) : 0
@@ -1114,15 +1108,105 @@ face "Omagara" {
     }
   }
 
+  // The clock, date and event are content in the same home scroll document.
+  component HomeHeader() {
+      Box {
+        fill: width
+        height: headerPadTop + headerShapeHeight
+        align: topStart
+        // Align this header to the actual media/notification column. Do not move the worm.
+        offset: [cfg.headerAlignment == "Content column" ? 0 : -noticePanelShift, 0]
+        if cfg.shadeHeader && len(headerRows) > 0 {
+          Canvas {
+            fill: width
+            height: headerShapeHeight
+            offset: [0, headerPadTop]
+            let topRounded = cfg.clock ? cfg.roundTime : cfg.date ? cfg.roundDate : cfg.roundEvent
+            let bottomRounded = cfg.event && todayEvent != null ? cfg.roundEvent : cfg.date ? cfg.roundDate : cfg.roundTime
+            // Restore the compact v1.6 outer-corner treatment, not a capsule.
+            let topR = topRounded ? 8 : 0
+            let bottomR = bottomRounded ? 8 : 0
+            let shadeWidth = min(headerShapeMax, 16 + max(cfg.clock ? headerClockWidth : 0, max(cfg.date ? headerDateWidth : 0, cfg.event && todayEvent != null ? headerEventWidth : 0)))
+            let slices = map(range(ceil(headerShapeHeight / 2) + 1), i => min(headerShapeHeight, i * 2))
+            let shapeEdge = map(slices, y => {
+              y: y,
+              half: shadeWidth / 2
+                - (topR > 0 && y < topR ? topR - sqrt(max(0, topR * topR - pow(y - topR, 2))) : 0)
+                - (bottomR > 0 && y > headerShapeHeight - bottomR ? bottomR - sqrt(max(0, bottomR * bottomR - pow(y - headerShapeHeight + bottomR, 2))) : 0)
+            })
+            path(map(shapeEdge, p => [width / 2 + p.half, p.y]) + reverse(map(shapeEdge, p => [width / 2 - p.half, p.y])), closed: true, fill: headerShade)
+          }
+        }
+        Column {
+          fill: width
+          gap: 0
+          offset: [0, headerPadTop]
+          if cfg.clock {
+            Box {
+              fill: width
+              height: headerClockHeight
+              align: center
+              Text {
+                text: headerClockText
+                width: headerClockWidth
+                font: chosenFont
+                fontSize: headerClockFont
+                fontWeight: 300
+                color: primaryText
+                align: center
+                maxLines: 1
+                onTap: { if cfg.clockTap { queryText = ""; screenMode = "clock"; screen() } }
+              }
+            }
+          }
+          if cfg.date {
+            Box {
+              fill: width
+              height: headerDateHeight
+              align: center
+              Text {
+                text: headerDateText
+                width: headerDateWidth
+                font: chosenFont
+                fontSize: 16
+                color: secondaryText
+                align: center
+                maxLines: 1
+                onTap: { if cfg.dateTap { pickedEvent = null; queryText = ""; screenMode = "calendar"; screen() } }
+              }
+            }
+          }
+          if cfg.event && todayEvent != null {
+            Box {
+              fill: width
+              height: headerEventHeight
+              align: center
+              Text {
+                text: headerEventText
+                width: headerEventWidth
+                font: chosenFont
+                fontSize: 13
+                color: secondaryText
+                align: center
+                maxLines: 1
+                onTap: { if cfg.eventTap { pickedEvent = todayEvent; queryText = ""; screenMode = "calendar"; screen() } }
+              }
+            }
+          }
+        }
+      }
+  }
+
   component NotificationPanel() {
     Column {
       width: noticeWidth
-      height: max(0, noticeBottom - noticeTop)
+      height: max(0, noticeBottom - screenTop - 12)
       clip: true
       gap: 6
-      // The top header pulls down and the final spacer pulls up. Apply the
-      // same rubber-band offset to the clipped viewport in either direction.
-      offset: [0, noticeElasticY]
+      lazy: true
+      if len(headerRows) > 0 {
+        HomeHeader {}
+      }
       // Native compact player and selected app shortcuts share one surface.
       // A manual chevron controls shortcuts, independent of playback state.
       if hasMedia || showMusicApps {
@@ -1292,26 +1376,6 @@ face "Omagara" {
           fill: width
           gap: 8
           align: center
-          drag: vertical
-          onPress: {
-            // Catch the panel mid-return without a jump on the next pull.
-            noticeTopPull = noticeTopVisual
-            noticeTopReturning = false
-          }
-          onDrag: {
-            if !cfg.reduceMotion && dy > 0 {
-              noticeTopReturning = false
-              noticeTopPull = min(64, noticeTopPull + dy * (0.55 / (1 + noticeTopPull / 64)))
-            } else if dy < 0 {
-              noticeTopPull = max(0, noticeTopPull + dy * 0.75)
-            }
-          }
-          onDragEnd: {
-            noticeTopFrom = noticeTopPull
-            noticeTopStarted = time
-            noticeTopReturning = !cfg.reduceMotion && noticeTopPull > 0
-            if cfg.reduceMotion { noticeTopPull = 0 }
-          }
           Text {
             text: "Notifications"
             font: chosenFont
@@ -1336,44 +1400,11 @@ face "Omagara" {
             }
           }
         }
-        Column {
-          lazy: true
-          weight: 1
-          fill: width
-          gap: 4
-          for noticeRow in noticeRows key noticeRow.id {
-            NotificationRow { item: noticeRow.item; stack: noticeRow.stack; summary: noticeRow.summary }
-          }
-          // Keep the existing scroll extent, but let downward/upward drags
-          // starting in the empty area reach the lazy notification list.
-          // A narrow terminal strip retains the end-of-list rebound effect.
-          Spacer { width: noticeWidth; height: max(0, noticeTailSpace - 12) }
-          Box {
-            width: noticeWidth
-            height: min(12, noticeTailSpace)
-            drag: vertical
-            onPress: {
-              // Preserve any in-progress rebound when the footer is grabbed.
-              noticeEndPull = noticeEndVisual
-              noticeEndReturning = false
-            }
-            onDrag: {
-              if !cfg.reduceMotion && dy < 0 {
-                noticeEndReturning = false
-                noticeEndPull = min(64, noticeEndPull - dy * (0.55 / (1 + noticeEndPull / 64)))
-              } else if dy > 0 {
-                noticeEndPull = max(0, noticeEndPull - dy * 0.75)
-              }
-            }
-            onDragEnd: {
-              noticeEndFrom = noticeEndPull
-              noticeEndStarted = time
-              noticeEndReturning = !cfg.reduceMotion && noticeEndPull > 0
-              if cfg.reduceMotion { noticeEndPull = 0 }
-            }
-            // Visible rebound is applied to the clipped notification viewport.
-          }
+        for noticeRow in noticeRows key noticeRow.id {
+          NotificationRow { item: noticeRow.item; stack: noticeRow.stack; summary: noticeRow.summary }
         }
+        // Small scroll tail keeps native gesture space clear of Search.
+        Spacer { width: noticeWidth; height: 20 }
       }
       }
     }
@@ -2075,99 +2106,6 @@ face "Omagara" {
     ripple: false
     onPress: { if appVelocity != 0 { appScroll = appOffset; appVelocity = 0; if appFirst != null { appAnchor = appFirst.id; appAnchorSection = appFirst.section; appAnchorOffset = appOffset - appFirst.top } } }
     onTap: { appVelocity = 0; browsing = false; activeSide = 0; railHeld = false; draggingSide = 0; letter = first(liveAlphabet) ?? "A"; appScroll = 0; appAnchor = ""; queryText = ""; menu = ""; expandedStack = ""; replyKey = ""; replyDraft = "" }
-    Column {
-      fill: true
-      gap: 0
-      padding: [screenLeft + 24, screenTop + 12, screenRight + 24, 0]
-      visible: !browsing
-      // One uniform-width rectangle behind the time, date and event.
-      // Optional rounding is subtle; the header remains rectangular.
-      Box {
-        fill: width
-        height: headerPadTop + headerShapeHeight
-        align: topStart
-        // Align this header to the actual media/notification column. Do not move the worm.
-        offset: [cfg.headerAlignment == "Content column" ? noticePanelShift : 0, 0]
-        if cfg.shadeHeader && len(headerRows) > 0 {
-          Canvas {
-            fill: width
-            height: headerShapeHeight
-            offset: [0, headerPadTop]
-            let topRounded = cfg.clock ? cfg.roundTime : cfg.date ? cfg.roundDate : cfg.roundEvent
-            let bottomRounded = cfg.event && todayEvent != null ? cfg.roundEvent : cfg.date ? cfg.roundDate : cfg.roundTime
-            // Restore the compact v1.6 outer-corner treatment, not a capsule.
-            let topR = topRounded ? 8 : 0
-            let bottomR = bottomRounded ? 8 : 0
-            let shadeWidth = min(headerShapeMax, 16 + max(cfg.clock ? headerClockWidth : 0, max(cfg.date ? headerDateWidth : 0, cfg.event && todayEvent != null ? headerEventWidth : 0)))
-            let slices = map(range(ceil(headerShapeHeight / 2) + 1), i => min(headerShapeHeight, i * 2))
-            let shapeEdge = map(slices, y => {
-              y: y,
-              half: shadeWidth / 2
-                - (topR > 0 && y < topR ? topR - sqrt(max(0, topR * topR - pow(y - topR, 2))) : 0)
-                - (bottomR > 0 && y > headerShapeHeight - bottomR ? bottomR - sqrt(max(0, bottomR * bottomR - pow(y - headerShapeHeight + bottomR, 2))) : 0)
-            })
-            path(map(shapeEdge, p => [width / 2 + p.half, p.y]) + reverse(map(shapeEdge, p => [width / 2 - p.half, p.y])), closed: true, fill: headerShade)
-          }
-        }
-        Column {
-          fill: width
-          gap: 0
-          offset: [0, headerPadTop]
-          if cfg.clock {
-            Box {
-              fill: width
-              height: headerClockHeight
-              align: center
-              Text {
-                text: headerClockText
-                width: headerClockWidth
-                font: chosenFont
-                fontSize: headerClockFont
-                fontWeight: 300
-                color: primaryText
-                align: center
-                maxLines: 1
-                onTap: { if cfg.clockTap { queryText = ""; screenMode = "clock"; screen() } }
-              }
-            }
-          }
-          if cfg.date {
-            Box {
-              fill: width
-              height: headerDateHeight
-              align: center
-              Text {
-                text: headerDateText
-                width: headerDateWidth
-                font: chosenFont
-                fontSize: 16
-                color: secondaryText
-                align: center
-                maxLines: 1
-                onTap: { if cfg.dateTap { pickedEvent = null; queryText = ""; screenMode = "calendar"; screen() } }
-              }
-            }
-          }
-          if cfg.event && todayEvent != null {
-            Box {
-              fill: width
-              height: headerEventHeight
-              align: center
-              Text {
-                text: headerEventText
-                width: headerEventWidth
-                font: chosenFont
-                fontSize: 13
-                color: secondaryText
-                align: center
-                maxLines: 1
-                onTap: { if cfg.eventTap { pickedEvent = todayEvent; queryText = ""; screenMode = "calendar"; screen() } }
-              }
-            }
-          }
-        }
-      }
-    }
     if browsing {
       Box {
         width: appPanelWidth
@@ -2327,8 +2265,8 @@ face "Omagara" {
       Box {
         fill: true
         align: topStart
-        padding: [screenLeft + 40, noticeTop, screenRight + 40, 0]
-        visible: (cfg.notifications || hasMedia || mediaNeedsAccess || showMusicApps || len(pinnedApps) > 0) && !browsing && activeSide == 0
+        padding: [screenLeft + 40, screenTop + 12, screenRight + 40, 0]
+        visible: !browsing && activeSide == 0
         offset: [noticePanelShift, 0]
         NotificationPanel {}
       }
@@ -2336,8 +2274,8 @@ face "Omagara" {
       Box {
         fill: true
         align: topStart
-        padding: [screenLeft + 40, noticeTop, screenRight + 40, 0]
-        visible: (cfg.notifications || hasMedia || mediaNeedsAccess || showMusicApps || len(pinnedApps) > 0) && !browsing && activeSide == 0
+        padding: [screenLeft + 40, screenTop + 12, screenRight + 40, 0]
+        visible: !browsing && activeSide == 0
         offset: [noticePanelShift, 0]
         animate offset: tween(260ms, "ease")
         NotificationPanel {}
