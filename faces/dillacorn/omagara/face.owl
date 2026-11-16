@@ -1574,7 +1574,10 @@ face "Omagara" {
                 } else if moveMode == "alphabet" && moveTargetIndex != moveOriginIndex {
                   let neighbor = moveTargetIndex == 0 ? get(moveOtherKeys, 0) : get(moveOtherKeys, moveTargetIndex - 1)
                   if neighbor != null {
-                    manualAppMoves = manualAppMoves.filter(m => m.key != moveKey) + [{letter: moveLetter, key: moveKey, anchor: neighbor, after: moveTargetIndex > 0}]
+                    // Replay the relocation AFTER earlier moves, including
+                    // moves that use this app as their anchor. Removing its
+                    // history would unexpectedly rearrange other moved apps.
+                    manualAppMoves = manualAppMoves + [{letter: moveLetter, key: moveKey, anchor: neighbor, after: moveTargetIndex > 0}]
                     appVelocity = 0
                     appScroll = appOffset
                     appAnchor = ""
