@@ -112,6 +112,8 @@ face "Omagara" {
   state customShadeEntry = ""
   state importStatus = ""
   state settingsSection = "Home"
+  // Manual holiday previews are temporary; returning to Auto restores the local-date rule.
+  state holidayPreview = "Auto"
   state homeApplyPage = ""
   state homeApplySerial = 0
   state homeApplyStatus = ""
@@ -121,7 +123,7 @@ face "Omagara" {
   state timerLeft = 0 persist
   state watchStarted = 0
   state watchElapsed = 0
-  let defaults = {idleAlphabet: true, hideEmpty: true, icons: true, iconStyle: "Theme overlay", iconOverlayOpacity: 30, faceFont: "Sans", clock: true, date: true, event: true, notifications: true, previews: true, curve: true, reduceMotion: false, leftInput: true, grouping: true, actions: true, clockTap: true, dateTap: true, eventTap: true, searchContacts: false, calculator: true, appScale: 80, timeFormat: "24-hour", notificationTimes: true, hapticFeedback: "Every letter", roundTime: false, roundDate: false, roundEvent: false, roundAlphabet: false, roundNotifications: false, roundNoticeHeading: false, roundClearAll: false, roundSearch: false, roundClose: false, roundLetterCue: false, roundCalendar: false, bubbleBorder: false, textTone: "Theme", textContrast: "High", customTextHex: "#FAFAFA", shadeColorMode: "Theme", shadeCustomHex: "#555555", shadeHeader: true, shadeAlphabet: true, shadeNoticeLabels: true, shadeAppLabels: true, shadeHeaderOpacity: 29, shadeAlphabetOpacity: 49, shadeNoticeOpacity: 49, shadeCardOpacity: 48, shadeAppOpacity: 78, shadeButtonOpacity: 85, showSwipeCue: true, roundAppLabels: false, centerNotificationsWithoutAlphabet: true, alphabetSide: "Right", controlSide: "Right", closeSide: "Follow search"}
+  let defaults = {idleAlphabet: true, hideEmpty: true, icons: true, iconStyle: "Theme overlay", iconOverlayOpacity: 30, faceFont: "Sans", clock: true, date: true, event: true, notifications: true, previews: true, curve: true, reduceMotion: false, leftInput: true, grouping: true, actions: true, clockTap: true, dateTap: true, eventTap: true, searchContacts: false, calculator: true, appScale: 80, timeFormat: "24-hour", notificationTimes: true, hapticFeedback: "Every letter", roundTime: false, roundDate: false, roundEvent: false, roundAlphabet: false, roundNotifications: false, roundNoticeHeading: false, roundClearAll: false, roundSearch: false, roundClose: false, roundLetterCue: false, roundCalendar: false, bubbleBorder: false, textTone: "Theme", textContrast: "High", customTextHex: "#FAFAFA", shadeColorMode: "Theme", shadeCustomHex: "#555555", shadeHeader: true, shadeAlphabet: true, shadeNoticeLabels: true, shadeAppLabels: true, shadeHeaderOpacity: 29, shadeAlphabetOpacity: 49, shadeNoticeOpacity: 49, shadeCardOpacity: 48, shadeAppOpacity: 78, shadeButtonOpacity: 85, holidayEasterEggs: false, showSwipeCue: true, roundAppLabels: false, centerNotificationsWithoutAlphabet: true, alphabetSide: "Right", controlSide: "Right", closeSide: "Follow search"}
   let appScaleChoices = [75, 80, 85, 90, 95, 100, 105, 110, 115]
   let hapticChoices = ["Off", "Reduced", "Every letter"]
   let timeFormatChoices = ["12-hour", "24-hour"]
@@ -131,6 +133,7 @@ face "Omagara" {
   let textToneChoices = ["Theme", "Light", "Dark", "Custom"]
   let customTextPresets = [{name: "White", hex: "#FAFAFA"}, {name: "Warm", hex: "#FFEBD6"}, {name: "Blue", hex: "#CEE4FF"}, {name: "Amber", hex: "#FFDB96"}, {name: "Black", hex: "#101010"}]
   let shadeColorChoices = ["Theme", "Grey", "Black", "White", "Custom"]
+  let holidayPreviewChoices = ["Auto", "Halloween", "Christmas", "New Year"]
   let roundingKeys = ["roundTime", "roundDate", "roundEvent", "roundAlphabet", "roundNotifications", "roundNoticeHeading", "roundClearAll", "roundSearch", "roundClose", "roundLetterCue", "roundCalendar", "roundAppLabels"]
   let textContrastChoices = ["High", "Standard"]
   let shadeOpacityControls = [{key: "shadeHeaderOpacity", name: "Clock, date and event"}, {key: "shadeAlphabetOpacity", name: "Alphabet worm"}, {key: "shadeNoticeOpacity", name: "Notification headings"}, {key: "shadeCardOpacity", name: "Notification cards"}, {key: "shadeAppOpacity", name: "App labels"}, {key: "shadeButtonOpacity", name: "Search and close buttons"}]
@@ -145,7 +148,12 @@ face "Omagara" {
   // Explicit colors override all shaded surfaces, including notification cards.
   let themeShadeBase = cfg.textTone == "Light" ? #111111 : cfg.textTone == "Dark" ? #FFFFFF : mix(background, surface, 0.50)
   let shadeBase = cfg.shadeColorMode == "Theme" ? themeShadeBase : cfg.shadeColorMode == "Grey" ? #555555 : cfg.shadeColorMode == "Black" ? #000000 : cfg.shadeColorMode == "White" ? #FFFFFF : cfg.shadeCustomHex
-  let alphabetShade = alpha(shadeBase, cfg.shadeAlphabetOpacity / 100)
+  // Device-local dates only. Preview overrides the calendar without changing the clock.
+  let holidayDate = fmtTime(now, "MM-dd")
+  let holidayMode = holidayPreview != "Auto" ? holidayPreview : !cfg.holidayEasterEggs ? "None" : holidayDate == "10-31" ? "Halloween" : holidayDate == "12-25" ? "Christmas" : holidayDate == "01-01" ? "New Year" : "None"
+  let holidayTint = holidayMode == "Halloween" ? #F28B2D : holidayMode == "Christmas" ? #7ADDCB : #E9CB76
+  // Only tint the Theme alphabet shade. Respect explicitly configured shade colors.
+  let alphabetShade = alpha(holidayMode != "None" && cfg.shadeColorMode == "Theme" ? mix(shadeBase, holidayTint, 0.42) : shadeBase, cfg.shadeAlphabetOpacity / 100)
   let noticeHeadingShade = alpha(shadeBase, cfg.shadeNoticeOpacity / 100)
   let headerShade = alpha(shadeBase, cfg.shadeHeaderOpacity / 100)
   let appLabelShade = alpha(shadeBase, cfg.shadeAppOpacity / 100)
@@ -180,6 +188,7 @@ face "Omagara" {
     {key: "shadeNoticeLabels", name: "Notification heading shade"},
     {key: "shadeAppLabels", name: "App label shade"},
     {key: "showSwipeCue", name: "Show swipe gesture indicator"},
+    {section: "Holidays", key: "holidayEasterEggs", name: "Automatic holiday Easter eggs"},
     {section: "Corner rounding", key: "roundTime", name: "Clock"},
     {key: "roundDate", name: "Date"},
     {key: "roundEvent", name: "Event"},
@@ -1728,6 +1737,56 @@ face "Omagara" {
         }
       }
     }
+    // Purely decorative and pointer-free. Floats beside the six-dot grip when
+    // Search is on either edge, even if the ordinary gesture cue is hidden.
+    if holidayMode != "None" && !browsing && activeSide == 0 {
+      Box {
+        fill: true
+        align: controlSide == -1 ? "bottomStart" : "bottomEnd"
+        padding: controlSide == -1 ? [controlLeft, 0, 0, searchBottom - 28] : [0, 0, controlRight, searchBottom - 28]
+        Canvas {
+          width: 126
+          height: 58
+          let ornamentX = controlSide == -1 ? 90 : 32
+          if holidayMode == "Halloween" {
+            let glow = cfg.reduceMotion ? 0.18 : 0.16 + 0.08 * (1 + sin(time * 1.8))
+            circle(ornamentX, 17, 12, fill: alpha(#F5A347, glow))
+            circle(ornamentX, 17, 9, fill: #E9852C)
+            // Tiny carved pumpkin, with a green stem and warm ridges.
+            line(ornamentX, 8, ornamentX + 1.2, 5, stroke: #68A26A, width: 2.2, cap: round)
+            line(ornamentX - 4, 12, ornamentX - 4, 22, stroke: alpha(#AE5B1B, 0.52), width: 1)
+            line(ornamentX + 4, 12, ornamentX + 4, 22, stroke: alpha(#AE5B1B, 0.52), width: 1)
+            path([[ornamentX - 5, 14], [ornamentX - 2, 11], [ornamentX - 1, 15]], closed: true, fill: #39261E)
+            path([[ornamentX + 1, 15], [ornamentX + 2, 11], [ornamentX + 5, 14]], closed: true, fill: #39261E)
+            path([[ornamentX - 5, 19], [ornamentX - 2, 22], [ornamentX + 2, 22], [ornamentX + 5, 19], [ornamentX + 2, 20], [ornamentX, 19], [ornamentX - 2, 20]], closed: true, fill: #39261E)
+          } else if holidayMode == "Christmas" {
+            // A single gently drifting snowflake, not continuous snowfall.
+            let snowY = 17 + (cfg.reduceMotion ? 0 : 1.7 * sin(time * 1.2))
+            for i in range(6) {
+              rotate(i * 60, ornamentX, snowY) {
+                line(ornamentX, snowY - 2, ornamentX, snowY - 10, stroke: #D7F5FF, width: 1.7, cap: round)
+                line(ornamentX, snowY - 7, ornamentX - 2.5, snowY - 9, stroke: #A6DFEE, width: 1.2, cap: round)
+                line(ornamentX, snowY - 7, ornamentX + 2.5, snowY - 9, stroke: #A6DFEE, width: 1.2, cap: round)
+              }
+            }
+            circle(ornamentX, snowY, 2.2, fill: #FFFFFF)
+            circle(ornamentX - 14, 22, 1.1, fill: alpha(#D7F5FF, 0.62))
+            circle(ornamentX + 14, 10, 1.1, fill: alpha(#D7F5FF, 0.62))
+          } else if holidayMode == "New Year" {
+            // Brief gold twinkle, with no confetti or persistent timers.
+            let shine = cfg.reduceMotion ? 0.82 : 0.68 + 0.16 * (1 + sin(time * 2.6))
+            for i in range(8) {
+              rotate(i * 45, ornamentX, 17) {
+                line(ornamentX, 12, ornamentX, i % 2 == 0 ? 4 : 8, stroke: alpha(#FFD778, shine), width: i % 2 == 0 ? 1.8 : 1.2, cap: round)
+              }
+            }
+            circle(ornamentX, 17, 2.6, fill: #FFEBB0)
+            circle(ornamentX - 15, 8, 1.4, fill: alpha(#FFDA81, shine))
+            circle(ornamentX + 15, 26, 1.4, fill: alpha(#FFDA81, shine))
+          }
+        }
+      }
+    }
   }
 
   // OWL 21 exposes no activity-focus or screen-dismiss event to this face.
@@ -1801,7 +1860,7 @@ face "Omagara" {
         Flow {
           fill: width
           gap: 6
-          for section in ["Home", "Clock", "Apps", "Alphabet", "Notifications", "Appearance", "Backup"] {
+          for section in ["Home", "Clock", "Apps", "Alphabet", "Notifications", "Appearance", "Holidays", "Backup"] {
             Button {
               text: (settingsSection == section ? "✓ " : "") + section
               color: settingsSection == section ? accent : secondaryText
@@ -2053,6 +2112,27 @@ face "Omagara" {
               for pref in preferenceRows.filter(p => contains(roundingKeys, p.key)) {
                 SettingToggle { pref: pref }
               }
+            } else if shownSection == "Holidays" {
+              Text { text: "Holiday Easter eggs"; color: accent; font: chosenFont; fontSize: 18; padding: [0, 8, 0, 4] }
+              Text { text: "Small seasonal decorations near Search and a subtle alphabet tint. No new permissions or packages."; font: chosenFont; fontSize: 13; color: secondaryText }
+              for pref in preferenceRows.filter(p => p.key == "holidayEasterEggs") {
+                SettingToggle { pref: pref }
+              }
+              Text { text: "Automatic dates: Oct 31, Dec 25, Jan 1 (phone local time)."; font: chosenFont; fontSize: 13; color: secondaryText }
+              Text { text: "Current effect: " + (holidayMode == "None" ? "None" : holidayMode) + (holidayPreview == "Auto" ? " · Automatic" : " · Preview"); font: chosenFont; fontSize: 14; color: accent; padding: [0, 12, 0, 0] }
+              Text { text: "Preview any holiday now"; font: chosenFont; fontSize: 16 }
+              Flow {
+                fill: width
+                gap: 8
+                for holidayChoice in holidayPreviewChoices {
+                  Button {
+                    text: (holidayPreview == holidayChoice ? "✓ " : "") + (holidayChoice == "Auto" ? "Stop preview / Auto" : "Preview " + holidayChoice)
+                    onTap: { holidayPreview = holidayChoice; close() }
+                  }
+                }
+              }
+              Text { text: "Preview returns to the home screen and stays active until you choose Auto or reload Omagara. Preview works even with automatic effects OFF."; font: chosenFont; fontSize: 12; color: secondaryText }
+              Text { text: "Reduce motion keeps holiday artwork static."; font: chosenFont; fontSize: 12; color: secondaryText }
             } else {
               Text { text: "Backup & reset"; color: accent; font: chosenFont; fontSize: 18; padding: [0, 8, 0, 4] }
               Text { text: "Export or restore Omagara preferences."; font: chosenFont; fontSize: 13; color: secondaryText }
@@ -2062,7 +2142,7 @@ face "Omagara" {
           text: "Import Omagara settings"
           onTap: {
             let imported = parseJson(importText)
-            if imported.version == 1 && all(keys(defaults), k => (k == "shadeHeaderOpacity" || k == "shadeAlphabetOpacity" || k == "shadeNoticeOpacity" || k == "shadeCardOpacity" || k == "shadeAppOpacity" || k == "shadeButtonOpacity") ? get(imported.prefs, k) == null || contains(range(101), get(imported.prefs, k)) : k == "appScale" ? get(imported.prefs, k) == null || contains(appScaleChoices, get(imported.prefs, k)) : k == "hapticFeedback" ? get(imported.prefs, k) == null || contains(hapticChoices, get(imported.prefs, k)) : k == "bubbleBorder" ? get(imported.prefs, k) == null || get(imported.prefs, k) == true || get(imported.prefs, k) == false : k == "iconStyle" ? get(imported.prefs, k) == null || contains(iconStyleChoices, get(imported.prefs, k)) : k == "iconOverlayOpacity" ? get(imported.prefs, k) == null || contains(iconOverlayChoices, get(imported.prefs, k)) : k == "faceFont" ? get(imported.prefs, k) == null || contains(faceFontChoices, get(imported.prefs, k)) : k == "textTone" ? get(imported.prefs, k) == null || contains(textToneChoices, get(imported.prefs, k)) : k == "textContrast" ? get(imported.prefs, k) == null || contains(textContrastChoices, get(imported.prefs, k)) : k == "customTextHex" ? get(imported.prefs, k) == null || match(get(imported.prefs, k), "^#[0-9A-Fa-f]{6}$") != null : k == "shadeColorMode" ? get(imported.prefs, k) == null || contains(shadeColorChoices, get(imported.prefs, k)) : k == "shadeCustomHex" ? get(imported.prefs, k) == null || match(get(imported.prefs, k), "^#[0-9A-Fa-f]{6}$") != null : k == "timeFormat" ? get(imported.prefs, k) == null || get(imported.prefs, k) == "System" || contains(timeFormatChoices, get(imported.prefs, k)) : k == "alphabetSide" ? get(imported.prefs, k) == null || contains(["Left", "Right"], get(imported.prefs, k)) : k == "controlSide" ? get(imported.prefs, k) == null || contains(["Left", "Right"], get(imported.prefs, k)) : k == "closeSide" ? get(imported.prefs, k) == null || contains(["Follow search", "Left", "Right"], get(imported.prefs, k)) : k == "showSwipeCue" ? get(imported.prefs, k) == null || get(imported.prefs, k) == true || get(imported.prefs, k) == false : get(imported.prefs, k) == true || get(imported.prefs, k) == false || (k == "calculator" || k == "searchContacts") && get(imported.prefs, k) == null) && sub(toJson(imported.zones), 0, 1) == "[" && all(imported.zones, z => contains(zoneChoices, z)) {
+            if imported.version == 1 && all(keys(defaults), k => (k == "shadeHeaderOpacity" || k == "shadeAlphabetOpacity" || k == "shadeNoticeOpacity" || k == "shadeCardOpacity" || k == "shadeAppOpacity" || k == "shadeButtonOpacity") ? get(imported.prefs, k) == null || contains(range(101), get(imported.prefs, k)) : k == "appScale" ? get(imported.prefs, k) == null || contains(appScaleChoices, get(imported.prefs, k)) : k == "hapticFeedback" ? get(imported.prefs, k) == null || contains(hapticChoices, get(imported.prefs, k)) : k == "bubbleBorder" ? get(imported.prefs, k) == null || get(imported.prefs, k) == true || get(imported.prefs, k) == false : k == "iconStyle" ? get(imported.prefs, k) == null || contains(iconStyleChoices, get(imported.prefs, k)) : k == "iconOverlayOpacity" ? get(imported.prefs, k) == null || contains(iconOverlayChoices, get(imported.prefs, k)) : k == "faceFont" ? get(imported.prefs, k) == null || contains(faceFontChoices, get(imported.prefs, k)) : k == "textTone" ? get(imported.prefs, k) == null || contains(textToneChoices, get(imported.prefs, k)) : k == "textContrast" ? get(imported.prefs, k) == null || contains(textContrastChoices, get(imported.prefs, k)) : k == "customTextHex" ? get(imported.prefs, k) == null || match(get(imported.prefs, k), "^#[0-9A-Fa-f]{6}$") != null : k == "shadeColorMode" ? get(imported.prefs, k) == null || contains(shadeColorChoices, get(imported.prefs, k)) : k == "shadeCustomHex" ? get(imported.prefs, k) == null || match(get(imported.prefs, k), "^#[0-9A-Fa-f]{6}$") != null : k == "timeFormat" ? get(imported.prefs, k) == null || get(imported.prefs, k) == "System" || contains(timeFormatChoices, get(imported.prefs, k)) : k == "alphabetSide" ? get(imported.prefs, k) == null || contains(["Left", "Right"], get(imported.prefs, k)) : k == "controlSide" ? get(imported.prefs, k) == null || contains(["Left", "Right"], get(imported.prefs, k)) : k == "closeSide" ? get(imported.prefs, k) == null || contains(["Follow search", "Left", "Right"], get(imported.prefs, k)) : k == "showSwipeCue" || k == "holidayEasterEggs" ? get(imported.prefs, k) == null || get(imported.prefs, k) == true || get(imported.prefs, k) == false : get(imported.prefs, k) == true || get(imported.prefs, k) == false || (k == "calculator" || k == "searchContacts") && get(imported.prefs, k) == null) && sub(toJson(imported.zones), 0, 1) == "[" && all(imported.zones, z => contains(zoneChoices, z)) {
               letter = highlightedLetter; appTracking = false
               prefs = reduce(keys(defaults), (m, k) => set(m, k, k == "searchContacts" ? false : k == "textContrast" ? "High" : k == "timeFormat" && get(imported.prefs, k) == "System" ? "24-hour" : (get(imported.prefs, k) ?? get(defaults, k))), {})
               worldZones = unique(imported.zones ?? [])
@@ -2075,7 +2155,7 @@ face "Omagara" {
         if resetConfirm {
           Text { text: "Reset Omagara appearance and world clocks?"; font: chosenFont }
           Row {
-            Button { text: "Confirm reset"; onTap: { letter = highlightedLetter; appTracking = false; prefs = {}; worldZones = []; resetConfirm = false; importText = ""; customTextEntry = ""; customShadeEntry = ""; importStatus = "" } }
+            Button { text: "Confirm reset"; onTap: { letter = highlightedLetter; appTracking = false; prefs = {}; worldZones = []; holidayPreview = "Auto"; resetConfirm = false; importText = ""; customTextEntry = ""; customShadeEntry = ""; importStatus = "" } }
             Button { text: "Cancel"; onTap: resetConfirm = false }
           }
         }
