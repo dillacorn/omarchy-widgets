@@ -1224,9 +1224,9 @@ face "Omagara" {
           Text {
             text: "Notifications"
             font: chosenFont
-            fontSize: 14
+            fontSize: 12
             color: primaryText
-            padding: [7, 9]
+            padding: [4, 7]
             background: cfg.shadeNoticeLabels ? noticeHeadingShade : transparent
             radius: cfg.roundNoticeHeading ? 7 : 0
           }
@@ -1235,9 +1235,9 @@ face "Omagara" {
             Text {
               text: "Clear all"
               font: chosenFont
-              fontSize: 14
+              fontSize: 12
               color: primaryText
-              padding: [7, 9]
+              padding: [4, 7]
               background: cfg.shadeNoticeLabels ? noticeHeadingShade : transparent
               radius: cfg.roundClearAll ? 7 : 0
               // Clear only visible items. Native global clear would dismiss hidden apps.
