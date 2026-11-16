@@ -1054,6 +1054,131 @@ face "Omagara" {
       if mediaNeedsAccess && !cfg.notifications {
         Text { text: "Media controls need notification access. Tap to allow."; font: chosenFont; fontSize: 12; color: accent; onTap: media("open") }
       }
+      // A small optional home block. When its rows do not fit, the pin
+      // section scrolls separately; the ordinary notification list remains.
+      if len(pinnedApps) > 0 && pinnedHomeHeight > 12 {
+        Column {
+          fill: width
+          height: pinnedHomeHeight
+          clip: true
+          scroll: true
+          gap: 3
+          Text {
+            text: "Pinned apps"
+            font: chosenFont
+            fontSize: 12
+            color: primaryText
+            padding: [5, 6]
+            background: cfg.shadeNoticeLabels ? noticeHeadingShade : transparent
+            radius: cfg.roundNoticeHeading ? 7 : 0
+          }
+          for a in pinnedApps key a.key {
+            let packageProfile = toJson([a.package, a.profile])
+            let pinOwner = first(pinnedApps.filter(p => toJson([p.package, p.profile]) == packageProfile))
+            let pinNotices = get(noticeGroups, packageProfile, [])
+            let showPinNotices = cfg.notifications && notices.available != false && pinOwner != null && pinOwner.key == a.key && len(pinNotices) > 0
+            Column {
+              fill: width
+              gap: 3
+              Row {
+                fill: width
+                height: 48
+                align: center
+                gap: 8
+                padding: [3, 4]
+                if cfg.icons {
+                  Box {
+                    size: 30
+                    onTap: androidApp(a.key)
+                    if a.icon != null && a.icon != "" {
+                      Image { src: a.icon; size: 30; label: a.name }
+                    } else {
+                      Text { text: upper(sub(trim(a.name), 0, 1)); font: chosenFont; fontSize: 18; color: primaryText }
+                    }
+                  }
+                }
+                Row {
+                  weight: 1
+                  Text {
+                    text: a.name
+                    font: chosenFont
+                    fontSize: 15
+                    color: primaryText
+                    maxLines: 1
+                    padding: cfg.shadeAppLabels ? [9, 5] : [0, 0]
+                    background: cfg.shadeAppLabels ? appLabelShade : transparent
+                    radius: cfg.shadeAppLabels && cfg.roundAppLabels ? 8 : 0
+                    onTap: androidApp(a.key)
+                    onLongPress: pinnedMenuKey = a.key
+                  }
+                }
+                if showPinNotices {
+                  Text {
+                    text: str(len(pinNotices)) + (expandedPinnedKey == a.key ? " ▴" : " ▾")
+                    font: chosenFont
+                    fontSize: 15
+                    color: accent
+                    padding: [7, 10]
+                    onTap: {
+                      expandedPinnedKey = expandedPinnedKey == a.key ? "" : a.key
+                      expandedStack = ""; expandedNoticeActions = ""; replyKey = ""; replyDraft = ""
+                    }
+                  }
+                }
+                Popup {
+                  visible: pinnedMenuKey == a.key
+                  onDismiss: pinnedMenuKey = ""
+                  position: below
+                  width: 190
+                  gap: 0
+                  for direction in [-1, 1] {
+                    let pos = indexOf(pinnedAppKeys, a.key)
+                    let adjacent = pos + direction
+                    if adjacent >= 0 && adjacent < len(pinnedAppKeys) {
+                      Text {
+                        text: direction < 0 ? "↑ Move pin up" : "↓ Move pin down"
+                        fill: width
+                        padding: [12, 14]
+                        onTap: {
+                          let nextKey = get(pinnedAppKeys, adjacent)
+                          pinnedAppKeys = set(set(pinnedAppKeys, pos, nextKey), adjacent, a.key)
+                          pinnedMenuKey = ""
+                        }
+                      }
+                    }
+                  }
+                  Text {
+                    text: "Unpin app"
+                    fill: width
+                    padding: [12, 14]
+                    onTap: {
+                      pinnedAppKeys = pinnedAppKeys.filter(k => k != a.key)
+                      if expandedPinnedKey == a.key { expandedPinnedKey = "" }
+                      pinnedMenuKey = ""
+                    }
+                  }
+                }
+              }
+              if showPinNotices && expandedPinnedKey == a.key {
+                // Reuse native notification actions, replies and swipe behavior.
+                // No one app can create an unbounded expanded home stack.
+                for n in take(pinNotices, 4) key n.key {
+                  NotificationRow { item: n; stack: packageProfile; summary: false }
+                }
+                if len(pinNotices) > 4 {
+                  Text {
+                    text: str(len(pinNotices) - 4) + " more · Open app"
+                    font: chosenFont
+                    fontSize: 12
+                    color: accent
+                    onTap: androidApp(a.key)
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
       if cfg.notifications {
       if notices == null {
         Text { text: "Loading notifications…"; font: chosenFont; fontSize: 12; color: muted }
