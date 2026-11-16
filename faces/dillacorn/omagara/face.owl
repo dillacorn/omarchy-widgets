@@ -1061,10 +1061,10 @@ face "Omagara" {
     let identity = toJson([a.package, a.profile])
     let notificationOwner = first(pinnedApps.filter(p => toJson([p.package, p.profile]) == identity))
     let ownedNotices = get(noticeGroups, identity, [])
-    if cfg.notifications && notices != null && notices.available != false && notificationOwner != null && notificationOwner.key == a.key && expandedPinnedKey == a.key && len(ownedNotices) > 0 {
-      Column {
-        fill: width
-        gap: 3
+    Column {
+      fill: width
+      gap: 3
+      if cfg.notifications && notices != null && notices.available != false && notificationOwner != null && notificationOwner.key == a.key && expandedPinnedKey == a.key && len(ownedNotices) > 0 {
         for n in take(ownedNotices, pinnedNoticeShown) key n.key {
           NotificationRow { item: n; stack: identity; summary: false }
         }
