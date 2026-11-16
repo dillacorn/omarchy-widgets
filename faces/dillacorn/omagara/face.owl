@@ -2868,8 +2868,8 @@ face "Omagara" {
               Text { text: "Most used is the default. Long-press an app in the A–Z list to move it within its letter or reset its automatic position. A small line marks moved apps. Search is unaffected."; font: chosenFont; fontSize: 12; color: secondaryText }
               Text { text: "Pinned apps · " + str(len(pinnedAppKeys)) + "/8"; color: accent; font: chosenFont; fontSize: 16; padding: [0, 12, 0, 2] }
               Text { text: "Hold an app in the A–Z browser or Search and select Pin app. Pinned apps launch from Omagara home; hold a pinned app name to reorder or unpin it. Its notifications expand below that app."; font: chosenFont; fontSize: 12; color: secondaryText }
-              for key in pinnedAppKeys key key {
-                let pinnedEntry = find(installed ?? [], a => a.key == key)
+              for pinKey in pinnedAppKeys key pinKey {
+                let pinnedEntry = find(installed ?? [], a => a.key == pinKey)
                 Row {
                   fill: width
                   align: center
@@ -2878,8 +2878,8 @@ face "Omagara" {
                   Button {
                     text: "Unpin"
                     onTap: {
-                      pinnedAppKeys = pinnedAppKeys.filter(k => k != key)
-                      if expandedPinnedKey == key { expandedPinnedKey = "" }
+                      pinnedAppKeys = pinnedAppKeys.filter(k => k != pinKey)
+                      if expandedPinnedKey == pinKey { expandedPinnedKey = "" }
                     }
                   }
                 }
