@@ -1565,7 +1565,7 @@ face "Omagara" {
             text: "✓ Save position"
             onTap: {
               if moveOriginIndex >= 0 && moveTargetIndex >= 0 && moveTargetIndex < len(moveKeys) {
-                if moveMode == "pin" && movePreviewKeys != pinnedAppKeys {
+                if moveMode == "pin" && moveTargetIndex != moveOriginIndex {
                   let previousNext = get(pinnedAppKeys, moveOriginIndex + 1)
                   let newNext = get(movePreviewKeys, moveTargetIndex + 1)
                   let breakKeys = unique([moveKey, previousNext, newNext].filter(k => k != null))
