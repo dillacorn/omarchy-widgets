@@ -382,9 +382,6 @@ face "Omagara" {
     : [{id: n.key, stack: toJson([n.package, n.profile]), summary: false, item: n}]
   ))
   let clearableNotices = count(regularNoticeItems, n => n.clearable)
-  // Limit pin height so ordinary notifications retain useful screen space.
-  let pinnedNoticeAvailableHeight = max(0, noticeBottom - noticeTop - (hasMedia || showMusicApps ? 92 : 0))
-  let pinnedHomeHeight = min(22 + len(pinnedApps) * 52 + (expandedPinnedKey != "" ? 192 : 0), max(0, pinnedNoticeAvailableHeight * (cfg.notifications && len(regularNoticeItems) > 0 ? 0.56 : 0.84)))
   let dayStart = parseTime(fmtTime(now, "yyyy-MM-dd"), "yyyy-MM-dd")
   let dayEnd = parseTime(fmtTime(now, "yyyy-MM-dd") + " 23:59:59", "yyyy-MM-dd HH:mm:ss") + 1
   // Only one event is displayed: duplicate calendar copies cannot repeat the line.
@@ -423,6 +420,9 @@ face "Omagara" {
   let noticeBottom = max(noticeTop, (tileHeight ?? 800) - searchBottom - 60)
   // One source of truth: 20dp outer left; 12dp clear of the 44dp right rail.
   let noticeWidth = max(0, availableWidth - 80)
+  // Cap pin height so regular notifications retain screen space.
+  let pinnedNoticeAvailableHeight = max(0, noticeBottom - noticeTop - (hasMedia || showMusicApps ? 92 : 0))
+  let pinnedHomeHeight = min(22 + len(pinnedApps) * 52 + (expandedPinnedKey != "" ? 192 : 0), max(0, pinnedNoticeAvailableHeight * (cfg.notifications && len(regularNoticeItems) > 0 ? 0.56 : 0.84)))
   // Additional content after the last card: it can scroll above the Search
   // button rather than remaining partly hidden underneath it.
   let noticeTailSpace = max(120, searchBottom - screenInset + 100)
@@ -2108,7 +2108,7 @@ face "Omagara" {
         fill: true
         align: topStart
         padding: [screenLeft + 40, noticeTop, screenRight + 40, 0]
-        visible: (cfg.notifications || hasMedia || mediaNeedsAccess || showMusicApps) && !browsing && activeSide == 0
+        visible: (cfg.notifications || hasMedia || mediaNeedsAccess || showMusicApps || len(pinnedApps) > 0) && !browsing && activeSide == 0
         offset: [noticePanelShift, 0]
         NotificationPanel {}
       }
@@ -2117,7 +2117,7 @@ face "Omagara" {
         fill: true
         align: topStart
         padding: [screenLeft + 40, noticeTop, screenRight + 40, 0]
-        visible: (cfg.notifications || hasMedia || mediaNeedsAccess || showMusicApps) && !browsing && activeSide == 0
+        visible: (cfg.notifications || hasMedia || mediaNeedsAccess || showMusicApps || len(pinnedApps) > 0) && !browsing && activeSide == 0
         offset: [noticePanelShift, 0]
         animate offset: tween(260ms, "ease")
         NotificationPanel {}
