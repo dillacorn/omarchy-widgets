@@ -1470,132 +1470,6 @@ face "Omagara" {
     }
   }
 
-  // A real folder silhouette with a 2x2 miniature preview of its installed apps.
-  // The preview uses actual app/profile icons, not package-name guesses.
-  component FolderIcon(f, side = 36) {
-    let previews = take(f.keys.map(k => find(installed ?? [], a => a.key == k)).filter(a => a != null), 4)
-    Box {
-      size: side
-      Canvas {
-        size: side
-        path([[1, 8], [1, side - 2], [side - 2, side - 2], [side - 2, 8], [side * 0.42, 8], [side * 0.32, 4], [1, 4]], closed: true, stroke: secondaryText, width: 1.3)
-      }
-      for a, i in previews key a.key {
-        if a.icon != null && a.icon != "" {
-          Image {
-            src: a.icon
-            size: side * 0.37
-            offset: [side * (0.12 + (i % 2) * 0.43), side * (0.26 + floor(i / 2) * 0.36)]
-            label: a.name
-          }
-        } else {
-          Text {
-            text: upper(sub(trim(a.name), 0, 1))
-            font: chosenFont
-            color: primaryText
-            fontSize: 8 * (side / 36)
-            offset: [side * (0.14 + (i % 2) * 0.43), side * (0.27 + floor(i / 2) * 0.36)]
-          }
-        }
-      }
-    }
-  }
-
-  component FolderRow(f, interactive = true) {
-    Row {
-      fill: width
-      height: appRowHeight
-      align: center
-      gap: 12 * appScale
-      padding: [4 * appScale, 8 * appScale]
-      onTap: {
-        if interactive {
-          appScroll = appOffset
-          appVelocity = 0
-          menu = ""
-          folderOpenId = f.id
-        }
-      }
-      onLongPress: {
-        if interactive {
-          folderOpenId = ""
-          menu = ""
-          appVelocity = 0
-          folderEditId = f.id
-          folderEditName = f.name
-          folderAppQuery = ""
-          folderDeleteConfirm = false
-          screenMode = "folderEdit"
-          screen()
-        }
-      }
-      FolderIcon { f: f; side: 36 * appScale }
-      Text {
-        text: f.name
-        font: chosenFont
-        fontSize: 20 * appScale
-        color: primaryText
-        weight: 1
-        maxLines: 1
-        padding: cfg.shadeAppLabels ? [16 * appScale, 6 * appScale] : [0, 0]
-        background: cfg.shadeAppLabels ? appLabelShade : transparent
-        radius: cfg.shadeAppLabels && cfg.roundAppLabels ? 16 * appScale : 0
-      }
-      Text { text: str(len(f.keys)); font: chosenFont; fontSize: 12 * appScale; color: secondaryText }
-      Popup {
-        visible: interactive && folderOpenId == f.id && browsing && !railHeld
-        onDismiss: { folderOpenId = ""; menu = "" }
-        position: above
-        width: min(300, max(180, availableWidth - 40))
-        gap: 0
-        Column {
-          fill: width
-          gap: 8
-          padding: [8, 10]
-          Row {
-            fill: width
-            align: center
-            gap: 8
-            FolderIcon { f: f; side: 32 }
-            Text { text: f.name; font: chosenFont; fontSize: 18; color: primaryText; weight: 1; maxLines: 1 }
-            Text {
-              text: "Edit"
-              font: chosenFont
-              fontSize: 13
-              color: accent
-              padding: [8, 8]
-              onTap: {
-                folderOpenId = ""
-                menu = ""
-                folderEditId = f.id
-                folderEditName = f.name
-                folderAppQuery = ""
-                folderDeleteConfirm = false
-                screenMode = "folderEdit"
-                screen()
-              }
-            }
-          }
-          if folderOpenId == f.id {
-            if len(folderApps) == 0 {
-              Text { text: "Empty folder · Edit to add apps"; font: chosenFont; fontSize: 13; color: secondaryText; padding: [6, 8] }
-            } else {
-              Column {
-                fill: width
-                height: min(408, max(54, len(folderApps) * appRowHeight))
-                lazy: true
-                gap: 0
-                for a in folderApps key a.key {
-                  AppRow { a: a; thumbView: true; folderView: true }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
   component AppRow(a, searchView = false, thumbView = false, interactive = true, folderView = false) {
     let rowScale = thumbView ? appScale : 1
     let appLetter = contains(fullAlphabet, upper(sub(trim(a.name), 0, 1))) ? upper(sub(trim(a.name), 0, 1)) : "#"
@@ -1776,6 +1650,132 @@ face "Omagara" {
               padding: cfg.shadeAppLabels && thumbView ? [14 * rowScale, 5 * rowScale] : [0, 0]
               background: cfg.shadeAppLabels && thumbView ? appLabelShade : transparent
               radius: cfg.shadeAppLabels && cfg.roundAppLabels && thumbView ? 11 * rowScale : 0
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // A real folder silhouette with a 2x2 miniature preview of its installed apps.
+  // The preview uses actual app/profile icons, not package-name guesses.
+  component FolderIcon(f, side = 36) {
+    let previews = take(f.keys.map(k => find(installed ?? [], a => a.key == k)).filter(a => a != null), 4)
+    Box {
+      size: side
+      Canvas {
+        size: side
+        path([[1, 8], [1, side - 2], [side - 2, side - 2], [side - 2, 8], [side * 0.42, 8], [side * 0.32, 4], [1, 4]], closed: true, stroke: secondaryText, width: 1.3)
+      }
+      for a, i in previews key a.key {
+        if a.icon != null && a.icon != "" {
+          Image {
+            src: a.icon
+            size: side * 0.37
+            offset: [side * (0.12 + (i % 2) * 0.43), side * (0.26 + floor(i / 2) * 0.36)]
+            label: a.name
+          }
+        } else {
+          Text {
+            text: upper(sub(trim(a.name), 0, 1))
+            font: chosenFont
+            color: primaryText
+            fontSize: 8 * (side / 36)
+            offset: [side * (0.14 + (i % 2) * 0.43), side * (0.27 + floor(i / 2) * 0.36)]
+          }
+        }
+      }
+    }
+  }
+
+  component FolderRow(f, interactive = true) {
+    Row {
+      fill: width
+      height: appRowHeight
+      align: center
+      gap: 12 * appScale
+      padding: [4 * appScale, 8 * appScale]
+      onTap: {
+        if interactive {
+          appScroll = appOffset
+          appVelocity = 0
+          menu = ""
+          folderOpenId = f.id
+        }
+      }
+      onLongPress: {
+        if interactive {
+          folderOpenId = ""
+          menu = ""
+          appVelocity = 0
+          folderEditId = f.id
+          folderEditName = f.name
+          folderAppQuery = ""
+          folderDeleteConfirm = false
+          screenMode = "folderEdit"
+          screen()
+        }
+      }
+      FolderIcon { f: f; side: 36 * appScale }
+      Text {
+        text: f.name
+        font: chosenFont
+        fontSize: 20 * appScale
+        color: primaryText
+        weight: 1
+        maxLines: 1
+        padding: cfg.shadeAppLabels ? [16 * appScale, 6 * appScale] : [0, 0]
+        background: cfg.shadeAppLabels ? appLabelShade : transparent
+        radius: cfg.shadeAppLabels && cfg.roundAppLabels ? 16 * appScale : 0
+      }
+      Text { text: str(len(f.keys)); font: chosenFont; fontSize: 12 * appScale; color: secondaryText }
+      Popup {
+        visible: interactive && folderOpenId == f.id && browsing && !railHeld
+        onDismiss: { folderOpenId = ""; menu = "" }
+        position: above
+        width: min(300, max(180, availableWidth - 40))
+        gap: 0
+        Column {
+          fill: width
+          gap: 8
+          padding: [8, 10]
+          Row {
+            fill: width
+            align: center
+            gap: 8
+            FolderIcon { f: f; side: 32 }
+            Text { text: f.name; font: chosenFont; fontSize: 18; color: primaryText; weight: 1; maxLines: 1 }
+            Text {
+              text: "Edit"
+              font: chosenFont
+              fontSize: 13
+              color: accent
+              padding: [8, 8]
+              onTap: {
+                folderOpenId = ""
+                menu = ""
+                folderEditId = f.id
+                folderEditName = f.name
+                folderAppQuery = ""
+                folderDeleteConfirm = false
+                screenMode = "folderEdit"
+                screen()
+              }
+            }
+          }
+          if folderOpenId == f.id {
+            if len(folderApps) == 0 {
+              Text { text: "Empty folder · Edit to add apps"; font: chosenFont; fontSize: 13; color: secondaryText; padding: [6, 8] }
+            } else {
+              Column {
+                fill: width
+                height: min(408, max(54, len(folderApps) * appRowHeight))
+                lazy: true
+                gap: 0
+                for a in folderApps key a.key {
+                  AppRow { a: a; thumbView: true; folderView: true }
+                }
+              }
             }
           }
         }
@@ -2709,7 +2709,7 @@ face "Omagara" {
               Text { text: "Most used is the default. Long-press an app in the A–Z list to move it within its letter or reset its automatic position. A small line marks moved apps. Search is unaffected."; font: chosenFont; fontSize: 12; color: secondaryText }
               Text { text: "Custom folders"; color: accent; font: chosenFont; fontSize: 16; padding: [0, 12, 0, 2] }
               Button { text: "Manage folders (" + str(len(customFolders)) + ")"; onTap: { folderDraft = ""; screenMode = "folderList" } }
-              Text { text: "Hold an app to add it to a folder. Folder shortcuts appear below the last worm letter. Hold a folder icon to edit."; font: chosenFont; fontSize: 12; color: secondaryText }
+              Text { text: "Folders appear below the last app section with miniature app icons. A single folder shortcut above the cog jumps to them. Tap a folder for a floating app list; hold a folder row to edit."; font: chosenFont; fontSize: 12; color: secondaryText }
               for pref in preferenceRows.filter(p => p.key == "musicShortcuts") { SettingToggle { pref: pref } }
               Text { text: "Use the compact player's arrow to expand or collapse selected music apps. This does not change when music pauses."; font: chosenFont; fontSize: 12; color: secondaryText }
               Text { text: "Alphabet visibility / music shortcuts"; color: accent; font: chosenFont; fontSize: 16; padding: [0, 12, 0, 2] }
