@@ -301,6 +301,8 @@ face "Omagara" {
   let liveAlphabet = cfg.hideEmpty ? fullAlphabet.filter(c => len(get(groups, c, [])) > 0) : fullAlphabet
   // Freeze letters through the return, so changing available apps cannot reshape the worm mid-snap.
   let alphabet = railHeld || railReturning || railWiggling ? heldAlphabet : liveAlphabet
+  // First three folders get worm stops; overflow opens the complete list.
+  let folderStops = len(customFolders) > 3 ? take(customFolders, 3) + [{id: "_more", name: "All folders", keys: []}] : customFolders
   // Put the single most recently opened Android app first only when Search is empty.
   // android.apps.last is launcher-maintained history; no new permission needed.
   let lastOpenedApp = first(searchApps.filter(a => a.last != null).sortBy(a => -(a.last ?? 0)))
@@ -317,9 +319,9 @@ face "Omagara" {
   // Include half a cell above/below them so both endpoint hit regions are full-sized.
   let railStep = availableHeight * 0.59 / max(1, len(alphabet) - 1)
   let railHeight = railStep * max(1, len(alphabet))
-  // One shaded tail cell for Settings, outside the letter input range.
-  let railPaintHeight = railHeight + railStep
-  let railTop = screenTop + availableHeight * 0.31 - (len(alphabet) > 1 ? railStep / 2 : 0)
+  // Keep the bottom Settings cog at the same location when folders appear.
+  let railPaintHeight = railHeight + railStep * (len(folderStops) + 1)
+  let railTop = screenTop + availableHeight * 0.31 - (len(alphabet) > 1 ? railStep / 2 : 0) - len(folderStops) * railStep
   // While held, let the first/last glyph reach the usable screen edge.
   // The fixed touch rail does not move; only its displayed letters do.
   let railUpperReach = max(0, railTop + railStep / 2 - screenTop - 10)
@@ -454,7 +456,7 @@ face "Omagara" {
   // At the end of the list, align the last Settings action beside the
   // alphabet cog. Keep a small bottom inset rather than the old oversized
   // padding. Search and Close have independent positions, not tied to the rail.
-  let appMenuTail = max(28, appSafeBottom - (railTop + railHeight + railStep / 2) - appRowHeight / 2)
+  let appMenuTail = max(28, appSafeBottom - (railTop + railHeight + len(folderStops) * railStep + railStep / 2) - appRowHeight / 2)
   let appMenuTextWidth = controlSide == -1 || closeSide == -1 ? max(32, min(appPanelWidth - 52 * appScale, (tileWidth ?? 400) - screenLeft - controlRight - 110 - 46 * appScale)) : max(32, (tileWidth ?? 400) - screenLeft - controlRight - 110 - 46 * appScale)
   let appDocumentHeight = appMenuBottom + appMenuTail
   let appMaxScroll = max(0, appDocumentHeight - appPanelHeight)
@@ -1156,7 +1158,9 @@ face "Omagara" {
         appVelocity = 0
         heldAlphabet = liveAlphabet
         railHeld = true
-        railSettingsSelected = y >= railHeight + railStep * 0.25 && visual
+        railSettingsSelected = y >= railHeight + len(folderStops) * railStep + railStep * 0.25 && visual
+        railFolderSelected = visual && y >= railHeight && y < railHeight + len(folderStops) * railStep ? clamp(floor((y - railHeight) / railStep), 0, max(0, len(folderStops) - 1)) : -1
+        railFolderLongPressed = false
         draggingSide = 0
         railReturning = false
         // A new touch cancels the optional ripple immediately.
@@ -1176,7 +1180,7 @@ face "Omagara" {
         railPull = visual ? (side == 1 ? clamp(106 - x, 0, railMaxReach) : clamp(62 + x, 0, railMaxReach)) : min(84, railMaxReach)
         railThumbX = side == 1 ? (tileWidth ?? 400) - screenRight - 4 - (visual ? 44 : 20) + x : screenLeft + (visual ? 4 : 0) + x
         touchY = clamp(railTop + y, screenTop, (tileHeight ?? 800) - screenInset)
-        fingerPosition = clamp(y / railStep - 0.5, 0, max(0, len(alphabet) - (railSettingsSelected ? 0 : 1)))
+        fingerPosition = clamp(y / railStep - 0.5, 0, max(0, len(alphabet) + len(folderStops) - (railSettingsSelected ? 0 : 1)))
         let pressedLetter = get(alphabet, clamp(floor(y / railStep), 0, max(0, len(alphabet) - 1)), letter)
         letter = pressedLetter
         if cfg.hapticFeedback != "Off" { haptic() }
@@ -1208,7 +1212,8 @@ face "Omagara" {
         railFlickLastY = y
         railHeld = true
         draggingSide = 1
-        let nextSettings = y >= railHeight + railStep * 0.25 && visual
+        let nextSettings = y >= railHeight + len(folderStops) * railStep + railStep * 0.25 && visual
+        let nextFolder = visual && y >= railHeight && y < railHeight + len(folderStops) * railStep ? clamp(floor((y - railHeight) / railStep), 0, max(0, len(folderStops) - 1)) : -1
         let edgeY = y < railStep / 2 ? y - railStep / 2 : y > railPaintHeight - railStep / 2 ? y - (railPaintHeight - railStep / 2) : 0
         railOverpull = len(alphabet) < 2 ? 0 : clamp(edgeY, -railUpperReach, railLowerReach)
         // Track absolute thumb position while the rail's hit cells stay fixed.
@@ -1216,15 +1221,16 @@ face "Omagara" {
         railPull = visual ? (side == 1 ? clamp(106 - x, 0, railMaxReach) : clamp(62 + x, 0, railMaxReach)) : min(84, railMaxReach)
         railThumbX = side == 1 ? (tileWidth ?? 400) - screenRight - 4 - (visual ? 44 : 20) + x : screenLeft + (visual ? 4 : 0) + x
         touchY = clamp(railTop + y, screenTop, (tileHeight ?? 800) - screenInset)
-        fingerPosition = clamp(y / railStep - 0.5, 0, max(0, len(alphabet) - (nextSettings ? 0 : 1)))
+        fingerPosition = clamp(y / railStep - 0.5, 0, max(0, len(alphabet) + len(folderStops) - (nextSettings ? 0 : 1)))
         let nextLetter = get(alphabet, clamp(floor(y / railStep), 0, max(0, len(alphabet) - 1)), letter)
-        if nextSettings != railSettingsSelected || (!nextSettings && nextLetter != letter) {
+        if nextSettings != railSettingsSelected || nextFolder != railFolderSelected || (!nextSettings && nextFolder < 0 && nextLetter != letter) {
           hapticSteps = hapticSteps + 1
           // Entering Settings must give one definite bump, even with Reduced haptics.
           if cfg.hapticFeedback != "Off" && (nextSettings || cfg.hapticFeedback == "Every letter" || hapticSteps % 2 == 0) { haptic() }
         }
         railSettingsSelected = nextSettings
-        if !nextSettings { letter = nextLetter }
+        railFolderSelected = nextFolder
+        if !nextSettings && nextFolder < 0 { letter = nextLetter }
         let nextApps = get(groups, nextLetter, [])
         let nextHeight = appLabelHeight + len(nextApps) * appRowHeight
         let nextCenter = railTop + railOverpull + (max(0, indexOf(alphabet, nextLetter)) + 0.5) * railStep - appSafeTop
@@ -1244,7 +1250,29 @@ face "Omagara" {
         replyKey = ""
         replyDraft = ""
       }
-      onTap: { holidayAnimPlaying = false; holidayPlayedStamp = ""; browsing = true; activeSide = 0; railHeld = false; railSettingsSelected = false; railPull = 0 }
+      onTap: {
+        holidayAnimPlaying = false; holidayPlayedStamp = ""
+        if railFolderSelected >= 0 && !railFolderLongPressed {
+          let selectedFolder = get(folderStops, railFolderSelected)
+          activeSide = 0; railHeld = false; draggingSide = 0; railSettingsSelected = false; browsing = false; railPull = 0
+          appVelocity = 0; menu = ""
+          if selectedFolder.id == "_more" { screenMode = "folderList" }
+          else { folderOpenId = selectedFolder.id; folderReturnMode = "face"; folderScroll = 0; screenMode = "folder" }
+          screen()
+        } else if !railFolderLongPressed {
+          browsing = true; activeSide = 0; railHeld = false; railSettingsSelected = false; railPull = 0
+        }
+      }
+      onLongPress: {
+        if railFolderSelected >= 0 {
+          let selectedFolder = get(folderStops, railFolderSelected)
+          railFolderLongPressed = true
+          activeSide = 0; railHeld = false; draggingSide = 0; browsing = false; appVelocity = 0; menu = ""
+          if selectedFolder.id == "_more" { screenMode = "folderList" }
+          else { folderEditId = selectedFolder.id; folderEditName = selectedFolder.name; folderAppQuery = ""; folderDeleteConfirm = false; screenMode = "folderEdit" }
+          screen()
+        }
+      }
       // A press is cancelled when the drag detector consumes its first move.
       // Keep the curve active in either detector order at that transition;
       // a real drag release/cancellation always clears both states below.
@@ -1290,6 +1318,13 @@ face "Omagara" {
         railOverpull = 0
         railEntering = false
         draggingSide = 0; activeSide = 0; railHeld = false; railSettingsSelected = false; railPull = 0
+        if railFolderSelected >= 0 && !railFolderLongPressed {
+          let selectedFolder = get(folderStops, railFolderSelected)
+          browsing = false; appVelocity = 0; menu = ""
+          if selectedFolder.id == "_more" { screenMode = "folderList" }
+          else { folderOpenId = selectedFolder.id; folderReturnMode = "face"; folderScroll = 0; screenMode = "folder" }
+          screen()
+        }
       }
       // The selected edge draws the glyphs; the other edge is optional input.
       // Keep showing the worm during its release return even if idle alphabet is hidden.
@@ -1303,7 +1338,7 @@ face "Omagara" {
           // Compute the wave once; letter centers reuse the same Canvas samples.
           let wiggleActive = railWiggling && !cfg.reduceMotion
           let contourSteps = wiggleActive ? 2 : 4
-          let wigglePhases = wiggleActive ? map(range((len(alphabet) + 1) * contourSteps + 1), j => railWiggleAge - abs(j / contourSteps - 0.5 - railWiggleOrigin) * 0.015) : []
+          let wigglePhases = wiggleActive ? map(range((len(alphabet) + len(folderStops) + 1) * contourSteps + 1), j => railWiggleAge - abs(j / contourSteps - 0.5 - railWiggleOrigin) * 0.015) : []
           let wiggleOffsets = wiggleActive ? map(wigglePhases, phase => phase > 0 && phase < 1.34 ? railWiggleDirection * 11 * railWiggleStrength * pow(1 - phase / 1.34, 2) * sin(phase * 36) : 0) : []
           if cfg.shadeAlphabet && len(alphabet) > 0 {
             Canvas {
@@ -1315,11 +1350,11 @@ face "Omagara" {
               // Rounded mode trims only the two end clearances; square mode
               // keeps its original coordinates and the glyphs never move.
               let wormCapInset = cfg.roundAlphabet ? min(3, railStep * 0.15) : 0
-              let wormSamples = map(range((len(alphabet) + 1) * contourSteps + 1), j => {
+              let wormSamples = map(range((len(alphabet) + len(folderStops) + 1) * contourSteps + 1), j => {
                 x: (alphabetSide == 1 ? railMaxReach + 22 : 22) - alphabetSide * railCurvePull *
                   (railCurveStrength > 0 ? (1 + cos(rad(min(abs(j / contourSteps - 0.5 - fingerPosition) / max(10, min(14, len(alphabet) * 0.58)), 1) * 180))) / 2 * railCurveStrength : 0) - alphabetSide * (wiggleActive ? wiggleOffsets[j] : 0),
                 // Fade each inset over one cell so the cap and letter share a smooth outline.
-                y: 12 + j * railStep / contourSteps + wormCapInset * max(0, 1 - j / contourSteps) - wormCapInset * max(0, 1 - ((len(alphabet) + 1) * contourSteps - j) / contourSteps)
+                y: 12 + j * railStep / contourSteps + wormCapInset * max(0, 1 - j / contourSteps) - wormCapInset * max(0, 1 - ((len(alphabet) + len(folderStops) + 1) * contourSteps - j) / contourSteps)
               })
               // Round each end as a real half-circle, sheared to follow the
               // ribbon's local tangent when the thumb bends the alphabet.
@@ -1368,6 +1403,31 @@ face "Omagara" {
                   align: center
                   offset: [-alphabetSide * (railCurvePull * curve + wiggleX), 0]
                   scale: 1 + 0.16 * curve
+                }
+              }
+            }
+            for folderStop, j in folderStops {
+              let i = len(alphabet) + j
+              let distance = abs(i - fingerPosition)
+              let radius = max(10, min(14, (len(alphabet) + len(folderStops)) * 0.58))
+              let curve = railCurveStrength > 0 ? (1 + cos(rad(min(distance / radius, 1) * 180))) / 2 * railCurveStrength : 0
+              let wiggleX = wiggleActive ? wiggleOffsets[i * contourSteps + contourSteps / 2] : 0
+              Box {
+                height: railStep
+                fill: width
+                align: center
+                Canvas {
+                  size: 12
+                  offset: [-alphabetSide * (railCurvePull * curve + wiggleX), 0]
+                  scale: 1 + 0.16 * curve
+                  if folderStop.id == "_more" {
+                    for dot in range(3) { circle(2 + dot * 4, 6, 1.2, fill: railFolderSelected == j && browsing ? accent : primaryText) }
+                  } else {
+                    path([[1, 3], [4, 3], [6, 5], [11, 5], [11, 10], [1, 10]], closed: true, stroke: railFolderSelected == j && browsing ? accent : primaryText, width: 1.2)
+                  }
+                }
+                if railFolderSelected == j && railHeld && visual {
+                  Text { text: folderStop.name; font: chosenFont; fontSize: 12; color: accent; maxLines: 1; offset: [side == 1 ? -115 : 48, 0] }
                 }
               }
             }
@@ -1937,10 +1997,10 @@ face "Omagara" {
     // Letter-height gear centered in the worm's shaded tail, below the
     // alphabet hit cells. Keep the background entirely on the worm Canvas.
     if (cfg.idleAlphabet || activeSide != 0 || railReturning || railWiggling) && len(alphabet) > 0 {
-      let gearDistance = abs(len(alphabet) - fingerPosition)
-      let gearRadius = max(10, min(14, len(alphabet) * 0.58))
+      let gearDistance = abs(len(alphabet) + len(folderStops) - fingerPosition)
+      let gearRadius = max(10, min(14, (len(alphabet) + len(folderStops)) * 0.58))
       let gearCurve = railCurveStrength > 0 ? (1 + cos(rad(min(gearDistance / gearRadius, 1) * 180))) / 2 * railCurveStrength : 0
-      let gearPhase = railWiggleAge - abs(len(alphabet) - railWiggleOrigin) * 0.015
+      let gearPhase = railWiggleAge - abs(len(alphabet) + len(folderStops) - railWiggleOrigin) * 0.015
       let gearWiggle = railWiggling && !cfg.reduceMotion && gearPhase > 0 && gearPhase < 1.34 ? railWiggleDirection * 11 * railWiggleStrength * pow(1 - gearPhase / 1.34, 2) * sin(gearPhase * 36) : 0
       let gearX = railHomeX - alphabetSide * (railCurvePull * gearCurve + gearWiggle)
       // Display-only glyph: the extended stationary AlphabetRail handles
@@ -1950,7 +2010,7 @@ face "Omagara" {
         width: 44
         height: railStep
         align: center
-        offset: [gearX - 22, railTop + railHeight + railVisualY]
+        offset: [gearX - 22, railTop + railHeight + len(folderStops) * railStep + railVisualY]
         // The gear's 11dp artwork matches the alphabet's 11dp font.
         Canvas {
           size: 11
@@ -1967,7 +2027,7 @@ face "Omagara" {
     }
     // The selected-letter cue mirrors with the rail. Its screen-space
     // position is independent of the fixed left and right touch targets.
-    if railHeld && activeSide != 0 && !railSettingsSelected {
+    if railHeld && activeSide != 0 && !railSettingsSelected && railFolderSelected < 0 {
       let peakX = railHomeX - alphabetSide * railPull
       let bubbleX = alphabetSide == 1 ? max(screenLeft + 22, peakX - 42) : min((tileWidth ?? 400) - screenRight - 22, peakX + 42)
       let edgeThumbGap = alphabetSide == 1 ? screenLeft + 56 - railThumbX : railThumbX - ((tileWidth ?? 400) - screenRight - 56)
