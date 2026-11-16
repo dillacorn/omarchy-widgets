@@ -106,6 +106,9 @@ face "Omagara" {
   state hiddenAppKeys = [] persist
   // Per-app relative moves, replayed after automatic sorting within each letter.
   state manualAppMoves = [] persist
+  // Persist named folders, independent Android app/profile keys and ordering.
+  state customFolders = [] persist
+  state folderSerial = 0 persist
   state musicAppKeys = [] persist
   // Manual quick-launch expansion: never follows play/pause or Bluetooth refreshes.
   state musicAppsExpanded = false
@@ -113,6 +116,18 @@ face "Omagara" {
   // Package + profile keys affect Omagara presentation only, never Android's shade.
   state hiddenNoticeApps = [] persist
   state appPickerQuery = ""
+  state folderOpenId = ""
+  state folderEditId = ""
+  state folderPickAppKey = ""
+  state folderPickReturnMode = "face"
+  state folderReturnMode = "face"
+  state folderDraft = ""
+  state folderEditName = ""
+  state folderAppQuery = ""
+  state folderDeleteConfirm = false
+  state folderScroll = 0
+  state railFolderSelected = -1
+  state railFolderLongPressed = false
   state heldAlphabet = []
   state railHeld = false
   // The cog is one more worm stop, not another alphabet letter.
@@ -412,6 +427,14 @@ face "Omagara" {
   let appScale = cfg.appScale / 100
   let appRowHeight = max(48, 64 * appScale)
   let appLabelHeight = 32 * appScale
+  let activeFolder = find(customFolders, f => f.id == folderOpenId)
+  let editingFolder = find(customFolders, f => f.id == folderEditId)
+  let folderApps = activeFolder == null ? [] : activeFolder.keys.map(k => find(installed ?? [], a => a.key == k)).filter(a => a != null)
+  let folderKeys = folderApps.map(a => a.key)
+  let folderViewportHeight = max(170, min(520, availableHeight - 150))
+  let folderMaxScroll = max(0, len(folderApps) * appRowHeight - folderViewportHeight)
+  let folderStart = max(0, floor(min(folderScroll, folderMaxScroll) / appRowHeight) - 2)
+  let folderWindow = take(drop(folderApps, folderStart), ceil(folderViewportHeight / appRowHeight) + 5)
   let appSafeTop = screenTop
   let appSafeBottom = max(appSafeTop, (tileHeight ?? 800) - screenInset)
   let appPanelHeight = max(0, appSafeBottom - appSafeTop)
@@ -1393,10 +1416,10 @@ face "Omagara" {
     }
   }
 
-  component AppRow(a, searchView = false, thumbView = false, interactive = true) {
+  component AppRow(a, searchView = false, thumbView = false, interactive = true, folderView = false) {
     let rowScale = thumbView ? appScale : 1
     let appLetter = contains(fullAlphabet, upper(sub(trim(a.name), 0, 1))) ? upper(sub(trim(a.name), 0, 1)) : "#"
-    let appGroupKeys = get(appKeyGroups, appLetter, [])
+    let appGroupKeys = folderView ? folderKeys : get(appKeyGroups, appLetter, [])
     let appGroupIndex = indexOf(appGroupKeys, a.key)
     let manuallyMoved = any(manualAppMoves, m => m.key == a.key)
     Row {
@@ -1417,15 +1440,17 @@ face "Omagara" {
         appAnchor = ""
         menu = ""
         queryText = ""
-        if searchView { close() }
+        if searchView || folderView { close() }
         androidApp(launchKey)
         }
       }
       onLongPress: {
         if interactive {
-        appScroll = appOffset
-        appVelocity = 0
-        if appFirst != null { appAnchor = appFirst.id; appAnchorSection = appFirst.section; appAnchorOffset = appOffset - appFirst.top }
+        if !folderView {
+          appScroll = appOffset
+          appVelocity = 0
+          if appFirst != null { appAnchor = appFirst.id; appAnchorSection = appFirst.section; appAnchorOffset = appOffset - appFirst.top }
+        }
         menuShortcuts = null
         menu = a.key
         menuShortcuts = shortcuts(a.key)
@@ -1438,7 +1463,7 @@ face "Omagara" {
         width: 220
         gap: 0
         // Move one visible row within this letter, regardless of sort mode.
-        if !searchView {
+        if !searchView && !folderView {
           for direction in [-1, 1] {
             let adjacent = appGroupIndex + direction
             if adjacent >= 0 && adjacent < len(appGroupKeys) {
@@ -1466,15 +1491,55 @@ face "Omagara" {
             }
           }
         }
+        if folderView && activeFolder != null {
+          for direction in [-1, 1] {
+            let adjacent = appGroupIndex + direction
+            if adjacent >= 0 && adjacent < len(folderKeys) {
+              Text {
+                text: direction < 0 ? "↑ Move up in folder" : "↓ Move down in folder"
+                fill: width
+                padding: [12, 14]
+                onTap: {
+                  let neighbor = get(folderKeys, adjacent)
+                  let from = indexOf(activeFolder.keys, a.key)
+                  let to = indexOf(activeFolder.keys, neighbor)
+                  if from >= 0 && to >= 0 {
+                    menu = ""
+                    customFolders = customFolders.map(f => f.id == folderOpenId ? merge(f, {keys: set(set(f.keys, from, neighbor), to, a.key)}) : f)
+                  }
+                }
+              }
+            }
+          }
+          Text {
+            text: "Remove from folder"
+            fill: width
+            padding: [12, 14]
+            onTap: { menu = ""; customFolders = customFolders.map(f => f.id == folderOpenId ? merge(f, {keys: f.keys.filter(k => k != a.key)}) : f) }
+          }
+        }
+        Text {
+          text: "Add to folder"
+          fill: width
+          padding: [12, 14]
+          onTap: {
+            menu = ""
+            folderPickAppKey = a.key
+            folderDraft = ""
+            folderPickReturnMode = folderView ? "folder" : searchView ? "search" : "face"
+            screenMode = "folderPick"
+            if !folderView && !searchView { appVelocity = 0; railHeld = false; activeSide = 0; screen() }
+          }
+        }
         for shortcut in menuShortcuts ?? [] key shortcut.key {
-          Text { text: shortcut.name; fill: width; padding: [12, 14]; maxLines: 2; onTap: { menu = ""; appVelocity = 0; browsing = false; activeSide = 0; railHeld = false; draggingSide = 0; letter = first(liveAlphabet) ?? "A"; appScroll = 0; appAnchor = ""; queryText = ""; open(shortcut.key) } }
+          Text { text: shortcut.name; fill: width; padding: [12, 14]; maxLines: 2; onTap: { menu = ""; appVelocity = 0; browsing = false; activeSide = 0; railHeld = false; draggingSide = 0; letter = first(liveAlphabet) ?? "A"; appScroll = 0; appAnchor = ""; queryText = ""; if folderView { close() }; open(shortcut.key) } }
         }
         for actionWord in (find(drawer.apps ?? [], d => d.key == a.key || d.key == "a:" + a.key).actions ?? []) {
           Text {
             text: get({pin: "Add to home", info: "App info", uninstall: "Uninstall", remove: "Remove", edit: "Edit", share: "Share"}, actionWord, actionWord)
             fill: width
             padding: [12, 14]
-            onTap: { menu = ""; appVelocity = 0; browsing = false; activeSide = 0; railHeld = false; draggingSide = 0; letter = first(liveAlphabet) ?? "A"; appScroll = 0; appAnchor = ""; queryText = ""; appAction(actionWord, a.key) }
+            onTap: { menu = ""; appVelocity = 0; browsing = false; activeSide = 0; railHeld = false; draggingSide = 0; letter = first(liveAlphabet) ?? "A"; appScroll = 0; appAnchor = ""; queryText = ""; if folderView { close() }; appAction(actionWord, a.key) }
           }
         }
       }
@@ -2133,8 +2198,178 @@ face "Omagara" {
   }
 
   screen {
-    title: screenMode == "calendarAdd" ? "Add event · calendar app" : screenMode == "settings" ? "Omagara Settings" : screenMode == "clock" ? "Clock" : screenMode == "calendar" ? "Calendar" : "Search apps"
-    if screenMode == "search" {
+    title: screenMode == "folder" ? (activeFolder == null ? "Folder" : activeFolder.name) : screenMode == "folderList" ? "Folders" : screenMode == "folderEdit" ? "Edit folder" : screenMode == "folderPick" ? "Add to folder" : screenMode == "calendarAdd" ? "Add event · calendar app" : screenMode == "settings" ? "Omagara Settings" : screenMode == "clock" ? "Clock" : screenMode == "calendar" ? "Calendar" : "Search apps"
+    if screenMode == "folder" {
+      Column {
+        fill: true
+        gap: 12
+        Row {
+          fill: width; align: center; gap: 10
+          Button { text: "‹ Back"; onTap: { menu = ""; folderScroll = 0; if folderReturnMode == "folderList" { screenMode = "folderList" } else { close() } } }
+          Text { text: activeFolder == null ? "Folder removed" : activeFolder.name; weight: 1; font: chosenFont; fontSize: 22; maxLines: 1 }
+          Button {
+            text: "Edit"
+            onTap: { if activeFolder != null { folderEditId = activeFolder.id; folderEditName = activeFolder.name; folderAppQuery = ""; folderDeleteConfirm = false; screenMode = "folderEdit" } }
+          }
+        }
+        Text { text: str(len(folderApps)) + " apps · Slide the bar to navigate"; font: chosenFont; fontSize: 12; color: muted }
+        Row {
+          fill: width
+          height: folderViewportHeight
+          gap: 4
+          Box {
+            weight: 1
+            height: folderViewportHeight
+            clip: true
+            onDrag: { folderScroll = clamp(folderScroll - dy, 0, folderMaxScroll); menu = "" }
+            for a, i in folderWindow key a.key {
+              Box {
+                width: appPanelWidth
+                height: appRowHeight
+                offset: [0, (folderStart + i) * appRowHeight - folderScroll]
+                AppRow { a: a; thumbView: true; folderView: true }
+              }
+            }
+            if len(folderApps) == 0 { Text { text: "Folder is empty. Edit it to add apps."; font: chosenFont; fontSize: 14; color: muted; padding: [14, 12] } }
+          }
+          Box {
+            width: 30
+            height: folderViewportHeight
+            ripple: false
+            onPress: { folderScroll = clamp(y / max(1, folderViewportHeight) * folderMaxScroll, 0, folderMaxScroll); menu = "" }
+            onDrag: { folderScroll = clamp(y / max(1, folderViewportHeight) * folderMaxScroll, 0, folderMaxScroll) }
+            Canvas {
+              width: 30
+              height: folderViewportHeight
+              line(15, 8, 15, folderViewportHeight - 8, stroke: alpha(secondaryText, 0.35), width: 3, cap: round)
+              line(15, 8 + folderScroll / max(1, folderMaxScroll) * max(0, folderViewportHeight - 40), 15, 32 + folderScroll / max(1, folderMaxScroll) * max(0, folderViewportHeight - 40), stroke: accent, width: 5, cap: round)
+            }
+          }
+        }
+      }
+    } else if screenMode == "folderList" {
+      Column {
+        fill: true
+        gap: 10
+        Button { text: "‹ Back to Apps settings"; onTap: { menu = ""; screenMode = "settings"; settingsSection = "Apps" } }
+        Row {
+          fill: width; gap: 8
+          Input { text: folderDraft; placeholder: "New folder name"; weight: 1; onChange: folderDraft = value }
+          Button {
+            text: "Create"
+            onTap: {
+              if trim(folderDraft) != "" && len(trim(folderDraft)) <= 32 && len(customFolders) < 40 && !any(customFolders, f => lower(f.name) == lower(trim(folderDraft))) {
+                folderSerial = folderSerial + 1
+                customFolders = customFolders + [{id: "f:" + str(folderSerial), name: trim(folderDraft), keys: []}]
+                folderDraft = ""
+              }
+            }
+          }
+        }
+        Text { text: str(len(customFolders)) + " folders · Hold a folder to edit"; font: chosenFont; fontSize: 12; color: muted }
+        Column {
+          fill: width; weight: 1; scroll: true; gap: 4
+          for f, i in customFolders key f.id {
+            Row {
+              fill: width; gap: 8; align: center; padding: [8, 10]
+              background: alpha(surface, 0.20)
+              onTap: { folderOpenId = f.id; folderReturnMode = "folderList"; folderScroll = 0; menu = ""; screenMode = "folder" }
+              onLongPress: { folderEditId = f.id; folderEditName = f.name; folderAppQuery = ""; folderDeleteConfirm = false; screenMode = "folderEdit" }
+              Text { text: f.name + " · " + str(len(f.keys)); font: chosenFont; fontSize: 16; weight: 1 }
+              if i > 0 { Button { text: "↑"; onTap: customFolders = set(set(customFolders, i - 1, f), i, customFolders[i - 1]) } }
+              if i < len(customFolders) - 1 { Button { text: "↓"; onTap: customFolders = set(set(customFolders, i + 1, f), i, customFolders[i + 1]) } }
+              Button { text: "Edit"; onTap: { folderEditId = f.id; folderEditName = f.name; folderAppQuery = ""; folderDeleteConfirm = false; screenMode = "folderEdit" } }
+            }
+          }
+        }
+      }
+    } else if screenMode == "folderEdit" {
+      Column {
+        fill: true
+        gap: 10
+        Button { text: "‹ Back to folders"; onTap: { menu = ""; folderDeleteConfirm = false; screenMode = "folderList" } }
+        if editingFolder != null {
+          Row {
+            fill: width; gap: 8
+            Input { text: folderEditName; placeholder: "Folder name (1–32 characters)"; weight: 1; onChange: folderEditName = value }
+            Button {
+              text: "Rename"
+              onTap: {
+                if trim(folderEditName) != "" && len(trim(folderEditName)) <= 32 && !any(customFolders, f => f.id != folderEditId && lower(f.name) == lower(trim(folderEditName))) {
+                  customFolders = customFolders.map(f => f.id == folderEditId ? merge(f, {name: trim(folderEditName)}) : f)
+                }
+              }
+            }
+          }
+          Text { text: "Add or remove installed apps"; font: chosenFont; fontSize: 14; color: muted }
+          Input { text: folderAppQuery; placeholder: "Find apps…"; onChange: folderAppQuery = value }
+          Column {
+            fill: width; weight: 1; scroll: true; gap: 2
+            for a in (installed ?? []).filter(a => trim(folderAppQuery) == "" || contains(lower(a.name), lower(trim(folderAppQuery))) || contains(lower(a.package), lower(trim(folderAppQuery)))).sortBy(a => lower(a.name)).take(80) key a.key {
+              Row {
+                fill: width; align: center; gap: 8; padding: [4, 10]
+                if a.icon != null && a.icon != "" { Image { src: a.icon; size: 26; label: a.name } }
+                Text { text: a.name + (a.profile == null ? "" : " · " + a.profile); font: chosenFont; fontSize: 14; weight: 1; maxLines: 1 }
+                Button {
+                  text: contains(editingFolder.keys, a.key) ? "Remove" : "Add"
+                  onTap: { customFolders = customFolders.map(f => f.id == folderEditId ? merge(f, {keys: contains(f.keys, a.key) ? f.keys.filter(k => k != a.key) : f.keys + [a.key]}) : f) }
+                }
+              }
+            }
+          }
+          if !folderDeleteConfirm {
+            Button { text: "Delete folder…"; onTap: folderDeleteConfirm = true }
+          } else {
+            Text { text: "Delete this folder? Its apps remain installed."; font: chosenFont; color: muted }
+            Row {
+              Button { text: "Confirm delete"; onTap: { customFolders = customFolders.filter(f => f.id != folderEditId); folderDeleteConfirm = false; folderOpenId = ""; folderEditId = ""; screenMode = "folderList" } }
+              Button { text: "Cancel"; onTap: folderDeleteConfirm = false }
+            }
+          }
+        } else {
+          Text { text: "Folder no longer exists."; font: chosenFont }
+        }
+      }
+    } else if screenMode == "folderPick" {
+      Column {
+        fill: true; gap: 10
+        Button { text: "‹ Back"; onTap: { if folderPickReturnMode == "face" { close() } else { screenMode = folderPickReturnMode } } }
+        Text { text: "Create a folder or add this app to an existing folder"; font: chosenFont; fontSize: 14; color: muted }
+        Row {
+          fill: width; gap: 8
+          Input { text: folderDraft; placeholder: "New folder name"; weight: 1; onChange: folderDraft = value }
+          Button {
+            text: "Create"
+            onTap: {
+              if folderPickAppKey != "" && trim(folderDraft) != "" && len(trim(folderDraft)) <= 32 && len(customFolders) < 40 && !any(customFolders, f => lower(f.name) == lower(trim(folderDraft))) {
+                folderSerial = folderSerial + 1
+                customFolders = customFolders + [{id: "f:" + str(folderSerial), name: trim(folderDraft), keys: [folderPickAppKey]}]
+                folderDraft = ""
+                if folderPickReturnMode == "face" { close() } else { screenMode = folderPickReturnMode }
+              }
+            }
+          }
+        }
+        Column {
+          fill: width; weight: 1; scroll: true; gap: 6
+          for f in customFolders key f.id {
+            Row {
+              fill: width; align: center; gap: 8; padding: [12, 10]; background: alpha(surface, 0.20)
+              Text { text: f.name; font: chosenFont; fontSize: 16; weight: 1 }
+              Button {
+                text: contains(f.keys, folderPickAppKey) ? "Added" : "Add"
+                onTap: {
+                  if folderPickAppKey != "" && !contains(f.keys, folderPickAppKey) {
+                    customFolders = customFolders.map(x => x.id == f.id ? merge(x, {keys: x.keys + [folderPickAppKey]}) : x)
+                  }
+                  if folderPickReturnMode == "face" { close() } else { screenMode = folderPickReturnMode }
+                }
+              }
+            }
+          }
+        }
+      }
+    } else if screenMode == "search" {
       Column {
         fill: true
         gap: 12
@@ -2311,6 +2546,9 @@ face "Omagara" {
                 }
               }
               Text { text: "Most used is the default. Long-press an app in the A–Z list to move it within its letter or reset its automatic position. A small line marks moved apps. Search is unaffected."; font: chosenFont; fontSize: 12; color: secondaryText }
+              Text { text: "Custom folders"; color: accent; font: chosenFont; fontSize: 16; padding: [0, 12, 0, 2] }
+              Button { text: "Manage folders (" + str(len(customFolders)) + ")"; onTap: { folderDraft = ""; screenMode = "folderList" } }
+              Text { text: "Hold an app to add it to a folder. Folder shortcuts appear below the last worm letter. Hold a folder icon to edit."; font: chosenFont; fontSize: 12; color: secondaryText }
               for pref in preferenceRows.filter(p => p.key == "musicShortcuts") { SettingToggle { pref: pref } }
               Text { text: "Use the compact player's arrow to expand or collapse selected music apps. This does not change when music pauses."; font: chosenFont; fontSize: 12; color: secondaryText }
               Text { text: "Alphabet visibility / music shortcuts"; color: accent; font: chosenFont; fontSize: 16; padding: [0, 12, 0, 2] }
@@ -2566,18 +2804,20 @@ face "Omagara" {
             } else {
               Text { text: "Backup & reset"; color: accent; font: chosenFont; fontSize: 18; padding: [0, 8, 0, 4] }
               Text { text: "Export or restore Omagara preferences."; font: chosenFont; fontSize: 13; color: secondaryText }
-        Button { text: "Export Omagara settings to clipboard"; onTap: copy(toJson({version: 1, prefs: cfg, zones: worldZones, hiddenApps: hiddenAppKeys, musicApps: musicAppKeys, compactAlerts: compactAlertApps, hiddenNotifications: hiddenNoticeApps, manualMoves: manualAppMoves})) }
+        Button { text: "Export Omagara settings to clipboard"; onTap: copy(toJson({version: 1, prefs: cfg, zones: worldZones, hiddenApps: hiddenAppKeys, musicApps: musicAppKeys, compactAlerts: compactAlertApps, hiddenNotifications: hiddenNoticeApps, manualMoves: manualAppMoves, folders: customFolders, folderSerial: folderSerial})) }
         Input { text: importText; placeholder: "Paste Omagara settings JSON"; lines: 3; onChange: importText = value }
         Button {
           text: "Import Omagara settings"
           onTap: {
             let imported = parseJson(importText)
-            if imported.version == 1 && all(keys(defaults), k => (k == "shadeHeaderOpacity" || k == "shadeAlphabetOpacity" || k == "shadeNoticeOpacity" || k == "shadeCardOpacity" || k == "shadeAppOpacity" || k == "shadeButtonOpacity") ? get(imported.prefs, k) == null || contains(range(101), get(imported.prefs, k)) : k == "sortMode" ? get(imported.prefs, k) == null || contains(sortModeChoices, get(imported.prefs, k)) || get(imported.prefs, k) == "Manual" : k == "noticeStartPercent" ? get(imported.prefs, k) == null || contains(range(6, 51), get(imported.prefs, k)) : k == "appScale" ? get(imported.prefs, k) == null || contains(appScaleChoices, get(imported.prefs, k)) : k == "hapticFeedback" ? get(imported.prefs, k) == null || contains(hapticChoices, get(imported.prefs, k)) : k == "bubbleBorder" ? get(imported.prefs, k) == null || get(imported.prefs, k) == true || get(imported.prefs, k) == false : k == "iconStyle" ? get(imported.prefs, k) == null || contains(iconStyleChoices, get(imported.prefs, k)) : k == "iconOverlayOpacity" ? get(imported.prefs, k) == null || contains(iconOverlayChoices, get(imported.prefs, k)) : k == "faceFont" ? get(imported.prefs, k) == null || contains(faceFontChoices, get(imported.prefs, k)) : k == "headerAlignment" ? get(imported.prefs, k) == null || contains(headerAlignmentChoices, get(imported.prefs, k)) : k == "textTone" ? get(imported.prefs, k) == null || contains(textToneChoices, get(imported.prefs, k)) : k == "textContrast" ? get(imported.prefs, k) == null || contains(textContrastChoices, get(imported.prefs, k)) : k == "customTextHex" ? get(imported.prefs, k) == null || match(get(imported.prefs, k), "^#[0-9A-Fa-f]{6}$") != null : k == "shadeColorMode" ? get(imported.prefs, k) == null || contains(shadeColorChoices, get(imported.prefs, k)) : k == "shadeCustomHex" ? get(imported.prefs, k) == null || match(get(imported.prefs, k), "^#[0-9A-Fa-f]{6}$") != null : k == "timeFormat" ? get(imported.prefs, k) == null || get(imported.prefs, k) == "System" || contains(timeFormatChoices, get(imported.prefs, k)) : k == "alphabetSide" ? get(imported.prefs, k) == null || contains(["Left", "Right"], get(imported.prefs, k)) : k == "controlSide" ? get(imported.prefs, k) == null || contains(["Left", "Right"], get(imported.prefs, k)) : k == "closeSide" ? get(imported.prefs, k) == null || contains(["Follow search", "Left", "Right"], get(imported.prefs, k)) : k == "showSwipeCue" || k == "holidayEasterEggs" ? get(imported.prefs, k) == null || get(imported.prefs, k) == true || get(imported.prefs, k) == false : get(imported.prefs, k) == true || get(imported.prefs, k) == false || (k == "calculator" || k == "searchContacts" || k == "notificationTimes" || k == "mediaPlayer" || k == "musicShortcuts" || k == "noticeAutoPosition") && get(imported.prefs, k) == null) && sub(toJson(imported.zones), 0, 1) == "[" && all(imported.zones, z => contains(zoneChoices, z)) && sub(toJson(imported.hiddenApps ?? []), 0, 1) == "[" && sub(toJson(imported.musicApps ?? []), 0, 1) == "[" && sub(toJson(imported.compactAlerts ?? []), 0, 1) == "[" && sub(toJson(imported.hiddenNotifications ?? []), 0, 1) == "[" && sub(toJson(imported.manualMoves ?? []), 0, 1) == "[" && all(imported.manualMoves ?? [], m => m.key != null && m.anchor != null && contains(fullAlphabet, m.letter) && (m.after == true || m.after == false)) {
+            if imported.version == 1 && all(keys(defaults), k => (k == "shadeHeaderOpacity" || k == "shadeAlphabetOpacity" || k == "shadeNoticeOpacity" || k == "shadeCardOpacity" || k == "shadeAppOpacity" || k == "shadeButtonOpacity") ? get(imported.prefs, k) == null || contains(range(101), get(imported.prefs, k)) : k == "sortMode" ? get(imported.prefs, k) == null || contains(sortModeChoices, get(imported.prefs, k)) || get(imported.prefs, k) == "Manual" : k == "noticeStartPercent" ? get(imported.prefs, k) == null || contains(range(6, 51), get(imported.prefs, k)) : k == "appScale" ? get(imported.prefs, k) == null || contains(appScaleChoices, get(imported.prefs, k)) : k == "hapticFeedback" ? get(imported.prefs, k) == null || contains(hapticChoices, get(imported.prefs, k)) : k == "bubbleBorder" ? get(imported.prefs, k) == null || get(imported.prefs, k) == true || get(imported.prefs, k) == false : k == "iconStyle" ? get(imported.prefs, k) == null || contains(iconStyleChoices, get(imported.prefs, k)) : k == "iconOverlayOpacity" ? get(imported.prefs, k) == null || contains(iconOverlayChoices, get(imported.prefs, k)) : k == "faceFont" ? get(imported.prefs, k) == null || contains(faceFontChoices, get(imported.prefs, k)) : k == "headerAlignment" ? get(imported.prefs, k) == null || contains(headerAlignmentChoices, get(imported.prefs, k)) : k == "textTone" ? get(imported.prefs, k) == null || contains(textToneChoices, get(imported.prefs, k)) : k == "textContrast" ? get(imported.prefs, k) == null || contains(textContrastChoices, get(imported.prefs, k)) : k == "customTextHex" ? get(imported.prefs, k) == null || match(get(imported.prefs, k), "^#[0-9A-Fa-f]{6}$") != null : k == "shadeColorMode" ? get(imported.prefs, k) == null || contains(shadeColorChoices, get(imported.prefs, k)) : k == "shadeCustomHex" ? get(imported.prefs, k) == null || match(get(imported.prefs, k), "^#[0-9A-Fa-f]{6}$") != null : k == "timeFormat" ? get(imported.prefs, k) == null || get(imported.prefs, k) == "System" || contains(timeFormatChoices, get(imported.prefs, k)) : k == "alphabetSide" ? get(imported.prefs, k) == null || contains(["Left", "Right"], get(imported.prefs, k)) : k == "controlSide" ? get(imported.prefs, k) == null || contains(["Left", "Right"], get(imported.prefs, k)) : k == "closeSide" ? get(imported.prefs, k) == null || contains(["Follow search", "Left", "Right"], get(imported.prefs, k)) : k == "showSwipeCue" || k == "holidayEasterEggs" ? get(imported.prefs, k) == null || get(imported.prefs, k) == true || get(imported.prefs, k) == false : get(imported.prefs, k) == true || get(imported.prefs, k) == false || (k == "calculator" || k == "searchContacts" || k == "notificationTimes" || k == "mediaPlayer" || k == "musicShortcuts" || k == "noticeAutoPosition") && get(imported.prefs, k) == null) && sub(toJson(imported.zones), 0, 1) == "[" && all(imported.zones, z => contains(zoneChoices, z)) && sub(toJson(imported.hiddenApps ?? []), 0, 1) == "[" && sub(toJson(imported.musicApps ?? []), 0, 1) == "[" && sub(toJson(imported.compactAlerts ?? []), 0, 1) == "[" && sub(toJson(imported.hiddenNotifications ?? []), 0, 1) == "[" && sub(toJson(imported.manualMoves ?? []), 0, 1) == "[" && all(imported.manualMoves ?? [], m => m.key != null && m.anchor != null && contains(fullAlphabet, m.letter) && (m.after == true || m.after == false)) && sub(toJson(imported.folders ?? []), 0, 1) == "[" && all(imported.folders ?? [], f => f.id != null && f.name != null && trim(f.name) != "" && len(f.name) <= 32 && sub(toJson(f.keys ?? []), 0, 1) == "[") && (imported.folderSerial == null || num(imported.folderSerial) >= 0 && num(imported.folderSerial) < 1000000000) {
               letter = highlightedLetter; appTracking = false
               prefs = reduce(keys(defaults), (m, k) => set(m, k, k == "searchContacts" ? false : k == "textContrast" ? "High" : k == "timeFormat" && get(imported.prefs, k) == "System" ? "24-hour" : k == "sortMode" && get(imported.prefs, k) == "Manual" ? "Most used" : (get(imported.prefs, k) ?? get(defaults, k))), {})
               worldZones = unique(imported.zones ?? [])
               hiddenAppKeys = unique(imported.hiddenApps ?? [])
               manualAppMoves = imported.manualMoves ?? []
+              customFolders = imported.folders ?? []
+              folderSerial = imported.folderSerial ?? 0
               musicAppKeys = unique(imported.musicApps ?? []).take(5)
               compactAlertApps = unique(imported.compactAlerts ?? [])
               hiddenNoticeApps = unique(imported.hiddenNotifications ?? [])
@@ -2590,7 +2830,7 @@ face "Omagara" {
         if resetConfirm {
           Text { text: "Reset Omagara appearance and world clocks?"; font: chosenFont }
           Row {
-            Button { text: "Confirm reset"; onTap: { letter = highlightedLetter; appTracking = false; prefs = {}; worldZones = []; hiddenAppKeys = []; manualAppMoves = []; musicAppKeys = []; compactAlertApps = []; hiddenNoticeApps = []; appPickerQuery = ""; holidayPreview = "Auto"; holidayAnimPlaying = false; holidayPlayedStamp = ""; resetConfirm = false; importText = ""; customTextEntry = ""; customShadeEntry = ""; importStatus = "" } }
+            Button { text: "Confirm reset"; onTap: { letter = highlightedLetter; appTracking = false; prefs = {}; worldZones = []; hiddenAppKeys = []; manualAppMoves = []; customFolders = []; folderSerial = 0; musicAppKeys = []; compactAlertApps = []; hiddenNoticeApps = []; appPickerQuery = ""; holidayPreview = "Auto"; holidayAnimPlaying = false; holidayPlayedStamp = ""; resetConfirm = false; importText = ""; customTextEntry = ""; customShadeEntry = ""; importStatus = "" } }
             Button { text: "Cancel"; onTap: resetConfirm = false }
           }
         }
