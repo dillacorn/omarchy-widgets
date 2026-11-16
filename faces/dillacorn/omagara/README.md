@@ -18,7 +18,7 @@ Time format is selected under **Clock** in Omagara settings; OWL does not expose
 
 ## v1.9 changes
 
-- Default to **Most used**, with Alphabetical still selectable. Saved choices remain respected, except the experimental Manual mode, which now follows Most used.
+- Default to **Most used**, with Alphabetical still selectable. A one-time upgrade migration switches existing saved sort choices to Most used; later manual selections are preserved.
 - Long-press any app in the A–Z browser to move it up or down one visible position within its letter, without switching modes.
 - A slim accent line marks moved apps; long-press one to **Reset automatic position**.
 - Replay per-app moves without freezing the other apps' automatic sorting. Hidden, work-profile, and cloned apps retain distinct keys; Search is unaffected.
