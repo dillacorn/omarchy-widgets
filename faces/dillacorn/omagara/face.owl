@@ -1077,7 +1077,7 @@ face "Omagara" {
             let packageProfile = toJson([a.package, a.profile])
             let pinOwner = first(pinnedApps.filter(p => toJson([p.package, p.profile]) == packageProfile))
             let pinNotices = get(noticeGroups, packageProfile, [])
-            let showPinNotices = cfg.notifications && notices.available != false && pinOwner != null && pinOwner.key == a.key && len(pinNotices) > 0
+            let showPinNotices = cfg.notifications && notices != null && notices.available != false && pinOwner != null && pinOwner.key == a.key && len(pinNotices) > 0
             Column {
               fill: width
               gap: 3
@@ -1721,7 +1721,7 @@ face "Omagara" {
           }
         }
         Text {
-          text: contains(pinnedAppKeys, a.key) ? "Unpin app" : "Pin app"
+          text: contains(pinnedAppKeys, a.key) ? "Unpin app" : len(pinnedAppKeys) >= 8 ? "Pin limit reached (8)" : "Pin app"
           fill: width
           padding: [12, 14]
           onTap: {
