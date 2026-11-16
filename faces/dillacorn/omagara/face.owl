@@ -311,6 +311,7 @@ face "Omagara" {
   let pinnedApps = take(pinnedAppKeys.map(k => find(installed ?? [], a => a.key == k)).filter(a => a != null), 8)
   let pinnedRowNumbers = map(range(len(pinnedApps)), i => sum(take(pinnedApps, i + 1).map((a, j) => j == 0 || get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "newRow", true) != false ? 1 : 0)))
   let pinnedRows = unique(pinnedRowNumbers).map(r => pinnedApps.filter(a => get(pinnedRowNumbers, indexOf(pinnedApps.map(p => p.key), a.key), 0) == r))
+  let pinJoinedKeys = flatten(pinnedRows.filter(row => len(row) > 1).map(row => row.map(a => a.key)))
   // Android notification identity is package + profile, not a launcher key.
   // Multiple activities for one package have only one notification owner.
   let pinnedProfiles = unique(pinnedApps.map(a => toJson([a.package, a.profile])))
@@ -986,6 +987,12 @@ face "Omagara" {
             pinnedNoticeShown = 4
             expandedStack = ""; expandedNoticeActions = ""; replyKey = ""; replyDraft = ""
           }
+          // Notification controls must not swallow the app's long-press editor.
+          onLongPress: {
+            pinnedMenuShortcuts = null
+            pinnedMenuKey = a.key
+            pinnedMenuShortcuts = shortcuts(a.key)
+          }
         }
       }
       Popup {
@@ -1022,20 +1029,22 @@ face "Omagara" {
           }
         }
         Text {
-          text: get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) == false ? "Show app label" : "Hide app label"
+          text: contains(pinJoinedKeys, a.key) ? "Show label (separate)" : get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) == false ? "Show app label" : "Hide app label"
           fill: width
           padding: [12, 14]
           onTap: {
             let current = find(pinnedLayouts, p => p.key == a.key)
+            let joined = contains(pinJoinedKeys, a.key)
             let currentShow = get(current ?? {}, "showLabel", true) != false
-            let updated = merge(current ?? {key: a.key, newRow: true}, {showLabel: !currentShow})
-            pinnedLayouts = pinnedLayouts.filter(p => p.key != a.key) + [updated]
+            let updated = merge(current ?? {key: a.key, newRow: true}, {showLabel: joined ? true : !currentShow, newRow: joined ? true : get(current ?? {}, "newRow", true)})
+            let nextKey = get(pinnedAppKeys, indexOf(pinnedAppKeys, a.key) + 1)
+            pinnedLayouts = pinnedLayouts.filter(p => p.key != a.key && (!joined || p.key != nextKey)) + [updated] + (joined && nextKey != null ? [merge(find(pinnedLayouts, p => p.key == nextKey) ?? {key: nextKey, showLabel: true}, {newRow: true})] : [])
             pinnedMenuKey = ""; pinnedMenuShortcuts = null
           }
         }
         if indexOf(pinnedAppKeys, a.key) > 0 {
           Text {
-            text: get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "newRow", true) == false ? "Start new row" : "Place beside previous"
+            text: get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "newRow", true) == false ? "Start new row" : "Join previous (icons)"
             fill: width
             padding: [12, 14]
             onTap: {
@@ -1044,6 +1053,21 @@ face "Omagara" {
               let updated = merge(current ?? {key: a.key, showLabel: true}, {newRow: !currentNewRow})
               pinnedLayouts = pinnedLayouts.filter(p => p.key != a.key) + [updated]
               pinnedMenuKey = ""; pinnedMenuShortcuts = null
+            }
+          }
+        }
+        if indexOf(pinnedAppKeys, a.key) >= 0 && indexOf(pinnedAppKeys, a.key) < len(pinnedAppKeys) - 1 {
+          let nextKey = get(pinnedAppKeys, indexOf(pinnedAppKeys, a.key) + 1)
+          if get(find(pinnedLayouts, p => p.key == nextKey) ?? {}, "newRow", true) != false {
+            Text {
+              text: "Join next (icons)"
+              fill: width
+              padding: [12, 14]
+              onTap: {
+                let nextLayout = find(pinnedLayouts, p => p.key == nextKey)
+                pinnedLayouts = pinnedLayouts.filter(p => p.key != nextKey) + [merge(nextLayout ?? {key: nextKey, showLabel: true}, {newRow: false})]
+                pinnedMenuKey = ""; pinnedMenuShortcuts = null
+              }
             }
           }
         }
@@ -1313,14 +1337,15 @@ face "Omagara" {
       // Each pin owns its own label and row break. Flow wraps if necessary
       // instead of overflowing the worm on narrow screens.
       for rowPins in pinnedRows key toJson(rowPins.map(a => a.key)) {
-        let rowNamedCount = count(rowPins, a => get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false)
-        let rowIconSize = max(16, min(36, (noticeWidth - len(rowPins) * 4 - max(0, len(rowPins) - 1) * 6 - 8) / max(1, len(rowPins))))
+        let rowJoined = len(rowPins) > 1
+        let rowNamedCount = count(rowPins, a => !rowJoined && get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false)
+        let rowIconSize = rowJoined ? max(23, min(36, (noticeWidth - len(rowPins) * 4 - max(0, len(rowPins) - 1) * 6 - 8) / max(1, len(rowPins)))) : 34
         let rowLabelWidth = min(152, max(42, (noticeWidth - len(rowPins) * (rowIconSize + 12) - max(0, len(rowPins) - 1) * 6 - 8) / max(1, rowNamedCount)))
         Flow {
           fill: width
           gap: 6
           for a in rowPins key a.key {
-            let showPinLabel = get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false
+            let showPinLabel = !rowJoined && get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false
             Row {
               align: center
               gap: 8
