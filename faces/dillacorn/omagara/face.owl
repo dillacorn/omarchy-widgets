@@ -110,6 +110,10 @@ face "Omagara" {
   state customFolders = [] persist
   state folderSerial = 0 persist
   state musicAppKeys = [] persist
+  // User-pinned Omagara home apps are independent of the native launcher strip.
+  state pinnedAppKeys = [] persist
+  state expandedPinnedKey = ""
+  state pinnedMenuKey = ""
   // Manual quick-launch expansion: never follows play/pause or Bluetooth refreshes.
   state musicAppsExpanded = false
   state compactAlertApps = [] persist
@@ -289,6 +293,10 @@ face "Omagara" {
   let apps = flatten(fullAlphabet.map(c => get(orderedGroups, c, []))).filter(a => !contains(hiddenAppKeys, a.key))
   let pickerApps = (installed ?? []).filter(a => trim(appPickerQuery) == "" || contains(lower(a.name), lower(trim(appPickerQuery))) || contains(lower(a.package), lower(trim(appPickerQuery)))).sortBy(a => lower(a.name)).take(40)
   let selectedMusicApps = (installed ?? []).filter(a => contains(musicAppKeys, a.key)).sortBy(a => lower(a.name)).take(5)
+  let pinnedApps = take(pinnedAppKeys.map(k => find(installed ?? [], a => a.key == k)).filter(a => a != null), 8)
+  // Android notification identity is package + profile, not a launcher key.
+  // Multiple activities for one package have only one notification owner.
+  let pinnedProfiles = unique(pinnedApps.map(a => toJson([a.package, a.profile])))
   let hasMedia = cfg.mediaPlayer && playback != null && playback.available != false && trim(playback.title ?? "") != ""
   let mediaNeedsAccess = cfg.mediaPlayer && playback != null && playback.available == false
   let audioConnected = audio != null && contains(["bluetooth", "wired", "usb", "dock"], audio.output.type ?? "")
@@ -355,14 +363,17 @@ face "Omagara" {
   // Hide only from the face. Do not dismiss, alter or mute Android notifications.
   // Keep filtering before grouping, clear-all counts and gesture/action bookkeeping.
   let noticeItems = (notices.items ?? []).filter(n => !contains(hiddenNoticeApps, toJson([n.package, n.profile])))
+  // Home-pinned notifications leave only this face's ordinary notification list.
+  // Preserve the original groups for actions, replies, swipes and dismissals.
+  let regularNoticeItems = noticeItems.filter(n => !contains(pinnedProfiles, toJson([n.package, n.profile])))
   let noticeGroups = groupBy(noticeItems, n => toJson([n.package, n.profile]))
-  let noticeGroupKeys = unique(noticeItems.map(n => toJson([n.package, n.profile])))
+  let noticeGroupKeys = unique(regularNoticeItems.map(n => toJson([n.package, n.profile])))
   // Flatten before the lazy list, so even a large expanded stack virtualizes
   // each notification separately (and doesn't load every icon at once).
   let groupedNoticeRows = flatten(noticeGroupKeys.map(k => [{id: "group:" + k, stack: k, summary: true, item: first(get(noticeGroups, k, []))}] + (expandedStack == k && len(get(noticeGroups, k, [])) > 1 ? get(noticeGroups, k, []).map(n => {id: n.key, stack: k, summary: false, item: n}) : [])))
   // Selected noisy applications still form one expandable group when global grouping is OFF.
   // Keep message apps uncompressed by default; no content/category guesses are made.
-  let noticeRows = cfg.grouping ? groupedNoticeRows : flatten(noticeItems.map(n =>
+  let noticeRows = cfg.grouping ? groupedNoticeRows : flatten(regularNoticeItems.map(n =>
     contains(compactAlertApps, toJson([n.package, n.profile])) ?
       (first(get(noticeGroups, toJson([n.package, n.profile]), [])).key == n.key ?
         [{id: "group:" + toJson([n.package, n.profile]), stack: toJson([n.package, n.profile]), summary: true, item: n}] +
@@ -370,7 +381,10 @@ face "Omagara" {
           get(noticeGroups, toJson([n.package, n.profile]), []).map(x => {id: x.key, stack: toJson([n.package, n.profile]), summary: false, item: x}) : []) : [])
     : [{id: n.key, stack: toJson([n.package, n.profile]), summary: false, item: n}]
   ))
-  let clearableNotices = count(noticeItems, n => n.clearable)
+  let clearableNotices = count(regularNoticeItems, n => n.clearable)
+  // Limit pin height so ordinary notifications retain useful screen space.
+  let pinnedNoticeAvailableHeight = max(0, noticeBottom - noticeTop - (hasMedia || showMusicApps ? 92 : 0))
+  let pinnedHomeHeight = min(22 + len(pinnedApps) * 52 + (expandedPinnedKey != "" ? 192 : 0), max(0, pinnedNoticeAvailableHeight * (cfg.notifications && len(regularNoticeItems) > 0 ? 0.56 : 0.84)))
   let dayStart = parseTime(fmtTime(now, "yyyy-MM-dd"), "yyyy-MM-dd")
   let dayEnd = parseTime(fmtTime(now, "yyyy-MM-dd") + " 23:59:59", "yyyy-MM-dd HH:mm:ss") + 1
   // Only one event is displayed: duplicate calendar copies cannot repeat the line.
@@ -1052,7 +1066,7 @@ face "Omagara" {
           padding: [8, 12]
           onTap: { queryText = ""; notification("open", "") }
         }
-      } else if len(noticeItems) > 0 {
+      } else if len(regularNoticeItems) > 0 {
         // Compact, independently square-by-default text shades. Avoid a
         // full-width header slab so wallpaper remains visible between labels.
         Row {
@@ -1099,7 +1113,7 @@ face "Omagara" {
               background: cfg.shadeNoticeLabels ? noticeHeadingShade : transparent
               radius: cfg.roundClearAll ? 7 : 0
               // Clear only visible items. Native global clear would dismiss hidden apps.
-              onTap: pendingStackDismiss = noticeItems.filter(n => n.clearable).map(n => n.key)
+              onTap: pendingStackDismiss = regularNoticeItems.filter(n => n.clearable).map(n => n.key)
             }
           }
         }
@@ -1579,6 +1593,20 @@ face "Omagara" {
           }
         }
         Text {
+          text: contains(pinnedAppKeys, a.key) ? "Unpin app" : "Pin app"
+          fill: width
+          padding: [12, 14]
+          onTap: {
+            menu = ""
+            if contains(pinnedAppKeys, a.key) {
+              pinnedAppKeys = pinnedAppKeys.filter(k => k != a.key)
+              if expandedPinnedKey == a.key { expandedPinnedKey = "" }
+            } else if len(pinnedAppKeys) < 8 {
+              pinnedAppKeys = pinnedAppKeys + [a.key]
+            }
+          }
+        }
+        Text {
           text: "Add to folder"
           fill: width
           padding: [12, 14]
@@ -1596,7 +1624,7 @@ face "Omagara" {
         }
         for actionWord in (find(drawer.apps ?? [], d => d.key == a.key || d.key == "a:" + a.key).actions ?? []) {
           Text {
-            text: get({pin: "Add to home", info: "App info", uninstall: "Uninstall", remove: "Remove", edit: "Edit", share: "Share"}, actionWord, actionWord)
+            text: get({pin: "Pin to Omalauncher home", info: "App info", uninstall: "Uninstall", remove: "Remove", edit: "Edit", share: "Share"}, actionWord, actionWord)
             fill: width
             padding: [12, 14]
             onTap: { menu = ""; appVelocity = 0; browsing = false; activeSide = 0; railHeld = false; draggingSide = 0; letter = first(liveAlphabet) ?? "A"; appScroll = 0; appAnchor = ""; queryText = ""; if folderView { folderOpenId = "" }; appAction(actionWord, a.key) }
@@ -2971,13 +2999,13 @@ face "Omagara" {
             } else {
               Text { text: "Backup & reset"; color: accent; font: chosenFont; fontSize: 18; padding: [0, 8, 0, 4] }
               Text { text: "Export or restore Omagara preferences."; font: chosenFont; fontSize: 13; color: secondaryText }
-        Button { text: "Export Omagara settings to clipboard"; onTap: copy(toJson({version: 1, prefs: cfg, zones: worldZones, hiddenApps: hiddenAppKeys, musicApps: musicAppKeys, compactAlerts: compactAlertApps, hiddenNotifications: hiddenNoticeApps, manualMoves: manualAppMoves, folders: customFolders, folderSerial: folderSerial})) }
+        Button { text: "Export Omagara settings to clipboard"; onTap: copy(toJson({version: 1, prefs: cfg, zones: worldZones, hiddenApps: hiddenAppKeys, musicApps: musicAppKeys, compactAlerts: compactAlertApps, hiddenNotifications: hiddenNoticeApps, manualMoves: manualAppMoves, folders: customFolders, folderSerial: folderSerial, pinnedApps: pinnedAppKeys})) }
         Input { text: importText; placeholder: "Paste Omagara settings JSON"; lines: 3; onChange: importText = value }
         Button {
           text: "Import Omagara settings"
           onTap: {
             let imported = parseJson(importText)
-            if imported.version == 1 && all(keys(defaults), k => (k == "shadeHeaderOpacity" || k == "shadeAlphabetOpacity" || k == "shadeNoticeOpacity" || k == "shadeCardOpacity" || k == "shadeAppOpacity" || k == "shadeButtonOpacity") ? get(imported.prefs, k) == null || contains(range(101), get(imported.prefs, k)) : k == "sortMode" ? get(imported.prefs, k) == null || contains(sortModeChoices, get(imported.prefs, k)) || get(imported.prefs, k) == "Manual" : k == "noticeStartPercent" ? get(imported.prefs, k) == null || contains(range(6, 51), get(imported.prefs, k)) : k == "appScale" ? get(imported.prefs, k) == null || contains(appScaleChoices, get(imported.prefs, k)) : k == "hapticFeedback" ? get(imported.prefs, k) == null || contains(hapticChoices, get(imported.prefs, k)) : k == "bubbleBorder" ? get(imported.prefs, k) == null || get(imported.prefs, k) == true || get(imported.prefs, k) == false : k == "iconStyle" ? get(imported.prefs, k) == null || contains(iconStyleChoices, get(imported.prefs, k)) : k == "iconOverlayOpacity" ? get(imported.prefs, k) == null || contains(iconOverlayChoices, get(imported.prefs, k)) : k == "faceFont" ? get(imported.prefs, k) == null || contains(faceFontChoices, get(imported.prefs, k)) : k == "headerAlignment" ? get(imported.prefs, k) == null || contains(headerAlignmentChoices, get(imported.prefs, k)) : k == "textTone" ? get(imported.prefs, k) == null || contains(textToneChoices, get(imported.prefs, k)) : k == "textContrast" ? get(imported.prefs, k) == null || contains(textContrastChoices, get(imported.prefs, k)) : k == "customTextHex" ? get(imported.prefs, k) == null || match(get(imported.prefs, k), "^#[0-9A-Fa-f]{6}$") != null : k == "shadeColorMode" ? get(imported.prefs, k) == null || contains(shadeColorChoices, get(imported.prefs, k)) : k == "shadeCustomHex" ? get(imported.prefs, k) == null || match(get(imported.prefs, k), "^#[0-9A-Fa-f]{6}$") != null : k == "timeFormat" ? get(imported.prefs, k) == null || get(imported.prefs, k) == "System" || contains(timeFormatChoices, get(imported.prefs, k)) : k == "alphabetSide" ? get(imported.prefs, k) == null || contains(["Left", "Right"], get(imported.prefs, k)) : k == "controlSide" ? get(imported.prefs, k) == null || contains(["Left", "Right"], get(imported.prefs, k)) : k == "closeSide" ? get(imported.prefs, k) == null || contains(["Follow search", "Left", "Right"], get(imported.prefs, k)) : k == "showSwipeCue" || k == "holidayEasterEggs" ? get(imported.prefs, k) == null || get(imported.prefs, k) == true || get(imported.prefs, k) == false : get(imported.prefs, k) == true || get(imported.prefs, k) == false || (k == "calculator" || k == "searchContacts" || k == "notificationTimes" || k == "mediaPlayer" || k == "musicShortcuts" || k == "noticeAutoPosition") && get(imported.prefs, k) == null) && sub(toJson(imported.zones), 0, 1) == "[" && all(imported.zones, z => contains(zoneChoices, z)) && sub(toJson(imported.hiddenApps ?? []), 0, 1) == "[" && sub(toJson(imported.musicApps ?? []), 0, 1) == "[" && sub(toJson(imported.compactAlerts ?? []), 0, 1) == "[" && sub(toJson(imported.hiddenNotifications ?? []), 0, 1) == "[" && sub(toJson(imported.manualMoves ?? []), 0, 1) == "[" && all(imported.manualMoves ?? [], m => m.key != null && m.anchor != null && contains(fullAlphabet, m.letter) && (m.after == true || m.after == false)) && sub(toJson(imported.folders ?? []), 0, 1) == "[" && all(imported.folders ?? [], f => f.id != null && f.name != null && trim(f.name) != "" && len(f.name) <= 32 && sub(toJson(f.keys ?? []), 0, 1) == "[") && (imported.folderSerial == null || num(imported.folderSerial) >= 0 && num(imported.folderSerial) < 1000000000) {
+            if imported.version == 1 && all(keys(defaults), k => (k == "shadeHeaderOpacity" || k == "shadeAlphabetOpacity" || k == "shadeNoticeOpacity" || k == "shadeCardOpacity" || k == "shadeAppOpacity" || k == "shadeButtonOpacity") ? get(imported.prefs, k) == null || contains(range(101), get(imported.prefs, k)) : k == "sortMode" ? get(imported.prefs, k) == null || contains(sortModeChoices, get(imported.prefs, k)) || get(imported.prefs, k) == "Manual" : k == "noticeStartPercent" ? get(imported.prefs, k) == null || contains(range(6, 51), get(imported.prefs, k)) : k == "appScale" ? get(imported.prefs, k) == null || contains(appScaleChoices, get(imported.prefs, k)) : k == "hapticFeedback" ? get(imported.prefs, k) == null || contains(hapticChoices, get(imported.prefs, k)) : k == "bubbleBorder" ? get(imported.prefs, k) == null || get(imported.prefs, k) == true || get(imported.prefs, k) == false : k == "iconStyle" ? get(imported.prefs, k) == null || contains(iconStyleChoices, get(imported.prefs, k)) : k == "iconOverlayOpacity" ? get(imported.prefs, k) == null || contains(iconOverlayChoices, get(imported.prefs, k)) : k == "faceFont" ? get(imported.prefs, k) == null || contains(faceFontChoices, get(imported.prefs, k)) : k == "headerAlignment" ? get(imported.prefs, k) == null || contains(headerAlignmentChoices, get(imported.prefs, k)) : k == "textTone" ? get(imported.prefs, k) == null || contains(textToneChoices, get(imported.prefs, k)) : k == "textContrast" ? get(imported.prefs, k) == null || contains(textContrastChoices, get(imported.prefs, k)) : k == "customTextHex" ? get(imported.prefs, k) == null || match(get(imported.prefs, k), "^#[0-9A-Fa-f]{6}$") != null : k == "shadeColorMode" ? get(imported.prefs, k) == null || contains(shadeColorChoices, get(imported.prefs, k)) : k == "shadeCustomHex" ? get(imported.prefs, k) == null || match(get(imported.prefs, k), "^#[0-9A-Fa-f]{6}$") != null : k == "timeFormat" ? get(imported.prefs, k) == null || get(imported.prefs, k) == "System" || contains(timeFormatChoices, get(imported.prefs, k)) : k == "alphabetSide" ? get(imported.prefs, k) == null || contains(["Left", "Right"], get(imported.prefs, k)) : k == "controlSide" ? get(imported.prefs, k) == null || contains(["Left", "Right"], get(imported.prefs, k)) : k == "closeSide" ? get(imported.prefs, k) == null || contains(["Follow search", "Left", "Right"], get(imported.prefs, k)) : k == "showSwipeCue" || k == "holidayEasterEggs" ? get(imported.prefs, k) == null || get(imported.prefs, k) == true || get(imported.prefs, k) == false : get(imported.prefs, k) == true || get(imported.prefs, k) == false || (k == "calculator" || k == "searchContacts" || k == "notificationTimes" || k == "mediaPlayer" || k == "musicShortcuts" || k == "noticeAutoPosition") && get(imported.prefs, k) == null) && sub(toJson(imported.zones), 0, 1) == "[" && all(imported.zones, z => contains(zoneChoices, z)) && sub(toJson(imported.hiddenApps ?? []), 0, 1) == "[" && sub(toJson(imported.musicApps ?? []), 0, 1) == "[" && sub(toJson(imported.compactAlerts ?? []), 0, 1) == "[" && sub(toJson(imported.hiddenNotifications ?? []), 0, 1) == "[" && sub(toJson(imported.manualMoves ?? []), 0, 1) == "[" && all(imported.manualMoves ?? [], m => m.key != null && m.anchor != null && contains(fullAlphabet, m.letter) && (m.after == true || m.after == false)) && sub(toJson(imported.pinnedApps ?? []), 0, 1) == "[" && sub(toJson(imported.folders ?? []), 0, 1) == "[" && all(imported.folders ?? [], f => f.id != null && f.name != null && trim(f.name) != "" && len(f.name) <= 32 && sub(toJson(f.keys ?? []), 0, 1) == "[") && (imported.folderSerial == null || num(imported.folderSerial) >= 0 && num(imported.folderSerial) < 1000000000) {
               letter = highlightedLetter; appTracking = false
               prefs = reduce(keys(defaults), (m, k) => set(m, k, k == "searchContacts" ? false : k == "textContrast" ? "High" : k == "timeFormat" && get(imported.prefs, k) == "System" ? "24-hour" : k == "sortMode" && get(imported.prefs, k) == "Manual" ? "Most used" : (get(imported.prefs, k) ?? get(defaults, k))), {})
               worldZones = unique(imported.zones ?? [])
@@ -2985,6 +3013,9 @@ face "Omagara" {
               manualAppMoves = imported.manualMoves ?? []
               customFolders = imported.folders ?? []
               folderSerial = imported.folderSerial ?? 0
+              pinnedAppKeys = take(unique(imported.pinnedApps ?? []), 8)
+              expandedPinnedKey = ""
+              pinnedMenuKey = ""
               musicAppKeys = unique(imported.musicApps ?? []).take(5)
               compactAlertApps = unique(imported.compactAlerts ?? [])
               hiddenNoticeApps = unique(imported.hiddenNotifications ?? [])
@@ -2997,7 +3028,7 @@ face "Omagara" {
         if resetConfirm {
           Text { text: "Reset Omagara appearance and world clocks?"; font: chosenFont }
           Row {
-            Button { text: "Confirm reset"; onTap: { letter = highlightedLetter; appTracking = false; prefs = {}; worldZones = []; hiddenAppKeys = []; manualAppMoves = []; customFolders = []; folderSerial = 0; musicAppKeys = []; compactAlertApps = []; hiddenNoticeApps = []; appPickerQuery = ""; holidayPreview = "Auto"; holidayAnimPlaying = false; holidayPlayedStamp = ""; resetConfirm = false; importText = ""; customTextEntry = ""; customShadeEntry = ""; importStatus = "" } }
+            Button { text: "Confirm reset"; onTap: { letter = highlightedLetter; appTracking = false; prefs = {}; worldZones = []; hiddenAppKeys = []; manualAppMoves = []; customFolders = []; folderSerial = 0; pinnedAppKeys = []; expandedPinnedKey = ""; pinnedMenuKey = ""; musicAppKeys = []; compactAlertApps = []; hiddenNoticeApps = []; appPickerQuery = ""; holidayPreview = "Auto"; holidayAnimPlaying = false; holidayPlayedStamp = ""; resetConfirm = false; importText = ""; customTextEntry = ""; customShadeEntry = ""; importStatus = "" } }
             Button { text: "Cancel"; onTap: resetConfirm = false }
           }
         }
