@@ -102,8 +102,8 @@ face "Omagara" {
   state worldZones = [] persist
   // Keys and package/profile pairs are persisted separately from display preferences.
   state hiddenAppKeys = [] persist
-  // Full installed-app key order, including hidden apps and profile copies.
-  state manualAppKeys = [] persist
+  // Per-app relative moves, replayed after automatic sorting within each letter.
+  state manualAppMoves = [] persist
   state musicAppKeys = [] persist
   // Manual quick-launch expansion: never follows play/pause or Bluetooth refreshes.
   state musicAppsExpanded = false
@@ -140,8 +140,8 @@ face "Omagara" {
   state timerLeft = 0 persist
   state watchStarted = 0
   state watchElapsed = 0
-  let defaults = {idleAlphabet: true, hideEmpty: true, icons: true, iconStyle: "Theme overlay", iconOverlayOpacity: 30, faceFont: "Sans", headerAlignment: "Content column", clock: true, date: true, event: true, notifications: true, previews: true, curve: true, reduceMotion: false, leftInput: true, grouping: true, actions: true, clockTap: true, dateTap: true, eventTap: true, searchContacts: false, calculator: true, sortMode: "Alphabetical", musicShortcuts: true, mediaPlayer: true, noticeAutoPosition: true, noticeStartPercent: 24, appScale: 80, timeFormat: "24-hour", notificationTimes: true, hapticFeedback: "Every letter", roundTime: false, roundDate: false, roundEvent: false, roundAlphabet: false, roundNotifications: false, roundNoticeHeading: false, roundClearAll: false, roundSearch: false, roundClose: false, roundLetterCue: false, roundCalendar: false, bubbleBorder: false, textTone: "Theme", textContrast: "High", customTextHex: "#FAFAFA", shadeColorMode: "Theme", shadeCustomHex: "#555555", shadeHeader: true, shadeAlphabet: true, shadeNoticeLabels: true, shadeAppLabels: true, shadeHeaderOpacity: 29, shadeAlphabetOpacity: 49, shadeNoticeOpacity: 49, shadeCardOpacity: 48, shadeAppOpacity: 78, shadeButtonOpacity: 85, holidayEasterEggs: true, showSwipeCue: true, roundAppLabels: false, alphabetSide: "Right", controlSide: "Right", closeSide: "Follow search"}
-  let sortModeChoices = ["Alphabetical", "Most used", "Manual"]
+  let defaults = {idleAlphabet: true, hideEmpty: true, icons: true, iconStyle: "Theme overlay", iconOverlayOpacity: 30, faceFont: "Sans", headerAlignment: "Content column", clock: true, date: true, event: true, notifications: true, previews: true, curve: true, reduceMotion: false, leftInput: true, grouping: true, actions: true, clockTap: true, dateTap: true, eventTap: true, searchContacts: false, calculator: true, sortMode: "Most used", musicShortcuts: true, mediaPlayer: true, noticeAutoPosition: true, noticeStartPercent: 24, appScale: 80, timeFormat: "24-hour", notificationTimes: true, hapticFeedback: "Every letter", roundTime: false, roundDate: false, roundEvent: false, roundAlphabet: false, roundNotifications: false, roundNoticeHeading: false, roundClearAll: false, roundSearch: false, roundClose: false, roundLetterCue: false, roundCalendar: false, bubbleBorder: false, textTone: "Theme", textContrast: "High", customTextHex: "#FAFAFA", shadeColorMode: "Theme", shadeCustomHex: "#555555", shadeHeader: true, shadeAlphabet: true, shadeNoticeLabels: true, shadeAppLabels: true, shadeHeaderOpacity: 29, shadeAlphabetOpacity: 49, shadeNoticeOpacity: 49, shadeCardOpacity: 48, shadeAppOpacity: 78, shadeButtonOpacity: 85, holidayEasterEggs: true, showSwipeCue: true, roundAppLabels: false, alphabetSide: "Right", controlSide: "Right", closeSide: "Follow search"}
+  let sortModeChoices = ["Most used", "Alphabetical"]
   let appScaleChoices = [75, 80, 85, 90, 95, 100, 105, 110, 115]
   let hapticChoices = ["Off", "Reduced", "Every letter"]
   let timeFormatChoices = ["12-hour", "24-hour"]
@@ -156,7 +156,7 @@ face "Omagara" {
   let roundingKeys = ["roundTime", "roundDate", "roundEvent", "roundAlphabet", "roundNotifications", "roundNoticeHeading", "roundClearAll", "roundSearch", "roundClose", "roundLetterCue", "roundCalendar", "roundAppLabels"]
   let textContrastChoices = ["High", "Standard"]
   let shadeOpacityControls = [{key: "shadeHeaderOpacity", name: "Clock, date and event"}, {key: "shadeAlphabetOpacity", name: "Alphabet worm"}, {key: "shadeNoticeOpacity", name: "Notification headings"}, {key: "shadeCardOpacity", name: "Notification cards"}, {key: "shadeAppOpacity", name: "App labels"}, {key: "shadeButtonOpacity", name: "Search and close buttons"}]
-  let cfg = merge(defaults, prefs, {alphabetSide: contains(["Left", "Right"], prefs.alphabetSide) ? prefs.alphabetSide : "Right", controlSide: contains(["Left", "Right"], prefs.controlSide) ? prefs.controlSide : "Right", closeSide: contains(["Follow search", "Left", "Right"], prefs.closeSide) ? prefs.closeSide : "Follow search", searchContacts: false, sortMode: contains(sortModeChoices, prefs.sortMode) ? prefs.sortMode : "Alphabetical", noticeAutoPosition: prefs.noticeAutoPosition != false, noticeStartPercent: contains(range(6, 51), prefs.noticeStartPercent) ? prefs.noticeStartPercent : 24, appScale: contains(appScaleChoices, prefs.appScale) ? prefs.appScale : 80, hapticFeedback: contains(hapticChoices, prefs.hapticFeedback) ? prefs.hapticFeedback : "Every letter", timeFormat: contains(timeFormatChoices, prefs.timeFormat) ? prefs.timeFormat : "24-hour", shadeHeaderOpacity: contains(range(101), prefs.shadeHeaderOpacity) ? prefs.shadeHeaderOpacity : 29, shadeAlphabetOpacity: contains(range(101), prefs.shadeAlphabetOpacity) ? prefs.shadeAlphabetOpacity : 49, shadeNoticeOpacity: contains(range(101), prefs.shadeNoticeOpacity) ? prefs.shadeNoticeOpacity : 49, shadeCardOpacity: contains(range(101), prefs.shadeCardOpacity) ? prefs.shadeCardOpacity : 48, shadeAppOpacity: contains(range(101), prefs.shadeAppOpacity) ? prefs.shadeAppOpacity : 78, shadeButtonOpacity: contains(range(101), prefs.shadeButtonOpacity) ? prefs.shadeButtonOpacity : 85, bubbleBorder: prefs.bubbleBorder == true, iconStyle: contains(iconStyleChoices, prefs.iconStyle) ? prefs.iconStyle : "Theme overlay", iconOverlayOpacity: contains(iconOverlayChoices, prefs.iconOverlayOpacity) ? prefs.iconOverlayOpacity : 30, faceFont: contains(faceFontChoices, prefs.faceFont) ? prefs.faceFont : "Sans", headerAlignment: contains(headerAlignmentChoices, prefs.headerAlignment) ? prefs.headerAlignment : "Content column", textTone: contains(textToneChoices, prefs.textTone) ? prefs.textTone : "Theme", customTextHex: match(prefs.customTextHex ?? "", "^#[0-9A-Fa-f]{6}$") != null ? upper(prefs.customTextHex) : "#FAFAFA", shadeColorMode: contains(shadeColorChoices, prefs.shadeColorMode) ? prefs.shadeColorMode : "Theme", shadeCustomHex: match(prefs.shadeCustomHex ?? "", "^#[0-9A-Fa-f]{6}$") != null ? upper(prefs.shadeCustomHex) : "#555555", textContrast: "High"})
+  let cfg = merge(defaults, prefs, {alphabetSide: contains(["Left", "Right"], prefs.alphabetSide) ? prefs.alphabetSide : "Right", controlSide: contains(["Left", "Right"], prefs.controlSide) ? prefs.controlSide : "Right", closeSide: contains(["Follow search", "Left", "Right"], prefs.closeSide) ? prefs.closeSide : "Follow search", searchContacts: false, sortMode: contains(sortModeChoices, prefs.sortMode) ? prefs.sortMode : "Most used", noticeAutoPosition: prefs.noticeAutoPosition != false, noticeStartPercent: contains(range(6, 51), prefs.noticeStartPercent) ? prefs.noticeStartPercent : 24, appScale: contains(appScaleChoices, prefs.appScale) ? prefs.appScale : 80, hapticFeedback: contains(hapticChoices, prefs.hapticFeedback) ? prefs.hapticFeedback : "Every letter", timeFormat: contains(timeFormatChoices, prefs.timeFormat) ? prefs.timeFormat : "24-hour", shadeHeaderOpacity: contains(range(101), prefs.shadeHeaderOpacity) ? prefs.shadeHeaderOpacity : 29, shadeAlphabetOpacity: contains(range(101), prefs.shadeAlphabetOpacity) ? prefs.shadeAlphabetOpacity : 49, shadeNoticeOpacity: contains(range(101), prefs.shadeNoticeOpacity) ? prefs.shadeNoticeOpacity : 49, shadeCardOpacity: contains(range(101), prefs.shadeCardOpacity) ? prefs.shadeCardOpacity : 48, shadeAppOpacity: contains(range(101), prefs.shadeAppOpacity) ? prefs.shadeAppOpacity : 78, shadeButtonOpacity: contains(range(101), prefs.shadeButtonOpacity) ? prefs.shadeButtonOpacity : 85, bubbleBorder: prefs.bubbleBorder == true, iconStyle: contains(iconStyleChoices, prefs.iconStyle) ? prefs.iconStyle : "Theme overlay", iconOverlayOpacity: contains(iconOverlayChoices, prefs.iconOverlayOpacity) ? prefs.iconOverlayOpacity : 30, faceFont: contains(faceFontChoices, prefs.faceFont) ? prefs.faceFont : "Sans", headerAlignment: contains(headerAlignmentChoices, prefs.headerAlignment) ? prefs.headerAlignment : "Content column", textTone: contains(textToneChoices, prefs.textTone) ? prefs.textTone : "Theme", customTextHex: match(prefs.customTextHex ?? "", "^#[0-9A-Fa-f]{6}$") != null ? upper(prefs.customTextHex) : "#FAFAFA", shadeColorMode: contains(shadeColorChoices, prefs.shadeColorMode) ? prefs.shadeColorMode : "Theme", shadeCustomHex: match(prefs.shadeCustomHex ?? "", "^#[0-9A-Fa-f]{6}$") != null ? upper(prefs.shadeCustomHex) : "#555555", textContrast: "High"})
   let allRounded = all(roundingKeys, k => get(cfg, k) == true)
   let anyRounded = any(roundingKeys, k => get(cfg, k) == true)
   // OWL cannot sample wallpaper brightness; explicit overrides keep text legible.
@@ -254,15 +254,19 @@ face "Omagara" {
   at timerDeadline { timerDeadline = 0; timerLeft = 0; notify("Omagara timer", "Time is up") }
 
   let fullAlphabet = split("A B C D E F G H I J K L M N O P Q R S T U V W X Y Z #", " ")
-  // Search retains its original alphabetical/usage order, independent of manual A-Z order.
-  // App keys distinguish work-profile and cloned copies; hidden keys keep their slots.
+  // Search remains automatically sorted; the A-Z browser replays per-app moves.
+  // Other apps continue following usage/name ordering. Keys include profile copies.
   let searchApps = (installed ?? []).sortBy(a => cfg.sortMode == "Most used" ? -(a.score ?? 0) : lower(trim(a.name)))
-  let alphabeticalApps = (installed ?? []).sortBy(a => lower(trim(a.name)))
-  let alphabeticalAppKeys = alphabeticalApps.map(a => a.key)
-  let manualRanks = reduce(manualAppKeys, (m, k, i) => set(m, k, i), {})
-  let manualApps = len(manualAppKeys) == 0 ? alphabeticalApps : alphabeticalApps.sortBy(a => get(manualRanks, a.key, len(manualAppKeys) + indexOf(alphabeticalAppKeys, a.key)))
-  let manualOrderKeys = manualApps.map(a => a.key)
-  let apps = (cfg.sortMode == "Manual" ? manualApps : searchApps).filter(a => !contains(hiddenAppKeys, a.key))
+  let automaticGroups = groupBy(searchApps, a => contains(fullAlphabet, upper(sub(trim(a.name), 0, 1))) ? upper(sub(trim(a.name), 0, 1)) : "#")
+  let orderedGroups = reduce(fullAlphabet, (m, c) => set(m, c,
+    reduce(manualAppMoves.filter(move => move.letter == c), (rows, move) =>
+      move.key == move.anchor || indexOf(rows.map(a => a.key), move.key) < 0 || indexOf(rows.map(a => a.key), move.anchor) < 0
+        ? rows
+        : take(rows.filter(a => a.key != move.key), indexOf(rows.filter(a => a.key != move.key).map(a => a.key), move.anchor) + (move.after ? 1 : 0))
+          + [find(rows, a => a.key == move.key)]
+          + drop(rows.filter(a => a.key != move.key), indexOf(rows.filter(a => a.key != move.key).map(a => a.key), move.anchor) + (move.after ? 1 : 0)),
+      get(automaticGroups, c, []))), {})
+  let apps = flatten(fullAlphabet.map(c => get(orderedGroups, c, []))).filter(a => !contains(hiddenAppKeys, a.key))
   let pickerApps = (installed ?? []).filter(a => trim(appPickerQuery) == "" || contains(lower(a.name), lower(trim(appPickerQuery))) || contains(lower(a.package), lower(trim(appPickerQuery)))).sortBy(a => lower(a.name)).take(40)
   let selectedMusicApps = (installed ?? []).filter(a => contains(musicAppKeys, a.key)).sortBy(a => lower(a.name)).take(5)
   let hasMedia = cfg.mediaPlayer && playback != null && playback.available != false && trim(playback.title ?? "") != ""
@@ -1387,6 +1391,7 @@ face "Omagara" {
     let appLetter = contains(fullAlphabet, upper(sub(trim(a.name), 0, 1))) ? upper(sub(trim(a.name), 0, 1)) : "#"
     let appGroupKeys = get(appKeyGroups, appLetter, [])
     let appGroupIndex = indexOf(appGroupKeys, a.key)
+    let manuallyMoved = any(manualAppMoves, m => m.key == a.key)
     Row {
       fill: width
       height: thumbView ? appRowHeight : null
@@ -1425,8 +1430,8 @@ face "Omagara" {
         onDismiss: menu = ""
         width: 220
         gap: 0
-        // Manual actions apply only to the A-Z list, never Search or usage sorting.
-        if cfg.sortMode == "Manual" && !searchView {
+        // Move one visible row within this letter, regardless of sort mode.
+        if !searchView {
           for direction in [-1, 1] {
             let adjacent = appGroupIndex + direction
             if adjacent >= 0 && adjacent < len(appGroupKeys) {
@@ -1436,16 +1441,21 @@ face "Omagara" {
                 padding: [12, 14]
                 onTap: {
                   let neighbor = get(appGroupKeys, adjacent)
-                  let from = indexOf(manualOrderKeys, a.key)
-                  let to = indexOf(manualOrderKeys, neighbor)
-                  if from >= 0 && to >= 0 {
+                  if neighbor != null {
                     menu = ""
                     appVelocity = 0
-                    // Swap visible keys; hidden app positions do not change.
-                    manualAppKeys = set(set(manualOrderKeys, from, neighbor), to, a.key)
+                    manualAppMoves = manualAppMoves + [{letter: appLetter, key: a.key, anchor: neighbor, after: direction > 0}]
                   }
                 }
               }
+            }
+          }
+          if manuallyMoved {
+            Text {
+              text: "Reset automatic position"
+              fill: width
+              padding: [12, 14]
+              onTap: { menu = ""; appVelocity = 0; manualAppMoves = manualAppMoves.filter(m => m.key != a.key) }
             }
           }
         }
@@ -1485,6 +1495,11 @@ face "Omagara" {
         // Native Search retains its own surface; shade the transparent browser.
         Row {
           fill: width
+          align: center
+          gap: 6 * rowScale
+          if thumbView && manuallyMoved {
+            Box { width: 2 * rowScale; height: 21 * rowScale; background: accent; radius: 1 }
+          }
           Text {
             text: a.name
             font: chosenFont
@@ -2288,7 +2303,7 @@ face "Omagara" {
                   Button { text: (cfg.sortMode == sortOption ? "✓ " : "") + sortOption; onTap: { appScroll = 0; appAnchor = ""; prefs = set(prefs, "sortMode", sortOption) } }
                 }
               }
-              Text { text: "Most used sorts by Omalauncher launch scores. Manual lets you move apps within each letter using ↑/↓ in their long-press menu. Search order is unaffected."; font: chosenFont; fontSize: 12; color: secondaryText }
+              Text { text: "Most used is the default. Long-press an app in the A–Z list to move it within its letter or reset its automatic position. A small line marks moved apps. Search is unaffected."; font: chosenFont; fontSize: 12; color: secondaryText }
               for pref in preferenceRows.filter(p => p.key == "musicShortcuts") { SettingToggle { pref: pref } }
               Text { text: "Use the compact player's arrow to expand or collapse selected music apps. This does not change when music pauses."; font: chosenFont; fontSize: 12; color: secondaryText }
               Text { text: "Alphabet visibility / music shortcuts"; color: accent; font: chosenFont; fontSize: 16; padding: [0, 12, 0, 2] }
@@ -2544,18 +2559,18 @@ face "Omagara" {
             } else {
               Text { text: "Backup & reset"; color: accent; font: chosenFont; fontSize: 18; padding: [0, 8, 0, 4] }
               Text { text: "Export or restore Omagara preferences."; font: chosenFont; fontSize: 13; color: secondaryText }
-        Button { text: "Export Omagara settings to clipboard"; onTap: copy(toJson({version: 1, prefs: cfg, zones: worldZones, hiddenApps: hiddenAppKeys, musicApps: musicAppKeys, compactAlerts: compactAlertApps, hiddenNotifications: hiddenNoticeApps, manualAppOrder: manualAppKeys})) }
+        Button { text: "Export Omagara settings to clipboard"; onTap: copy(toJson({version: 1, prefs: cfg, zones: worldZones, hiddenApps: hiddenAppKeys, musicApps: musicAppKeys, compactAlerts: compactAlertApps, hiddenNotifications: hiddenNoticeApps, manualMoves: manualAppMoves})) }
         Input { text: importText; placeholder: "Paste Omagara settings JSON"; lines: 3; onChange: importText = value }
         Button {
           text: "Import Omagara settings"
           onTap: {
             let imported = parseJson(importText)
-            if imported.version == 1 && all(keys(defaults), k => (k == "shadeHeaderOpacity" || k == "shadeAlphabetOpacity" || k == "shadeNoticeOpacity" || k == "shadeCardOpacity" || k == "shadeAppOpacity" || k == "shadeButtonOpacity") ? get(imported.prefs, k) == null || contains(range(101), get(imported.prefs, k)) : k == "sortMode" ? get(imported.prefs, k) == null || contains(sortModeChoices, get(imported.prefs, k)) : k == "noticeStartPercent" ? get(imported.prefs, k) == null || contains(range(6, 51), get(imported.prefs, k)) : k == "appScale" ? get(imported.prefs, k) == null || contains(appScaleChoices, get(imported.prefs, k)) : k == "hapticFeedback" ? get(imported.prefs, k) == null || contains(hapticChoices, get(imported.prefs, k)) : k == "bubbleBorder" ? get(imported.prefs, k) == null || get(imported.prefs, k) == true || get(imported.prefs, k) == false : k == "iconStyle" ? get(imported.prefs, k) == null || contains(iconStyleChoices, get(imported.prefs, k)) : k == "iconOverlayOpacity" ? get(imported.prefs, k) == null || contains(iconOverlayChoices, get(imported.prefs, k)) : k == "faceFont" ? get(imported.prefs, k) == null || contains(faceFontChoices, get(imported.prefs, k)) : k == "headerAlignment" ? get(imported.prefs, k) == null || contains(headerAlignmentChoices, get(imported.prefs, k)) : k == "textTone" ? get(imported.prefs, k) == null || contains(textToneChoices, get(imported.prefs, k)) : k == "textContrast" ? get(imported.prefs, k) == null || contains(textContrastChoices, get(imported.prefs, k)) : k == "customTextHex" ? get(imported.prefs, k) == null || match(get(imported.prefs, k), "^#[0-9A-Fa-f]{6}$") != null : k == "shadeColorMode" ? get(imported.prefs, k) == null || contains(shadeColorChoices, get(imported.prefs, k)) : k == "shadeCustomHex" ? get(imported.prefs, k) == null || match(get(imported.prefs, k), "^#[0-9A-Fa-f]{6}$") != null : k == "timeFormat" ? get(imported.prefs, k) == null || get(imported.prefs, k) == "System" || contains(timeFormatChoices, get(imported.prefs, k)) : k == "alphabetSide" ? get(imported.prefs, k) == null || contains(["Left", "Right"], get(imported.prefs, k)) : k == "controlSide" ? get(imported.prefs, k) == null || contains(["Left", "Right"], get(imported.prefs, k)) : k == "closeSide" ? get(imported.prefs, k) == null || contains(["Follow search", "Left", "Right"], get(imported.prefs, k)) : k == "showSwipeCue" || k == "holidayEasterEggs" ? get(imported.prefs, k) == null || get(imported.prefs, k) == true || get(imported.prefs, k) == false : get(imported.prefs, k) == true || get(imported.prefs, k) == false || (k == "calculator" || k == "searchContacts" || k == "notificationTimes" || k == "mediaPlayer" || k == "musicShortcuts" || k == "noticeAutoPosition") && get(imported.prefs, k) == null) && sub(toJson(imported.zones), 0, 1) == "[" && all(imported.zones, z => contains(zoneChoices, z)) && sub(toJson(imported.hiddenApps ?? []), 0, 1) == "[" && sub(toJson(imported.musicApps ?? []), 0, 1) == "[" && sub(toJson(imported.compactAlerts ?? []), 0, 1) == "[" && sub(toJson(imported.hiddenNotifications ?? []), 0, 1) == "[" && sub(toJson(imported.manualAppOrder ?? []), 0, 1) == "[" {
+            if imported.version == 1 && all(keys(defaults), k => (k == "shadeHeaderOpacity" || k == "shadeAlphabetOpacity" || k == "shadeNoticeOpacity" || k == "shadeCardOpacity" || k == "shadeAppOpacity" || k == "shadeButtonOpacity") ? get(imported.prefs, k) == null || contains(range(101), get(imported.prefs, k)) : k == "sortMode" ? get(imported.prefs, k) == null || contains(sortModeChoices, get(imported.prefs, k)) : k == "noticeStartPercent" ? get(imported.prefs, k) == null || contains(range(6, 51), get(imported.prefs, k)) : k == "appScale" ? get(imported.prefs, k) == null || contains(appScaleChoices, get(imported.prefs, k)) : k == "hapticFeedback" ? get(imported.prefs, k) == null || contains(hapticChoices, get(imported.prefs, k)) : k == "bubbleBorder" ? get(imported.prefs, k) == null || get(imported.prefs, k) == true || get(imported.prefs, k) == false : k == "iconStyle" ? get(imported.prefs, k) == null || contains(iconStyleChoices, get(imported.prefs, k)) : k == "iconOverlayOpacity" ? get(imported.prefs, k) == null || contains(iconOverlayChoices, get(imported.prefs, k)) : k == "faceFont" ? get(imported.prefs, k) == null || contains(faceFontChoices, get(imported.prefs, k)) : k == "headerAlignment" ? get(imported.prefs, k) == null || contains(headerAlignmentChoices, get(imported.prefs, k)) : k == "textTone" ? get(imported.prefs, k) == null || contains(textToneChoices, get(imported.prefs, k)) : k == "textContrast" ? get(imported.prefs, k) == null || contains(textContrastChoices, get(imported.prefs, k)) : k == "customTextHex" ? get(imported.prefs, k) == null || match(get(imported.prefs, k), "^#[0-9A-Fa-f]{6}$") != null : k == "shadeColorMode" ? get(imported.prefs, k) == null || contains(shadeColorChoices, get(imported.prefs, k)) : k == "shadeCustomHex" ? get(imported.prefs, k) == null || match(get(imported.prefs, k), "^#[0-9A-Fa-f]{6}$") != null : k == "timeFormat" ? get(imported.prefs, k) == null || get(imported.prefs, k) == "System" || contains(timeFormatChoices, get(imported.prefs, k)) : k == "alphabetSide" ? get(imported.prefs, k) == null || contains(["Left", "Right"], get(imported.prefs, k)) : k == "controlSide" ? get(imported.prefs, k) == null || contains(["Left", "Right"], get(imported.prefs, k)) : k == "closeSide" ? get(imported.prefs, k) == null || contains(["Follow search", "Left", "Right"], get(imported.prefs, k)) : k == "showSwipeCue" || k == "holidayEasterEggs" ? get(imported.prefs, k) == null || get(imported.prefs, k) == true || get(imported.prefs, k) == false : get(imported.prefs, k) == true || get(imported.prefs, k) == false || (k == "calculator" || k == "searchContacts" || k == "notificationTimes" || k == "mediaPlayer" || k == "musicShortcuts" || k == "noticeAutoPosition") && get(imported.prefs, k) == null) && sub(toJson(imported.zones), 0, 1) == "[" && all(imported.zones, z => contains(zoneChoices, z)) && sub(toJson(imported.hiddenApps ?? []), 0, 1) == "[" && sub(toJson(imported.musicApps ?? []), 0, 1) == "[" && sub(toJson(imported.compactAlerts ?? []), 0, 1) == "[" && sub(toJson(imported.hiddenNotifications ?? []), 0, 1) == "[" && sub(toJson(imported.manualMoves ?? []), 0, 1) == "[" && all(imported.manualMoves ?? [], m => m.key != null && m.anchor != null && contains(fullAlphabet, m.letter) && (m.after == true || m.after == false)) {
               letter = highlightedLetter; appTracking = false
               prefs = reduce(keys(defaults), (m, k) => set(m, k, k == "searchContacts" ? false : k == "textContrast" ? "High" : k == "timeFormat" && get(imported.prefs, k) == "System" ? "24-hour" : (get(imported.prefs, k) ?? get(defaults, k))), {})
               worldZones = unique(imported.zones ?? [])
               hiddenAppKeys = unique(imported.hiddenApps ?? [])
-              manualAppKeys = unique(imported.manualAppOrder ?? [])
+              manualAppMoves = imported.manualMoves ?? []
               musicAppKeys = unique(imported.musicApps ?? []).take(5)
               compactAlertApps = unique(imported.compactAlerts ?? [])
               hiddenNoticeApps = unique(imported.hiddenNotifications ?? [])
@@ -2568,7 +2583,7 @@ face "Omagara" {
         if resetConfirm {
           Text { text: "Reset Omagara appearance and world clocks?"; font: chosenFont }
           Row {
-            Button { text: "Confirm reset"; onTap: { letter = highlightedLetter; appTracking = false; prefs = {}; worldZones = []; hiddenAppKeys = []; manualAppKeys = []; musicAppKeys = []; compactAlertApps = []; hiddenNoticeApps = []; appPickerQuery = ""; holidayPreview = "Auto"; holidayAnimPlaying = false; holidayPlayedStamp = ""; resetConfirm = false; importText = ""; customTextEntry = ""; customShadeEntry = ""; importStatus = "" } }
+            Button { text: "Confirm reset"; onTap: { letter = highlightedLetter; appTracking = false; prefs = {}; worldZones = []; hiddenAppKeys = []; manualAppMoves = []; musicAppKeys = []; compactAlertApps = []; hiddenNoticeApps = []; appPickerQuery = ""; holidayPreview = "Auto"; holidayAnimPlaying = false; holidayPlayedStamp = ""; resetConfirm = false; importText = ""; customTextEntry = ""; customShadeEntry = ""; importStatus = "" } }
             Button { text: "Cancel"; onTap: resetConfirm = false }
           }
         }

@@ -4,7 +4,7 @@ Niagara-inspired OWL 21 home face for [Omalauncher](https://github.com/SimonSchu
 
 ## Features
 
-- **Alphabet:** Elastic A–Z navigation, frequently launched app previews, hide apps from the worm without hiding them from Search, optional launch-score or persistent manual ordering within letters, a Settings cog, optional opposite-edge input, and configurable haptics.
+- **Alphabet:** Elastic A–Z navigation, frequently launched app previews, hide apps from the worm without hiding them from Search, usage-based ordering by default or alphabetical ordering, plus persistent per-app moves within letters, a Settings cog, optional opposite-edge input, and configurable haptics.
 - **Apps:** Buffered full-height browser with elastic ends, adjustable scale, padded A–Z headings, and two compact bottom settings actions without a separate heading. Holding the cog previews only Omagara settings and Omalauncher settings. Empty Search places the most recently opened app first.
 - **Notifications:** Grouped cards, optional per-app hiding (Omagara only) and alert compression, adjustable start height with automatic space recovery, optional timestamps, swipe feedback, expandable actions/replies, and native scrolling.
 - **Appearance:** Clock, date and event alignment with the notification column (or screen center), automatic centering when the home alphabet is hidden, adjustable text/shade colors, opacity, and corners.
@@ -18,10 +18,11 @@ Time format is selected under **Clock** in Omagara settings; OWL does not expose
 
 ## v1.9 changes
 
-- Add optional **Manual** app order in Apps settings, alongside Alphabetical (default) and Most used.
-- In Manual mode, long-press an app in the alphabetical browser to move it up or down one visible position within its letter. Hidden apps retain their saved slots, including work-profile and cloned copies.
-- Keep Search independent of manual order and preserve the existing shortcut and native app actions.
-- Include manual order in settings exports, imports and reset; older v1 backups remain supported.
+- Default to **Most used**, with Alphabetical still selectable. Saved choices remain respected, except the experimental Manual mode, which now follows Most used.
+- Long-press any app in the A–Z browser to move it up or down one visible position within its letter, without switching modes.
+- A slim accent line marks moved apps; long-press one to **Reset automatic position**.
+- Replay per-app moves without freezing the other apps' automatic sorting. Hidden, work-profile, and cloned apps retain distinct keys; Search is unaffected.
+- Export, import, and reset manual moves in settings; older v1 backups remain accepted.
 
 ## v1.8 changes
 
