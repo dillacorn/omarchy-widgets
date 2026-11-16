@@ -113,6 +113,7 @@ face "Omagara" {
   // User-pinned Omagara home apps are independent of the native launcher strip.
   state pinnedAppKeys = [] persist
   state expandedPinnedKey = ""
+  state pinnedNoticeShown = 4
   state pinnedMenuKey = ""
   // Manual quick-launch expansion: never follows play/pause or Bluetooth refreshes.
   state musicAppsExpanded = false
@@ -1121,6 +1122,7 @@ face "Omagara" {
                     padding: [7, 10]
                     onTap: {
                       expandedPinnedKey = expandedPinnedKey == a.key ? "" : a.key
+                      pinnedNoticeShown = 4
                       expandedStack = ""; expandedNoticeActions = ""; replyKey = ""; replyDraft = ""
                     }
                   }
@@ -1162,16 +1164,17 @@ face "Omagara" {
               if showPinNotices && expandedPinnedKey == a.key {
                 // Reuse native notification actions, replies and swipe behavior.
                 // No one app can create an unbounded expanded home stack.
-                for n in take(pinNotices, 4) key n.key {
+                for n in take(pinNotices, pinnedNoticeShown) key n.key {
                   NotificationRow { item: n; stack: packageProfile; summary: false }
                 }
-                if len(pinNotices) > 4 {
+                if len(pinNotices) > pinnedNoticeShown {
                   Text {
-                    text: str(len(pinNotices) - 4) + " more · Open app"
+                    text: str(len(pinNotices) - pinnedNoticeShown) + " more · Show notifications"
                     font: chosenFont
                     fontSize: 12
                     color: accent
-                    onTap: androidApp(a.key)
+                    padding: [6, 8]
+                    onTap: pinnedNoticeShown = min(50, pinnedNoticeShown + 4)
                   }
                 }
               }
@@ -3158,6 +3161,7 @@ face "Omagara" {
               folderSerial = imported.folderSerial ?? 0
               pinnedAppKeys = take(unique(imported.pinnedApps ?? []), 8)
               expandedPinnedKey = ""
+              pinnedNoticeShown = 4
               pinnedMenuKey = ""
               musicAppKeys = unique(imported.musicApps ?? []).take(5)
               compactAlertApps = unique(imported.compactAlerts ?? [])
@@ -3171,7 +3175,7 @@ face "Omagara" {
         if resetConfirm {
           Text { text: "Reset Omagara appearance and world clocks?"; font: chosenFont }
           Row {
-            Button { text: "Confirm reset"; onTap: { letter = highlightedLetter; appTracking = false; prefs = {}; worldZones = []; hiddenAppKeys = []; manualAppMoves = []; customFolders = []; folderSerial = 0; pinnedAppKeys = []; expandedPinnedKey = ""; pinnedMenuKey = ""; musicAppKeys = []; compactAlertApps = []; hiddenNoticeApps = []; appPickerQuery = ""; holidayPreview = "Auto"; holidayAnimPlaying = false; holidayPlayedStamp = ""; resetConfirm = false; importText = ""; customTextEntry = ""; customShadeEntry = ""; importStatus = "" } }
+            Button { text: "Confirm reset"; onTap: { letter = highlightedLetter; appTracking = false; prefs = {}; worldZones = []; hiddenAppKeys = []; manualAppMoves = []; customFolders = []; folderSerial = 0; pinnedAppKeys = []; expandedPinnedKey = ""; pinnedNoticeShown = 4; pinnedMenuKey = ""; musicAppKeys = []; compactAlertApps = []; hiddenNoticeApps = []; appPickerQuery = ""; holidayPreview = "Auto"; holidayAnimPlaying = false; holidayPlayedStamp = ""; resetConfirm = false; importText = ""; customTextEntry = ""; customShadeEntry = ""; importStatus = "" } }
             Button { text: "Cancel"; onTap: resetConfirm = false }
           }
         }
