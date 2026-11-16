@@ -2879,7 +2879,7 @@ face "Omagara" {
                   fill: width
                   align: center
                   gap: 8
-                  Text { text: pinnedEntry == null ? key + " (not installed)" : pinnedEntry.name + (pinnedEntry.profile == null ? "" : " · " + pinnedEntry.profile); font: chosenFont; fontSize: 14; weight: 1; maxLines: 1 }
+                  Text { text: pinnedEntry == null ? pinKey + " (not installed)" : pinnedEntry.name + (pinnedEntry.profile == null ? "" : " · " + pinnedEntry.profile); font: chosenFont; fontSize: 14; weight: 1; maxLines: 1 }
                   Button {
                     text: "Unpin"
                     onTap: {
