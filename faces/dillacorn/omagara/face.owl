@@ -1014,6 +1014,16 @@ face "Omagara" {
           }
         }
         Text {
+          text: cfg.compactPins ? "Show pinned names" : "Show pinned icons only"
+          fill: width
+          padding: [12, 14]
+          onTap: {
+            prefs = set(prefs, "compactPins", !cfg.compactPins)
+            expandedPinnedKey = ""; pinnedNoticeShown = 4
+            pinnedMenuKey = ""; pinnedMenuShortcuts = null
+          }
+        }
+        Text {
           text: "Add to folder"
           fill: width
           padding: [12, 14]
@@ -2956,7 +2966,20 @@ face "Omagara" {
               }
               Text { text: "Most used is the default. Long-press an app in the A–Z list to move it within its letter or reset its automatic position. A small line marks moved apps. Search is unaffected."; font: chosenFont; fontSize: 12; color: secondaryText }
               Text { text: "Pinned apps · " + str(len(pinnedAppKeys)) + "/8"; color: accent; font: chosenFont; fontSize: 16; padding: [0, 12, 0, 2] }
-              Text { text: "Hold an app in the A–Z browser or Search and select Pin app. Pinned apps launch from Omagara home; hold a pinned app name to reorder or unpin it. Its notifications expand below that app."; font: chosenFont; fontSize: 12; color: secondaryText }
+              Text { text: "Pinned layout"; font: chosenFont; fontSize: 15 }
+              Flow {
+                fill: width
+                gap: 8
+                Button {
+                  text: (!cfg.compactPins ? "✓ " : "") + "Names"
+                  onTap: { prefs = set(prefs, "compactPins", false); expandedPinnedKey = ""; pinnedNoticeShown = 4 }
+                }
+                Button {
+                  text: (cfg.compactPins ? "✓ " : "") + "Icons only"
+                  onTap: { prefs = set(prefs, "compactPins", true); expandedPinnedKey = ""; pinnedNoticeShown = 4 }
+                }
+              }
+              Text { text: "Hold an app in the A–Z browser or Search to pin it. Names is the default; Icons only uses a single compact row. Hold a pinned icon for app actions, reordering, folder management or unpinning. Notification badges expand beside the icon."; font: chosenFont; fontSize: 12; color: secondaryText }
               for pinKey in pinnedAppKeys key pinKey {
                 let pinnedEntry = find(installed ?? [], a => a.key == pinKey)
                 Row {
