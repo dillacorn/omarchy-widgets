@@ -120,6 +120,13 @@ face "Omagara" {
   state pinnedNoticeShown = 4
   state pinnedMenuKey = ""
   state pinnedMenuShortcuts = null
+  // Reorder previews are transient. No change persists until Save.
+  state moveMode = ""
+  state moveKey = ""
+  state moveLetter = ""
+  state moveTargetIndex = 0
+  state moveDragBaseIndex = 0
+  state moveDragDistance = 0
   // Manual quick-launch expansion: never follows play/pause or Bluetooth refreshes.
   state musicAppsExpanded = false
   state compactAlertApps = [] persist
@@ -321,6 +328,12 @@ face "Omagara" {
   // Only the explicit chevron changes expansion; media play/pause never does.
   let showMusicApps = cfg.musicShortcuts && audioConnected && len(selectedMusicApps) > 0
   let groups = groupBy(apps, a => contains(fullAlphabet, upper(sub(trim(a.name), 0, 1))) ? upper(sub(trim(a.name), 0, 1)) : "#")
+  // Both editors use the stable app key, not display text or row index.
+  let moveKeys = moveMode == "pin" ? pinnedAppKeys : moveMode == "alphabet" ? get(groups, moveLetter, []).map(a => a.key) : []
+  let moveOriginIndex = indexOf(moveKeys, moveKey)
+  let moveOtherKeys = moveKeys.filter(k => k != moveKey)
+  let movePreviewKeys = moveOriginIndex < 0 ? [] : take(moveOtherKeys, moveTargetIndex) + [moveKey] + drop(moveOtherKeys, moveTargetIndex)
+  let moveApp = find(installed ?? [], a => a.key == moveKey)
   // Freeze mapping and geometry for the entire touch, even if apps update.
   let liveAlphabet = cfg.hideEmpty ? fullAlphabet.filter(c => len(get(groups, c, [])) > 0) : fullAlphabet
   // Freeze letters through the return, so changing available apps cannot reshape the worm mid-snap.
@@ -1001,19 +1014,20 @@ face "Omagara" {
         position: below
         width: 220
         gap: 0
-        for direction in [-1, 1] {
-          let pos = indexOf(pinnedAppKeys, a.key)
-          let adjacent = pos + direction
-          if adjacent >= 0 && adjacent < len(pinnedAppKeys) {
-            Text {
-              text: direction < 0 ? "↑ Move pin up" : "↓ Move pin down"
-              fill: width
-              padding: [12, 14]
-              onTap: {
-                let nextKey = get(pinnedAppKeys, adjacent)
-                pinnedAppKeys = set(set(pinnedAppKeys, pos, nextKey), adjacent, a.key)
-                pinnedMenuKey = ""; pinnedMenuShortcuts = null
-              }
+        if len(pinnedAppKeys) > 1 {
+          Text {
+            text: "Move app…"
+            fill: width
+            padding: [12, 14]
+            onTap: {
+              moveMode = "pin"
+              moveKey = a.key
+              moveLetter = ""
+              moveTargetIndex = indexOf(pinnedAppKeys, a.key)
+              moveDragBaseIndex = moveTargetIndex
+              moveDragDistance = 0
+              expandedPinnedKey = ""
+              pinnedMenuKey = ""; pinnedMenuShortcuts = null
             }
           }
         }
@@ -1811,23 +1825,25 @@ face "Omagara" {
         onDismiss: menu = ""
         width: 220
         gap: 0
-        // Move one visible row within this letter, regardless of sort mode.
+        // A move preview lets users select any position, then save or cancel.
+        // Search remains in its normal automatic order.
         if !searchView && !folderView {
-          for direction in [-1, 1] {
-            let adjacent = appGroupIndex + direction
-            if adjacent >= 0 && adjacent < len(appGroupKeys) {
-              Text {
-                text: direction < 0 ? "↑ Move up" : "↓ Move down"
-                fill: width
-                padding: [12, 14]
-                onTap: {
-                  let neighbor = get(appGroupKeys, adjacent)
-                  if neighbor != null {
-                    menu = ""
-                    appVelocity = 0
-                    manualAppMoves = manualAppMoves + [{letter: appLetter, key: a.key, anchor: neighbor, after: direction > 0}]
-                  }
-                }
+          if len(get(groups, appLetter, [])) > 1 {
+            Text {
+              text: "Move app…"
+              fill: width
+              padding: [12, 14]
+              onTap: {
+                moveMode = "alphabet"
+                moveKey = a.key
+                moveLetter = appLetter
+                moveTargetIndex = indexOf(get(groups, appLetter, []).map(x => x.key), a.key)
+                moveDragBaseIndex = moveTargetIndex
+                moveDragDistance = 0
+                appVelocity = 0
+                appScroll = appOffset
+                menu = ""
+                menuShortcuts = null
               }
             }
           }
