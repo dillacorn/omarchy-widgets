@@ -317,11 +317,13 @@ face "Omagara" {
   let railMaxReach = alphabetSide == -1 ? max(0, (tileWidth ?? 400) - screenRight - railHomeX - 14) : max(0, railHomeX - screenLeft - 14)
   // First/last letter centers sit at 31%/90% of the inset-safe height.
   // Include half a cell above/below them so both endpoint hit regions are full-sized.
-  let railStep = availableHeight * 0.59 / max(1, len(alphabet) - 1)
+  // Preserve the original worm geometry with no folders. Cap the cell size
+  // when folders are present, so a short visible alphabet cannot overflow.
+  let railStep = len(folderStops) == 0 ? availableHeight * 0.59 / max(1, len(alphabet) - 1) : min(availableHeight * 0.59 / max(1, len(alphabet) - 1), availableHeight * 0.70 / max(1, len(alphabet) + len(folderStops) + 1))
   let railHeight = railStep * max(1, len(alphabet))
-  // Keep the bottom Settings cog at the same location when folders appear.
+  // The cog remains near its original lower edge for normal alphabets.
   let railPaintHeight = railHeight + railStep * (len(folderStops) + 1)
-  let railTop = screenTop + availableHeight * 0.31 - (len(alphabet) > 1 ? railStep / 2 : 0) - len(folderStops) * railStep
+  let railTop = len(folderStops) == 0 ? screenTop + availableHeight * 0.31 - (len(alphabet) > 1 ? railStep / 2 : 0) : clamp(screenTop + availableHeight * 0.31 - (len(alphabet) > 1 ? railStep / 2 : 0) - len(folderStops) * railStep, screenTop + 8, max(screenTop + 8, screenTop + availableHeight - railPaintHeight - 8))
   // While held, let the first/last glyph reach the usable screen edge.
   // The fixed touch rail does not move; only its displayed letters do.
   let railUpperReach = max(0, railTop + railStep / 2 - screenTop - 10)
