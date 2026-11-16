@@ -301,8 +301,8 @@ face "Omagara" {
   let liveAlphabet = cfg.hideEmpty ? fullAlphabet.filter(c => len(get(groups, c, [])) > 0) : fullAlphabet
   // Freeze letters through the return, so changing available apps cannot reshape the worm mid-snap.
   let alphabet = railHeld || railReturning || railWiggling ? heldAlphabet : liveAlphabet
-  // First three folders get worm stops; overflow opens the complete list.
-  let folderStops = len(customFolders) > 3 ? take(customFolders, 3) + [{id: "_more", name: "All folders", keys: []}] : customFolders
+  // One folder shortcut only, regardless of the number of folders.
+  let folderStops = len(customFolders) > 0 ? [{id: "_folders", name: "Folders", keys: []}] : []
   // Put the single most recently opened Android app first only when Search is empty.
   // android.apps.last is launcher-maintained history; no new permission needed.
   let lastOpenedApp = first(searchApps.filter(a => a.last != null).sortBy(a => -(a.last ?? 0)))
@@ -451,9 +451,15 @@ face "Omagara" {
   let appSections = fullAlphabet.filter(c => !cfg.hideEmpty || len(get(groups, c, [])) > 0)
   let appSectionEnds = scan(appSections, (height, c) => height + appLabelHeight + len(get(groups, c, [])) * appRowHeight, 0)
   let appSectionStarts = map(appSections, (c, i) => appEdgeSpace + (i == 0 ? 0 : appSectionEnds[i - 1]))
-  // Keep both settings actions after the final app, with the same initial
-  // edge-space alignment as app sections. No redundant Omagara heading.
-  let appMenuTop = (last(appSectionEnds) ?? 0) + appEdgeSpace + 12 * appScale
+  // Folders are ordinary rows after the last app section, before Settings.
+  // The worm's one folder shortcut previews and scrolls to these rows.
+  let appFolderTop = (last(appSectionEnds) ?? 0) + appEdgeSpace + 12 * appScale
+  let appFolderHeight = len(customFolders) == 0 ? 0 : appLabelHeight + len(customFolders) * appRowHeight
+  let appFolderRows = len(customFolders) == 0 ? [] :
+    [{id: "heading:folders", section: "Folders", heading: true, top: appFolderTop, height: appLabelHeight}] +
+    map(customFolders, (f, i) => {id: "folder:" + f.id, kind: "folder", section: "Folders", folder: f, top: appFolderTop + appLabelHeight + i * appRowHeight, height: appRowHeight})
+  // Preserve the two compact Settings rows after folders.
+  let appMenuTop = appFolderTop + appFolderHeight
   let appMenuBottom = appMenuTop + 2 * appRowHeight
   // At the end of the list, align the last Settings action beside the
   // alphabet cog. Keep a small bottom inset rather than the old oversized
@@ -507,7 +513,7 @@ face "Omagara" {
   ]
   let fullAppWindow = flatten(visibleSections.map(s => (
     s.top + appLabelHeight > appRenderTop ? [{id: "heading:" + s.section, section: s.section, heading: true, top: s.top, height: appLabelHeight}] : []
-  ) + map(take(drop(get(groups, s.section, []), s.firstRow), ceil((appRenderBottom - appRenderTop) / appRowHeight) + 1), (a, j) => {id: a.key, section: s.section, heading: false, app: a, top: s.top + appLabelHeight + (s.firstRow + j) * appRowHeight, height: appRowHeight}).filter(r => r.top + r.height > appRenderTop && r.top < appRenderBottom))) + appMenuRows.filter(r => r.top + r.height > appRenderTop && r.top < appRenderBottom)
+  ) + map(take(drop(get(groups, s.section, []), s.firstRow), ceil((appRenderBottom - appRenderTop) / appRowHeight) + 1), (a, j) => {id: a.key, section: s.section, heading: false, app: a, top: s.top + appLabelHeight + (s.firstRow + j) * appRowHeight, height: appRowHeight}).filter(r => r.top + r.height > appRenderTop && r.top < appRenderBottom))) + appFolderRows.filter(r => r.top + r.height > appRenderTop && r.top < appRenderBottom) + appMenuRows.filter(r => r.top + r.height > appRenderTop && r.top < appRenderBottom)
   // While touching the worm, center the selected letter's app group alongside
   // its actual glyph position, not a fixed 33%-height focus line. A long
   // group moves up to keep its rows in view. The normal continuous browser
@@ -542,7 +548,10 @@ face "Omagara" {
   let appSettingsPreviewCenter = railTop + railHeight + railStep / 2 + railVisualY - appSafeTop
   let appSettingsPreviewTop = clamp(appSettingsPreviewCenter - 1.5 * appRowHeight, appEdgeSpace, max(appEdgeSpace, appPanelHeight - 12 - appSettingsPreviewHeight))
   let appSettingsPreviewRows = map(appMenuRows, r => merge(r, {top: appSettingsPreviewTop + r.top - appMenuTop}))
-  let appWindow = appPreviewing ? (railSettingsSelected ? appSettingsPreviewRows : appPreviewRows) : fullAppWindow
+  let appFolderPreviewCenter = railTop + railHeight + railStep / 2 + railVisualY - appSafeTop
+  let appFolderPreviewTop = clamp(appFolderPreviewCenter - min(appFolderHeight, appPanelHeight - 2 * appEdgeSpace) / 2, appEdgeSpace, max(appEdgeSpace, appPanelHeight - appEdgeSpace - appFolderHeight))
+  let appFolderPreviewRows = appFolderRows.map(r => merge(r, {top: appFolderPreviewTop + r.top - appFolderTop})).filter(r => r.top + r.height > 0 && r.top < appPanelHeight)
+  let appWindow = appPreviewing ? (railSettingsSelected ? appSettingsPreviewRows : railFolderSelected >= 0 ? appFolderPreviewRows : appPreviewRows) : fullAppWindow
   // Anchoring must use the unfiltered document even during a preview.
   let appVisibleRows = fullAppWindow.filter(r => r.top + r.height > appOffset && r.top < appOffset + appPanelHeight)
   let appFirst = first(appVisibleRows)
@@ -1832,6 +1841,7 @@ face "Omagara" {
           }
           if dy != 0 { appTracking = true }
           menu = ""
+          folderOpenId = ""
           // Do not rewrite anchor-derived state on every pointer sample.
           // Press and release capture it; drag updates only position.
         }
@@ -1876,6 +1886,8 @@ face "Omagara" {
                     radius: cfg.shadeAppLabels && cfg.roundAppLabels ? 15 * appScale : 0
                   }
                 }
+              } else if row.kind == "folder" {
+                FolderRow { f: row.folder; interactive: rowAlpha > 0.08 && rowY >= 0 && rowY + row.height <= appPanelHeight }
               } else if row.kind == "menuAction" {
                 Row {
                   fill: width
