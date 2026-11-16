@@ -2866,6 +2866,24 @@ face "Omagara" {
                 }
               }
               Text { text: "Most used is the default. Long-press an app in the A–Z list to move it within its letter or reset its automatic position. A small line marks moved apps. Search is unaffected."; font: chosenFont; fontSize: 12; color: secondaryText }
+              Text { text: "Pinned apps · " + str(len(pinnedAppKeys)) + "/8"; color: accent; font: chosenFont; fontSize: 16; padding: [0, 12, 0, 2] }
+              Text { text: "Hold an app in the A–Z browser or Search and select Pin app. Pinned apps launch from Omagara home; hold a pinned app name to reorder or unpin it. Its notifications expand below that app."; font: chosenFont; fontSize: 12; color: secondaryText }
+              for key in pinnedAppKeys key key {
+                let pinnedEntry = find(installed ?? [], a => a.key == key)
+                Row {
+                  fill: width
+                  align: center
+                  gap: 8
+                  Text { text: pinnedEntry == null ? key + " (not installed)" : pinnedEntry.name + (pinnedEntry.profile == null ? "" : " · " + pinnedEntry.profile); font: chosenFont; fontSize: 14; weight: 1; maxLines: 1 }
+                  Button {
+                    text: "Unpin"
+                    onTap: {
+                      pinnedAppKeys = pinnedAppKeys.filter(k => k != key)
+                      if expandedPinnedKey == key { expandedPinnedKey = "" }
+                    }
+                  }
+                }
+              }
               Text { text: "Custom folders"; color: accent; font: chosenFont; fontSize: 16; padding: [0, 12, 0, 2] }
               Button { text: "Manage folders (" + str(len(customFolders)) + ")"; onTap: { folderDraft = ""; screenMode = "folderList" } }
               Text { text: "Folders appear below the last app section with miniature app icons. A single folder shortcut above the cog jumps to them. Tap a folder for a floating app list; hold a folder row to edit."; font: chosenFont; fontSize: 12; color: secondaryText }

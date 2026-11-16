@@ -5,7 +5,7 @@ Niagara-inspired OWL 21 home face for [Omalauncher](https://github.com/SimonSchu
 ## Features
 
 - **Alphabet:** Elastic A–Z navigation, frequently launched app previews, hide apps from the worm without hiding them from Search, usage-based ordering by default or alphabetical ordering, plus persistent per-app moves within letters, a Settings cog, optional opposite-edge input, and configurable haptics.
-- **Apps:** Buffered full-height browser with elastic ends, adjustable scale, padded A–Z headings, and two compact bottom settings actions without a separate heading. Holding the cog previews only Omagara settings and Omalauncher settings. Empty Search places the most recently opened app first.
+- **Apps:** Buffered full-height browser with elastic ends, adjustable scale, padded A–Z headings, and two compact bottom settings actions under a Settings heading. Holding the cog previews only Omagara settings and Omalauncher settings. Empty Search places the most recently opened app first.
 - **Notifications:** Grouped cards, optional per-app hiding (Omagara only) and alert compression, adjustable start height with automatic space recovery, optional timestamps, swipe feedback, expandable actions/replies, and native scrolling.
 - **Appearance:** Clock, date and event alignment with the notification column (or screen center), automatic centering when the home alphabet is hidden, adjustable text/shade colors, opacity, and corners.
 - **Settings:** Home, Clock, Apps, Alphabet, Notifications, Appearance, Holidays, and Backup; 12/24-hour time, icons, fonts, and Reduce Motion.
@@ -26,6 +26,8 @@ Time format is selected under **Clock** in Omagara settings; OWL does not expose
 - Create named folders by holding an app or using **Apps → Manage folders**. Add/remove apps, rename/delete folders, and move folders or their app entries up/down.
 - Named folder rows follow the last A–Z app section, before Settings, with a folder silhouette and a 2×2 preview of installed app icons. Tap a folder to open a floating, scrollable popup with normal app actions; hold the row to edit it.
 - A single folder shortcut above the worm's Settings cog jumps to the folder section. The worm keeps its original overall height regardless of folder count, and the cog stays at the bottom.
+- Fix worm hit testing between the last letter, folder shortcut and settings cog so the letter no longer reactivates at the boundary.
+- Optionally pin up to eight apps from their long-press menus. Compact home rows launch apps and expand their native notifications; pinned alerts leave the ordinary list without changing Android's notification shade. Pinned apps remain available with notifications disabled. The capped pinned region scrolls independently to reserve room for regular notifications.
 - Folders persist in settings backups without removing their apps from the normal app list or Search.
 
 ## v1.8 changes
