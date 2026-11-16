@@ -24,10 +24,10 @@ Time format is selected under **Clock** in Omagara settings; OWL does not expose
 - Replay per-app moves without freezing the other apps' automatic sorting. Hidden, work-profile, and cloned apps retain distinct keys; Search is unaffected.
 - Export, import, and reset manual moves in settings; older v1 backups remain accepted.
 - Create named folders by holding an app or using **Apps → Manage folders**. Add/remove apps, rename/delete folders, and move folders or their app entries up/down.
-- Named folder rows follow the last A–Z app section, before Settings, with a folder silhouette and a 2×2 preview of installed app icons. Tap a folder to open a floating, scrollable popup with normal app actions; hold the row to edit it.
+- Named folder rows follow the last A–Z app section, before Settings, with a folder silhouette and a centered 2×2 preview of installed app icons. Tap a folder to open a floating, scrollable popup with normal app actions; hold the row to edit it.
 - A single folder shortcut above the worm's Settings cog jumps to the folder section. The worm keeps its original overall height regardless of folder count, and the cog stays at the bottom.
 - Fix worm hit testing between the last letter, folder shortcut and settings cog so the letter no longer reactivates at the boundary.
-- Optionally pin up to eight apps from their long-press menus. Compact home rows launch apps and expand their native notifications; pinned alerts leave the ordinary list without changing Android's notification shade. Pinned apps remain available with notifications disabled. The capped pinned region scrolls independently to reserve room for regular notifications.
+- Optionally pin up to eight apps from their long-press menus. Home pins have no heading or full-width shade: the default shows named rows, while **Apps → Pinned layout → Icons only** fits icons on one horizontal line. Hold a pinned icon for move/unpin, folder assignment, native app actions, and shortcuts; its menu can also toggle the compact layout. Pinned alerts expand from the name-row dropdown or compact icon badge and stay out of the ordinary list without changing Android's notification shade. The capped pin region scrolls independently, including with notifications disabled.
 - Folders persist in settings backups without removing their apps from the normal app list or Search.
 
 ## v1.8 changes
