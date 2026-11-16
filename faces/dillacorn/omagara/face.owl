@@ -1164,7 +1164,9 @@ face "Omagara" {
         appVelocity = 0
         heldAlphabet = liveAlphabet
         railHeld = true
-        railSettingsSelected = y >= railHeight + len(folderStops) * railStep + railStep * 0.25 && visual
+        // Disjoint hit regions: alphabet [0, railHeight), folders, then cog.
+        // No dead zone can fall through to the last alphabet letter.
+        railSettingsSelected = visual && y >= railHeight + len(folderStops) * railStep
         railFolderSelected = visual && y >= railHeight && y < railHeight + len(folderStops) * railStep ? clamp(floor((y - railHeight) / railStep), 0, max(0, len(folderStops) - 1)) : -1
         railFolderLongPressed = false
         draggingSide = 0
@@ -1187,8 +1189,9 @@ face "Omagara" {
         railThumbX = side == 1 ? (tileWidth ?? 400) - screenRight - 4 - (visual ? 44 : 20) + x : screenLeft + (visual ? 4 : 0) + x
         touchY = clamp(railTop + y, screenTop, (tileHeight ?? 800) - screenInset)
         fingerPosition = clamp(y / railStep - 0.5, 0, max(0, len(alphabet) + len(folderStops) - (railSettingsSelected ? 0 : 1)))
-        let pressedLetter = get(alphabet, clamp(floor(y / railStep), 0, max(0, len(alphabet) - 1)), letter)
-        letter = pressedLetter
+        let onAlphabet = y < railHeight
+        let pressedLetter = onAlphabet ? get(alphabet, clamp(floor(y / railStep), 0, max(0, len(alphabet) - 1)), letter) : letter
+        if onAlphabet { letter = pressedLetter }
         if cfg.hapticFeedback != "Off" { haptic() }
         // Keep the continuous list near the same position on release.
         let pressedApps = get(groups, pressedLetter, [])
@@ -1218,8 +1221,9 @@ face "Omagara" {
         railFlickLastY = y
         railHeld = true
         draggingSide = 1
-        let nextSettings = y >= railHeight + len(folderStops) * railStep + railStep * 0.25 && visual
+        let nextSettings = visual && y >= railHeight + len(folderStops) * railStep
         let nextFolder = visual && y >= railHeight && y < railHeight + len(folderStops) * railStep ? clamp(floor((y - railHeight) / railStep), 0, max(0, len(folderStops) - 1)) : -1
+        let nextOnAlphabet = y < railHeight
         let edgeY = y < railStep / 2 ? y - railStep / 2 : y > railPaintHeight - railStep / 2 ? y - (railPaintHeight - railStep / 2) : 0
         railOverpull = len(alphabet) < 2 ? 0 : clamp(edgeY, -railUpperReach, railLowerReach)
         // Track absolute thumb position while the rail's hit cells stay fixed.
@@ -1228,15 +1232,15 @@ face "Omagara" {
         railThumbX = side == 1 ? (tileWidth ?? 400) - screenRight - 4 - (visual ? 44 : 20) + x : screenLeft + (visual ? 4 : 0) + x
         touchY = clamp(railTop + y, screenTop, (tileHeight ?? 800) - screenInset)
         fingerPosition = clamp(y / railStep - 0.5, 0, max(0, len(alphabet) + len(folderStops) - (nextSettings ? 0 : 1)))
-        let nextLetter = get(alphabet, clamp(floor(y / railStep), 0, max(0, len(alphabet) - 1)), letter)
-        if nextSettings != railSettingsSelected || nextFolder != railFolderSelected || (!nextSettings && nextFolder < 0 && nextLetter != letter) {
+        let nextLetter = nextOnAlphabet ? get(alphabet, clamp(floor(y / railStep), 0, max(0, len(alphabet) - 1)), letter) : letter
+        if nextSettings != railSettingsSelected || nextFolder != railFolderSelected || (nextOnAlphabet && nextLetter != letter) {
           hapticSteps = hapticSteps + 1
           // Entering Settings must give one definite bump, even with Reduced haptics.
           if cfg.hapticFeedback != "Off" && (nextSettings || cfg.hapticFeedback == "Every letter" || hapticSteps % 2 == 0) { haptic() }
         }
         railSettingsSelected = nextSettings
         railFolderSelected = nextFolder
-        if !nextSettings && nextFolder < 0 { letter = nextLetter }
+        if nextOnAlphabet { letter = nextLetter }
         let nextApps = get(groups, nextLetter, [])
         let nextHeight = appLabelHeight + len(nextApps) * appRowHeight
         let nextCenter = railTop + railOverpull + (max(0, indexOf(alphabet, nextLetter)) + 0.5) * railStep - appSafeTop
