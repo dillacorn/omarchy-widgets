@@ -1496,11 +1496,12 @@ face "Omagara" {
               gap: 10
               padding: [5, 4]
               align: center
-              background: candidateIsMoving ? alpha(accent, 0.23) : alpha(surface, 0.26)
+              background: candidateIsMoving ? alpha(accent, 0.25) : alpha(surface, 0.26)
               border: candidateIsMoving ? 2 : 0
               borderColor: accent
               radius: candidateIsMoving ? 8 : 4
-              offset: candidateIsMoving ? [4, clamp(moveDragDistance - (moveTargetIndex - moveDragBaseIndex) * 48, -12, 12)] : [0, 0]
+              scale: candidateIsMoving ? 1.035 : 1
+              offset: candidateIsMoving ? [6, clamp(moveDragDistance - (moveTargetIndex - moveDragBaseIndex) * 48, -24, 24)] : [0, 0]
               onTap: {
                 if !candidateIsMoving {
                   moveTargetIndex = candidateIndex
