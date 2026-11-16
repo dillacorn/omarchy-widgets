@@ -23,6 +23,9 @@ Time format is selected under **Clock** in Omagara settings; OWL does not expose
 - A slim accent line marks moved apps; long-press one to **Reset automatic position**.
 - Replay per-app moves without freezing the other apps' automatic sorting. Hidden, work-profile, and cloned apps retain distinct keys; Search is unaffected.
 - Export, import, and reset manual moves in settings; older v1 backups remain accepted.
+- Create named folders by holding an app or using **Apps → Manage folders**. Add/remove apps, rename/delete folders, and move folders or their app entries up/down.
+- Folder icons appear below the last visible worm letter, before Settings. The first three folders are shown directly; the fourth stop opens the full folder list when more exist. Hold a folder shortcut to edit it.
+- Folder apps open in a separate screen with a draggable continuous side rail, retaining app shortcuts and native long-press actions. Folders persist in settings backups without removing apps from A–Z or Search.
 
 ## v1.8 changes
 

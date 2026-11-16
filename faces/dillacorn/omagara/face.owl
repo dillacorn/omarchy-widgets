@@ -2286,7 +2286,7 @@ face "Omagara" {
               Box {
                 width: appPanelWidth
                 height: appRowHeight
-                offset: [0, (folderStart + i) * appRowHeight - folderScroll]
+                offset: [0, (folderStart + i) * appRowHeight - min(folderScroll, folderMaxScroll)]
                 AppRow { a: a; thumbView: true; folderView: true }
               }
             }
@@ -2302,7 +2302,7 @@ face "Omagara" {
               width: 30
               height: folderViewportHeight
               line(15, 8, 15, folderViewportHeight - 8, stroke: alpha(secondaryText, 0.35), width: 3, cap: round)
-              line(15, 8 + folderScroll / max(1, folderMaxScroll) * max(0, folderViewportHeight - 40), 15, 32 + folderScroll / max(1, folderMaxScroll) * max(0, folderViewportHeight - 40), stroke: accent, width: 5, cap: round)
+              line(15, 8 + min(folderScroll, folderMaxScroll) / max(1, folderMaxScroll) * max(0, folderViewportHeight - 40), 15, 32 + min(folderScroll, folderMaxScroll) / max(1, folderMaxScroll) * max(0, folderViewportHeight - 40), stroke: accent, width: 5, cap: round)
             }
           }
         }
@@ -2333,9 +2333,12 @@ face "Omagara" {
             Row {
               fill: width; gap: 8; align: center; padding: [8, 10]
               background: alpha(surface, 0.20)
-              onTap: { folderOpenId = f.id; folderReturnMode = "folderList"; folderScroll = 0; menu = ""; screenMode = "folder" }
-              onLongPress: { folderEditId = f.id; folderEditName = f.name; folderAppQuery = ""; folderDeleteConfirm = false; screenMode = "folderEdit" }
-              Text { text: f.name + " · " + str(len(f.keys)); font: chosenFont; fontSize: 16; weight: 1 }
+              Column {
+                weight: 1
+                onTap: { folderOpenId = f.id; folderReturnMode = "folderList"; folderScroll = 0; menu = ""; screenMode = "folder" }
+                onLongPress: { folderEditId = f.id; folderEditName = f.name; folderAppQuery = ""; folderDeleteConfirm = false; screenMode = "folderEdit" }
+                Text { text: f.name + " · " + str(len(f.keys)); font: chosenFont; fontSize: 16; maxLines: 1 }
+              }
               if i > 0 { Button { text: "↑"; onTap: customFolders = set(set(customFolders, i - 1, f), i, customFolders[i - 1]) } }
               if i < len(customFolders) - 1 { Button { text: "↓"; onTap: customFolders = set(set(customFolders, i + 1, f), i, customFolders[i + 1]) } }
               Button { text: "Edit"; onTap: { folderEditId = f.id; folderEditName = f.name; folderAppQuery = ""; folderDeleteConfirm = false; screenMode = "folderEdit" } }
@@ -2358,6 +2361,23 @@ face "Omagara" {
                 if trim(folderEditName) != "" && len(trim(folderEditName)) <= 32 && !any(customFolders, f => f.id != folderEditId && lower(f.name) == lower(trim(folderEditName))) {
                   customFolders = customFolders.map(f => f.id == folderEditId ? merge(f, {name: trim(folderEditName)}) : f)
                 }
+              }
+            }
+          }
+          let editFolderIndex = indexOf(customFolders.map(f => f.id), folderEditId)
+          Row {
+            fill: width
+            gap: 8
+            if editFolderIndex > 0 {
+              Button {
+                text: "↑ Move folder up"
+                onTap: customFolders = set(set(customFolders, editFolderIndex - 1, editingFolder), editFolderIndex, customFolders[editFolderIndex - 1])
+              }
+            }
+            if editFolderIndex >= 0 && editFolderIndex < len(customFolders) - 1 {
+              Button {
+                text: "↓ Move folder down"
+                onTap: customFolders = set(set(customFolders, editFolderIndex + 1, editingFolder), editFolderIndex, customFolders[editFolderIndex + 1])
               }
             }
           }
