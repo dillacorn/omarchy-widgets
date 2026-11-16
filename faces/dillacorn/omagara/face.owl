@@ -944,6 +944,134 @@ face "Omagara" {
   }
 
   // One notification viewport, used by both animated and reduced-motion layouts.
+  // The same pinned-app menu is anchored to the icon in both display modes.
+  // Shortcuts and native app actions are the same APIs as the A-Z context menu.
+  component HomePinIcon(a, iconSize = 30, showNoticeBadge = false) {
+    let identity = toJson([a.package, a.profile])
+    let notificationOwner = first(pinnedApps.filter(p => toJson([p.package, p.profile]) == identity))
+    let ownedNotices = get(noticeGroups, identity, [])
+    let hasOwnNotices = cfg.notifications && notices != null && notices.available != false && notificationOwner != null && notificationOwner.key == a.key && len(ownedNotices) > 0
+    Box {
+      size: iconSize
+      onTap: androidApp(a.key)
+      onLongPress: {
+        pinnedMenuShortcuts = null
+        pinnedMenuKey = a.key
+        pinnedMenuShortcuts = shortcuts(a.key)
+      }
+      if a.icon != null && a.icon != "" {
+        Image { src: a.icon; size: iconSize; label: a.name + (a.profile == null ? "" : " · " + a.profile) }
+      } else {
+        Text { text: upper(sub(trim(a.name), 0, 1)); font: chosenFont; fontSize: 18; color: primaryText; align: center }
+      }
+      if showNoticeBadge && hasOwnNotices {
+        Text {
+          text: str(len(ownedNotices))
+          font: chosenFont
+          fontSize: 10
+          color: accent
+          padding: [1, 3]
+          background: noticeHeadingShade
+          radius: 6
+          offset: [iconSize - 13, -2]
+          onTap: {
+            expandedPinnedKey = expandedPinnedKey == a.key ? "" : a.key
+            pinnedNoticeShown = 4
+            expandedStack = ""; expandedNoticeActions = ""; replyKey = ""; replyDraft = ""
+          }
+        }
+      }
+      Popup {
+        visible: pinnedMenuKey == a.key && pinnedMenuShortcuts != null
+        onDismiss: { pinnedMenuKey = ""; pinnedMenuShortcuts = null }
+        position: below
+        width: 220
+        gap: 0
+        for direction in [-1, 1] {
+          let pos = indexOf(pinnedAppKeys, a.key)
+          let adjacent = pos + direction
+          if adjacent >= 0 && adjacent < len(pinnedAppKeys) {
+            Text {
+              text: direction < 0 ? "↑ Move pin up" : "↓ Move pin down"
+              fill: width
+              padding: [12, 14]
+              onTap: {
+                let nextKey = get(pinnedAppKeys, adjacent)
+                pinnedAppKeys = set(set(pinnedAppKeys, pos, nextKey), adjacent, a.key)
+                pinnedMenuKey = ""; pinnedMenuShortcuts = null
+              }
+            }
+          }
+        }
+        Text {
+          text: "Unpin app"
+          fill: width
+          padding: [12, 14]
+          onTap: {
+            pinnedAppKeys = pinnedAppKeys.filter(k => k != a.key)
+            if expandedPinnedKey == a.key { expandedPinnedKey = "" }
+            pinnedMenuKey = ""; pinnedMenuShortcuts = null
+          }
+        }
+        Text {
+          text: "Add to folder"
+          fill: width
+          padding: [12, 14]
+          onTap: {
+            pinnedMenuKey = ""; pinnedMenuShortcuts = null
+            folderPickAppKey = a.key
+            folderDraft = ""
+            folderPickReturnMode = "face"
+            screenMode = "folderPick"
+            screen()
+          }
+        }
+        for shortcut in pinnedMenuShortcuts ?? [] key shortcut.key {
+          Text {
+            text: shortcut.name
+            fill: width
+            padding: [12, 14]
+            maxLines: 2
+            onTap: { pinnedMenuKey = ""; pinnedMenuShortcuts = null; open(shortcut.key) }
+          }
+        }
+        for actionWord in (find(drawer.apps ?? [], d => d.key == a.key || d.key == "a:" + a.key).actions ?? []) {
+          Text {
+            text: get({pin: "Pin to Omalauncher home", info: "App info", uninstall: "Uninstall", remove: "Remove", edit: "Edit", share: "Share"}, actionWord, actionWord)
+            fill: width
+            padding: [12, 14]
+            onTap: { pinnedMenuKey = ""; pinnedMenuShortcuts = null; appAction(actionWord, a.key) }
+          }
+        }
+      }
+    }
+  }
+
+  component HomePinNotifications(a) {
+    let identity = toJson([a.package, a.profile])
+    let notificationOwner = first(pinnedApps.filter(p => toJson([p.package, p.profile]) == identity))
+    let ownedNotices = get(noticeGroups, identity, [])
+    if cfg.notifications && notices != null && notices.available != false && notificationOwner != null && notificationOwner.key == a.key && expandedPinnedKey == a.key && len(ownedNotices) > 0 {
+      Column {
+        fill: width
+        gap: 3
+        for n in take(ownedNotices, pinnedNoticeShown) key n.key {
+          NotificationRow { item: n; stack: identity; summary: false }
+        }
+        if len(ownedNotices) > pinnedNoticeShown {
+          Text {
+            text: str(len(ownedNotices) - pinnedNoticeShown) + " more · Show notifications"
+            font: chosenFont
+            fontSize: 12
+            color: accent
+            padding: [6, 8]
+            onTap: pinnedNoticeShown = min(50, pinnedNoticeShown + 4)
+          }
+        }
+      }
+    }
+  }
+
   component NotificationPanel() {
     Column {
       width: noticeWidth
