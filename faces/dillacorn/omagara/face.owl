@@ -421,9 +421,7 @@ face "Omagara" {
   let headerEventWidth = min(headerShapeMax, 26 + 13 * (cfg.faceFont == "Launcher" ? 0.68 * len(headerEventText) : sum(map(range(len(headerEventText)), i => contains("iltfjI!.,:; '1", sub(headerEventText, i, i + 1)) ? 0.30 : contains("MW@QO", sub(headerEventText, i, i + 1)) ? 0.77 : 0.55))))
   let headerRows = (cfg.clock ? [{w: headerClockWidth, h: headerClockHeight}] : []) + (cfg.date ? [{w: headerDateWidth, h: headerDateHeight}] : []) + (cfg.event && todayEvent != null ? [{w: headerEventWidth, h: headerEventHeight}] : [])
   let headerShapeHeight = sum(map(headerRows, r => r.h))
-  // All three header switches free vertical space; manual placement still clears visible rows.
-  let headerBottom = screenTop + 12 + (len(headerRows) > 0 ? headerPadTop + headerShapeHeight + 30 : 12)
-  let noticeTop = max(headerBottom, screenTop + availableHeight * (cfg.noticeAutoPosition ? 0.08 : cfg.noticeStartPercent / 100))
+  // Clock/date/event rows disappear from the scroll document when disabled.
   // Search and the gesture cue have their own side preference. Close can
   // follow Search or use either edge independently, with the same rail clearance.
   let controlLeft = screenLeft + 60
@@ -1400,13 +1398,14 @@ face "Omagara" {
             }
           }
         }
-        for noticeRow in noticeRows key noticeRow.id {
-          NotificationRow { item: noticeRow.item; stack: noticeRow.stack; summary: noticeRow.summary }
-        }
-        // Small scroll tail keeps native gesture space clear of Search.
-        Spacer { width: noticeWidth; height: 20 }
       }
       }
+      // This loop is a DIRECT lazy-column child, not nested in the
+      // notification-access conditional. Large lists stay virtualized.
+      for noticeRow in (cfg.notifications && notices != null && notices.available != false ? noticeRows : []) key noticeRow.id {
+        NotificationRow { item: noticeRow.item; stack: noticeRow.stack; summary: noticeRow.summary }
+      }
+      Spacer { width: noticeWidth; height: 20 }
     }
   }
 
@@ -2903,11 +2902,14 @@ face "Omagara" {
               Text { text: "Each app starts with its label on its own row. Hold a pin to hide its label, place it beside the previous app, move or unpin it."; font: chosenFont; fontSize: 12; color: secondaryText }
               for pinKey in pinnedAppKeys key pinKey {
                 let pinnedEntry = find(installed ?? [], a => a.key == pinKey)
-                Row {
+                Column {
                   fill: width
-                  align: center
-                  gap: 8
+                  gap: 5
+
                   Text { text: pinnedEntry == null ? pinKey + " (not installed)" : pinnedEntry.name + (pinnedEntry.profile == null ? "" : " · " + pinnedEntry.profile); font: chosenFont; fontSize: 14; weight: 1; maxLines: 1 }
+                  Flow {
+                    fill: width
+                    gap: 6
                   Button {
                     text: get(find(pinnedLayouts, p => p.key == pinKey) ?? {}, "showLabel", true) == false ? "Show label" : "Hide label"
                     onTap: {
@@ -2931,6 +2933,7 @@ face "Omagara" {
                       pinnedLayouts = pinnedLayouts.filter(p => p.key != pinKey)
                       if expandedPinnedKey == pinKey { expandedPinnedKey = "" }
                     }
+                  }
                   }
                 }
               }
@@ -3020,14 +3023,10 @@ face "Omagara" {
               Text { text: "Reduced: every second letter. Every letter: each change."; font: chosenFont; fontSize: 12; color: secondaryText }
             } else if shownSection == "Notifications" {
               Text { text: "Notifications"; color: accent; font: chosenFont; fontSize: 18; padding: [0, 8, 0, 4] }
-              for pref in preferenceRows.filter(p => contains(["notifications", "notificationTimes", "previews", "grouping", "actions", "mediaPlayer", "noticeAutoPosition"], p.key)) {
+              for pref in preferenceRows.filter(p => contains(["notifications", "notificationTimes", "previews", "grouping", "actions", "mediaPlayer"], p.key)) {
                 SettingToggle { pref: pref }
               }
-              if !cfg.noticeAutoPosition {
-                Text { text: "Notification start: " + str(cfg.noticeStartPercent) + "%"; font: chosenFont; fontSize: 14; color: accent }
-                Slider { value: cfg.noticeStartPercent; min: 6; max: 50; step: 1; live: true; onChange: prefs = set(prefs, "noticeStartPercent", clamp(round(value), 6, 50)) }
-              }
-              Text { text: "Auto expands the notification list when clock, date or event is hidden. Manual start always clears visible header rows."; font: chosenFont; fontSize: 12; color: secondaryText }
+              Text { text: "Clock, date, pinned apps and notifications scroll together. Dismissing an alert moves the remaining content up naturally; hiding clock or date also frees space."; font: chosenFont; fontSize: 12; color: secondaryText }
               Text { text: "Per-app notification controls"; color: accent; font: chosenFont; fontSize: 16; padding: [0, 12, 0, 2] }
               Text { text: "Hide removes an app's notifications only from Omagara. Android's notification shade and the music player remain unchanged. Compress stacks repetitive alerts; neither option dismisses them."; font: chosenFont; fontSize: 12; color: secondaryText }
               Text { text: str(len(hiddenNoticeApps)) + " hidden · " + str(len(compactAlertApps)) + " compressed"; font: chosenFont; fontSize: 13; color: secondaryText }
