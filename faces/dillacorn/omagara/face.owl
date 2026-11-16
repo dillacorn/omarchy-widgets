@@ -1313,8 +1313,9 @@ face "Omagara" {
       // Each pin owns its own label and row break. Flow wraps if necessary
       // instead of overflowing the worm on narrow screens.
       for rowPins in pinnedRows key toJson(rowPins.map(a => a.key)) {
-        let rowAllIcons = all(rowPins, a => get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) == false)
-        let rowIconSize = rowAllIcons ? max(16, min(36, (noticeWidth - max(0, len(rowPins) - 1) * 6 - 8) / max(1, len(rowPins)))) : 34
+        let rowNamedCount = count(rowPins, a => get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false)
+        let rowIconSize = max(16, min(36, (noticeWidth - len(rowPins) * 4 - max(0, len(rowPins) - 1) * 6 - 8) / max(1, len(rowPins))))
+        let rowLabelWidth = min(152, max(42, (noticeWidth - len(rowPins) * (rowIconSize + 12) - max(0, len(rowPins) - 1) * 6 - 8) / max(1, rowNamedCount)))
         Flow {
           fill: width
           gap: 6
@@ -1333,7 +1334,7 @@ face "Omagara" {
                   fontSize: 15
                   color: primaryText
                   maxLines: 1
-                  width: min(160, max(70, noticeWidth - rowIconSize - 26))
+                  width: rowLabelWidth
                   padding: cfg.shadeAppLabels ? [9, 5] : [0, 0]
                   background: cfg.shadeAppLabels ? appLabelShade : transparent
                   radius: cfg.shadeAppLabels && cfg.roundAppLabels ? 8 : 0
@@ -2905,35 +2906,40 @@ face "Omagara" {
                 Column {
                   fill: width
                   gap: 5
-
-                  Text { text: pinnedEntry == null ? pinKey + " (not installed)" : pinnedEntry.name + (pinnedEntry.profile == null ? "" : " · " + pinnedEntry.profile); font: chosenFont; fontSize: 14; weight: 1; maxLines: 1 }
+                  padding: [6, 4]
+                  Text {
+                    text: pinnedEntry == null ? pinKey + " (not installed)" : pinnedEntry.name + (pinnedEntry.profile == null ? "" : " · " + pinnedEntry.profile)
+                    font: chosenFont
+                    fontSize: 14
+                    maxLines: 1
+                  }
                   Flow {
                     fill: width
                     gap: 6
-                  Button {
-                    text: get(find(pinnedLayouts, p => p.key == pinKey) ?? {}, "showLabel", true) == false ? "Show label" : "Hide label"
-                    onTap: {
-                      let current = find(pinnedLayouts, p => p.key == pinKey)
-                      pinnedLayouts = pinnedLayouts.filter(p => p.key != pinKey) + [merge(current ?? {key: pinKey, newRow: true}, {showLabel: get(current ?? {}, "showLabel", true) == false})]
-                    }
-                  }
-                  if indexOf(pinnedAppKeys, pinKey) > 0 {
                     Button {
-                      text: get(find(pinnedLayouts, p => p.key == pinKey) ?? {}, "newRow", true) == false ? "New row" : "Join"
+                      text: get(find(pinnedLayouts, p => p.key == pinKey) ?? {}, "showLabel", true) == false ? "Show label" : "Hide label"
                       onTap: {
                         let current = find(pinnedLayouts, p => p.key == pinKey)
-                        pinnedLayouts = pinnedLayouts.filter(p => p.key != pinKey) + [merge(current ?? {key: pinKey, showLabel: true}, {newRow: get(current ?? {}, "newRow", true) == false})]
+                        pinnedLayouts = pinnedLayouts.filter(p => p.key != pinKey) + [merge(current ?? {key: pinKey, newRow: true}, {showLabel: get(current ?? {}, "showLabel", true) == false})]
                       }
                     }
-                  }
-                  Button {
-                    text: "Unpin"
-                    onTap: {
-                      pinnedAppKeys = pinnedAppKeys.filter(k => k != pinKey)
-                      pinnedLayouts = pinnedLayouts.filter(p => p.key != pinKey)
-                      if expandedPinnedKey == pinKey { expandedPinnedKey = "" }
+                    if indexOf(pinnedAppKeys, pinKey) > 0 {
+                      Button {
+                        text: get(find(pinnedLayouts, p => p.key == pinKey) ?? {}, "newRow", true) == false ? "New row" : "Join previous"
+                        onTap: {
+                          let current = find(pinnedLayouts, p => p.key == pinKey)
+                          pinnedLayouts = pinnedLayouts.filter(p => p.key != pinKey) + [merge(current ?? {key: pinKey, showLabel: true}, {newRow: get(current ?? {}, "newRow", true) == false})]
+                        }
+                      }
                     }
-                  }
+                    Button {
+                      text: "Unpin"
+                      onTap: {
+                        pinnedAppKeys = pinnedAppKeys.filter(k => k != pinKey)
+                        pinnedLayouts = pinnedLayouts.filter(p => p.key != pinKey)
+                        if expandedPinnedKey == pinKey { expandedPinnedKey = "" }
+                      }
+                    }
                   }
                 }
               }
@@ -3206,7 +3212,7 @@ face "Omagara" {
               customFolders = imported.folders ?? []
               folderSerial = imported.folderSerial ?? 0
               pinnedAppKeys = take(unique(imported.pinnedApps ?? []), 8)
-              pinnedLayouts = (imported.pinLayouts ?? (get(imported.prefs, "compactPins", false) == true ? pinnedAppKeys.map((k, i) => {key: k, showLabel: false, newRow: i == 0}) : [])).filter(p => contains(pinnedAppKeys, p.key)).take(8)
+              pinnedLayouts = (imported.pinLayouts ?? (get(imported.prefs, "compactPins", false) == true ? (imported.pinnedApps ?? []).take(8).map((k, i) => {key: k, showLabel: false, newRow: i == 0}) : [])).filter(p => contains(imported.pinnedApps ?? [], p.key)).take(8)
               expandedPinnedKey = ""
               pinnedNoticeShown = 4
               pinnedMenuKey = ""
