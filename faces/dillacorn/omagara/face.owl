@@ -115,6 +115,7 @@ face "Omagara" {
   // Per-pin layout: an absent entry means show the name and start a new row.
   // Pin keys include the Android profile, so profiles never share a setting.
   state pinnedLayouts = [] persist
+  state pinLayoutMigrationDone = false persist
   state expandedPinnedKey = ""
   state pinnedNoticeShown = 4
   state pinnedMenuKey = ""
@@ -185,6 +186,15 @@ face "Omagara" {
   when !mostUsedMigrationDone {
     prefs = set(prefs, "sortMode", "Most used")
     mostUsedMigrationDone = true
+  }
+  // Preserve existing global icon-only users once. New pins start named,
+  // on their own row, regardless of the earlier compact pin preference.
+  when !pinLayoutMigrationDone {
+    if cfg.compactPins && len(pinnedAppKeys) > 0 && len(pinnedLayouts) == 0 {
+      pinnedLayouts = pinnedAppKeys.map((k, i) => {key: k, showLabel: false, newRow: i == 0})
+    }
+    prefs = set(prefs, "compactPins", false)
+    pinLayoutMigrationDone = true
   }
   let allRounded = all(roundingKeys, k => get(cfg, k) == true)
   let anyRounded = any(roundingKeys, k => get(cfg, k) == true)
@@ -1218,85 +1228,48 @@ face "Omagara" {
       if mediaNeedsAccess && !cfg.notifications {
         Text { text: "Media controls need notification access. Tap to allow."; font: chosenFont; fontSize: 12; color: accent; onTap: media("open") }
       }
-      // Pinned apps appear directly above notifications, without a title bar.
-      // Names are the default; icon-only fits up to eight icons on one line.
-      if len(pinnedApps) > 0 && pinnedHomeHeight > 12 {
-        Column {
+      // Each pin owns its own label and row break. Flow wraps if necessary
+      // instead of overflowing the worm on narrow screens.
+      for rowPins in pinnedRows key toJson(rowPins.map(a => a.key)) {
+        let rowAllIcons = all(rowPins, a => get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) == false)
+        let rowIconSize = rowAllIcons ? max(16, min(36, (noticeWidth - max(0, len(rowPins) - 1) * 6 - 8) / max(1, len(rowPins)))) : 34
+        Flow {
           fill: width
-          height: pinnedHomeHeight
-          clip: true
-          scroll: true
-          gap: 3
-          if cfg.compactPins {
-            let compactPinIconSize = max(18, min(36, (noticeWidth - max(0, len(pinnedApps) - 1) * 6 - 8) / max(1, len(pinnedApps))))
+          gap: 6
+          for a in rowPins key a.key {
+            let showPinLabel = get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false
             Row {
-              fill: width
-              height: 42
               align: center
-              gap: 6
-              for a in pinnedApps key a.key {
-                HomePinIcon { a: a; iconSize: compactPinIconSize; showNoticeBadge: true }
-              }
-            }
-            if expandedPinnedKey != "" {
-              let expandedApp = find(pinnedApps, p => p.key == expandedPinnedKey)
-              if expandedApp != null {
-                HomePinNotifications { a: expandedApp }
-              }
-            }
-          } else {
-            for a in pinnedApps key a.key {
-              let identity = toJson([a.package, a.profile])
-              let noticeOwner = first(pinnedApps.filter(p => toJson([p.package, p.profile]) == identity))
-              let appNotices = get(noticeGroups, identity, [])
-              let hasAppNotices = cfg.notifications && notices != null && notices.available != false && noticeOwner != null && noticeOwner.key == a.key && len(appNotices) > 0
-              Column {
-                fill: width
-                gap: 3
-                Row {
-                  fill: width
-                  height: 48
-                  align: center
-                  gap: 8
-                  padding: [3, 4]
-                  HomePinIcon { a: a; iconSize: 30 }
-                  Row {
-                    weight: 1
-                    Text {
-                      text: a.name
-                      font: chosenFont
-                      fontSize: 15
-                      color: primaryText
-                      maxLines: 1
-                      padding: cfg.shadeAppLabels ? [9, 5] : [0, 0]
-                      background: cfg.shadeAppLabels ? appLabelShade : transparent
-                      radius: cfg.shadeAppLabels && cfg.roundAppLabels ? 8 : 0
-                      onTap: androidApp(a.key)
-                      onLongPress: {
-                        pinnedMenuShortcuts = null
-                        pinnedMenuKey = a.key
-                        pinnedMenuShortcuts = shortcuts(a.key)
-                      }
-                    }
-                  }
-                  if hasAppNotices {
-                    Text {
-                      text: str(len(appNotices)) + (expandedPinnedKey == a.key ? " ▴" : " ▾")
-                      font: chosenFont
-                      fontSize: 15
-                      color: accent
-                      padding: [7, 10]
-                      onTap: {
-                        expandedPinnedKey = expandedPinnedKey == a.key ? "" : a.key
-                        pinnedNoticeShown = 4
-                        expandedStack = ""; expandedNoticeActions = ""; replyKey = ""; replyDraft = ""
-                      }
-                    }
+              gap: 8
+              height: max(42, rowIconSize + 6)
+              padding: [2, 2]
+              HomePinIcon { a: a; iconSize: rowIconSize; showNoticeBadge: true }
+              if showPinLabel {
+                Text {
+                  text: a.name
+                  font: chosenFont
+                  fontSize: 15
+                  color: primaryText
+                  maxLines: 1
+                  width: min(160, max(70, noticeWidth - rowIconSize - 26))
+                  padding: cfg.shadeAppLabels ? [9, 5] : [0, 0]
+                  background: cfg.shadeAppLabels ? appLabelShade : transparent
+                  radius: cfg.shadeAppLabels && cfg.roundAppLabels ? 8 : 0
+                  onTap: androidApp(a.key)
+                  onLongPress: {
+                    pinnedMenuShortcuts = null
+                    pinnedMenuKey = a.key
+                    pinnedMenuShortcuts = shortcuts(a.key)
                   }
                 }
-                HomePinNotifications { a: a }
               }
             }
+          }
+        }
+        if expandedPinnedKey != "" {
+          let expandedRowApp = find(rowPins, a => a.key == expandedPinnedKey)
+          if expandedRowApp != null {
+            HomePinNotifications { a: expandedRowApp }
           }
         }
       }
@@ -2989,20 +2962,7 @@ face "Omagara" {
               }
               Text { text: "Most used is the default. Long-press an app in the A–Z list to move it within its letter or reset its automatic position. A small line marks moved apps. Search is unaffected."; font: chosenFont; fontSize: 12; color: secondaryText }
               Text { text: "Pinned apps · " + str(len(pinnedAppKeys)) + "/8"; color: accent; font: chosenFont; fontSize: 16; padding: [0, 12, 0, 2] }
-              Text { text: "Pinned layout"; font: chosenFont; fontSize: 15 }
-              Flow {
-                fill: width
-                gap: 8
-                Button {
-                  text: (!cfg.compactPins ? "✓ " : "") + "Names"
-                  onTap: { prefs = set(prefs, "compactPins", false); expandedPinnedKey = ""; pinnedNoticeShown = 4 }
-                }
-                Button {
-                  text: (cfg.compactPins ? "✓ " : "") + "Icons only"
-                  onTap: { prefs = set(prefs, "compactPins", true); expandedPinnedKey = ""; pinnedNoticeShown = 4 }
-                }
-              }
-              Text { text: "Hold an app in the A–Z browser or Search to pin it. Names is the default; Icons only uses a single compact row. Hold a pinned icon for app actions, reordering, folder management or unpinning. Notification badges expand beside the icon."; font: chosenFont; fontSize: 12; color: secondaryText }
+              Text { text: "Each app starts with its label on its own row. Hold a pin to hide its label, place it beside the previous app, move or unpin it."; font: chosenFont; fontSize: 12; color: secondaryText }
               for pinKey in pinnedAppKeys key pinKey {
                 let pinnedEntry = find(installed ?? [], a => a.key == pinKey)
                 Row {
@@ -3011,9 +2971,26 @@ face "Omagara" {
                   gap: 8
                   Text { text: pinnedEntry == null ? pinKey + " (not installed)" : pinnedEntry.name + (pinnedEntry.profile == null ? "" : " · " + pinnedEntry.profile); font: chosenFont; fontSize: 14; weight: 1; maxLines: 1 }
                   Button {
+                    text: get(find(pinnedLayouts, p => p.key == pinKey) ?? {}, "showLabel", true) == false ? "Show label" : "Hide label"
+                    onTap: {
+                      let current = find(pinnedLayouts, p => p.key == pinKey)
+                      pinnedLayouts = pinnedLayouts.filter(p => p.key != pinKey) + [merge(current ?? {key: pinKey, newRow: true}, {showLabel: get(current ?? {}, "showLabel", true) == false})]
+                    }
+                  }
+                  if indexOf(pinnedAppKeys, pinKey) > 0 {
+                    Button {
+                      text: get(find(pinnedLayouts, p => p.key == pinKey) ?? {}, "newRow", true) == false ? "New row" : "Join"
+                      onTap: {
+                        let current = find(pinnedLayouts, p => p.key == pinKey)
+                        pinnedLayouts = pinnedLayouts.filter(p => p.key != pinKey) + [merge(current ?? {key: pinKey, showLabel: true}, {newRow: get(current ?? {}, "newRow", true) == false})]
+                      }
+                    }
+                  }
+                  Button {
                     text: "Unpin"
                     onTap: {
                       pinnedAppKeys = pinnedAppKeys.filter(k => k != pinKey)
+                      pinnedLayouts = pinnedLayouts.filter(p => p.key != pinKey)
                       if expandedPinnedKey == pinKey { expandedPinnedKey = "" }
                     }
                   }
@@ -3292,7 +3269,7 @@ face "Omagara" {
               customFolders = imported.folders ?? []
               folderSerial = imported.folderSerial ?? 0
               pinnedAppKeys = take(unique(imported.pinnedApps ?? []), 8)
-              pinnedLayouts = (imported.pinLayouts ?? []).filter(p => contains(pinnedAppKeys, p.key)).take(8)
+              pinnedLayouts = (imported.pinLayouts ?? (get(imported.prefs, "compactPins", false) == true ? pinnedAppKeys.map((k, i) => {key: k, showLabel: false, newRow: i == 0}) : [])).filter(p => contains(pinnedAppKeys, p.key)).take(8)
               expandedPinnedKey = ""
               pinnedNoticeShown = 4
               pinnedMenuKey = ""
