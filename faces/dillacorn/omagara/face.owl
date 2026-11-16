@@ -299,7 +299,7 @@ face "Omagara" {
   let pickerApps = (installed ?? []).filter(a => trim(appPickerQuery) == "" || contains(lower(a.name), lower(trim(appPickerQuery))) || contains(lower(a.package), lower(trim(appPickerQuery)))).sortBy(a => lower(a.name)).take(40)
   let selectedMusicApps = (installed ?? []).filter(a => contains(musicAppKeys, a.key)).sortBy(a => lower(a.name)).take(5)
   let pinnedApps = take(pinnedAppKeys.map(k => find(installed ?? [], a => a.key == k)).filter(a => a != null), 8)
-  let pinnedRowNumbers = scan(pinnedApps, (row, a, i) => row + (i == 0 || get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "newRow", true) != false ? 1 : 0), 0)
+  let pinnedRowNumbers = map(range(len(pinnedApps)), i => sum(take(pinnedApps, i + 1).map((a, j) => j == 0 || get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "newRow", true) != false ? 1 : 0)))
   let pinnedRows = unique(pinnedRowNumbers).map(r => pinnedApps.filter(a => get(pinnedRowNumbers, indexOf(pinnedApps.map(p => p.key), a.key), 0) == r))
   // Android notification identity is package + profile, not a launcher key.
   // Multiple activities for one package have only one notification owner.
