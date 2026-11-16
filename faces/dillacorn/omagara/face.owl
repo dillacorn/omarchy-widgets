@@ -423,7 +423,9 @@ face "Omagara" {
   let noticeWidth = max(0, availableWidth - 80)
   // Cap pin height so regular notifications retain screen space.
   let pinnedNoticeAvailableHeight = max(0, noticeBottom - noticeTop - (hasMedia || showMusicApps ? 92 : 0))
-  let pinnedHomeHeight = min(22 + len(pinnedApps) * 52 + (expandedPinnedKey != "" ? 192 : 0), max(0, pinnedNoticeAvailableHeight * (cfg.notifications && len(regularNoticeItems) > 0 ? 0.56 : 0.84)))
+  // The compact Notifications/Clear all header saves roughly 6dp.
+  // Give that space to pins when ordinary notifications share the panel.
+  let pinnedHomeHeight = min(22 + len(pinnedApps) * 52 + (expandedPinnedKey != "" ? 192 : 0), max(0, pinnedNoticeAvailableHeight * (cfg.notifications && len(regularNoticeItems) > 0 ? 0.56 : 0.84) + (cfg.notifications && len(regularNoticeItems) > 0 ? 6 : 0)))
   // Additional content after the last card: it can scroll above the Search
   // button rather than remaining partly hidden underneath it.
   let noticeTailSpace = max(120, searchBottom - screenInset + 100)
