@@ -584,9 +584,15 @@ face "Omagara" {
   let pinSelectedGroupId = get(pinDraftGroupIds, indexOf(pinDraftKeys, moveKey), -2)
   let pinSelectedGroupKeys = moveMode == "pin" ?
     pinDraftKeys.filter(k => get(pinDraftGroupIds, indexOf(pinDraftKeys, k), -3) == pinSelectedGroupId) : []
-  let pinSelectedGroupRight = get(find(pinDraftLayouts, p => p.key == moveKey) ?? {}, "alignRight", false)
-  let pinAllRight = len(pinDraftKeys) > 0 &&
-    all(pinDraftKeys, k => get(find(pinDraftLayouts, p => p.key == k) ?? {}, "alignRight", false))
+  // A joined row renders using its first pin's side. Row actions must
+  // consult that displayed side, not a selected pin's stale pre-join side.
+  let pinSelectedGroupRight = len(pinSelectedGroupKeys) > 0 &&
+    get(find(pinDraftLayouts, p => p.key == first(pinSelectedGroupKeys)) ?? {}, "alignRight", false)
+  // Wrapped rows likewise render from each row's first pin. Shift All
+  // should reflect what is visibly right-aligned, even after mixed joins.
+  let pinAllRight = len(pinDraftRows) > 0 &&
+    all(pinDraftRows, row => len(row) > 0 &&
+      get(find(pinDraftLayouts, p => p.key == first(row).key) ?? {}, "alignRight", false))
   // The Home editor uses global ×/✓ and never reserves an extra pin row.
   let pinDraftControlBelow = false
   // In-place slots use the existing 42dp row + 6dp gap.
