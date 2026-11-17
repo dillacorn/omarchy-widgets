@@ -2071,7 +2071,6 @@ face "Omagara" {
       lazy: true
       if len(headerRows) > 0 {
         HomeHeader {}
-        if layoutEditMode == "home" { LayoutSpacingHandle { zone: "header" } }
         if headerSpacing > 0 { Spacer { width: noticeWidth; height: headerSpacing } }
       }
       // Native compact player and selected app shortcuts share one surface.
@@ -2367,7 +2366,6 @@ face "Omagara" {
         }
       }
       }
-      if layoutEditMode == "home" { LayoutSpacingHandle { zone: "notices" } }
       if noticeSpacing > 0 { Spacer { width: noticeWidth; height: noticeSpacing } }
       if cfg.notifications {
       if notices == null {
@@ -3097,7 +3095,8 @@ face "Omagara" {
         AlphabetRail { side: 1 }
       }
     }
-    // Temporary layout-editor handles never appear during normal use.
+    // Edit handles paint over the face instead of participating in the lazy
+    // document, so completing an edit never changes the actual row positions.
     if layoutEditMode != "" && moveMode == "" {
       Box {
         fill: true
@@ -3121,6 +3120,18 @@ face "Omagara" {
           align: alphabetSide == -1 ? "topStart" : "topEnd"
           padding: alphabetSide == -1 ? [screenLeft + 54, railTop + min(170, railPaintHeight / 2), 0, 0] : [0, railTop + min(170, railPaintHeight / 2), screenRight + 54, 0]
           LayoutSpacingHandle { zone: "rail" }
+        }
+      } else if layoutEditMode == "home" {
+        Box {
+          fill: true
+          align: bottomStart
+          padding: [screenLeft + 44, 0, 0, searchBottom + 110]
+          Column {
+            width: noticeWidth
+            gap: 6
+            LayoutSpacingHandle { zone: "header" }
+            LayoutSpacingHandle { zone: "notices" }
+          }
         }
       }
     }
