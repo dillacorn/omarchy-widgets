@@ -107,6 +107,7 @@ face "Omagara" {
   state hiddenAppKeys = [] persist
   // Per-app relative moves, replayed after automatic sorting within each letter.
   state manualAppMoves = [] persist
+  state rightAlignedAppKeys = [] persist
   // Persist named folders, independent Android app/profile keys and ordering.
   state customFolders = [] persist
   state folderSerial = 0 persist
@@ -129,6 +130,7 @@ face "Omagara" {
   // Floating selected row follows the finger in the original list.
   state moveDragX = 0
   state moveDragY = 0
+  state moveSideRight = false
   state moveDragging = false
   state moveLiftStarted = 0
   // Manual quick-launch expansion: never follows play/pause or Bluetooth refreshes.
@@ -1088,12 +1090,75 @@ face "Omagara" {
   // Shortcuts and native app actions are the same APIs as the A-Z context menu.
   // Dependency order matters: home pins use folder visuals/popups, and the
   // folder popup reuses AppRow. Define all three before HomePinIcon.
+  component AlphabetRowIcon(a, rowScale) {
+    Box {
+      size: 36 * rowScale
+      align: center
+      // Keep the original icon; theme overlay is optional and requires
+      // Colored icons in the launcher's Style settings.
+      if a.icon != null && a.icon != "" {
+        Image { src: a.icon; size: 36 * rowScale; label: a.name + (a.profile == null ? "" : " · " + a.profile) }
+        if cfg.iconStyle == "Theme overlay" && cfg.iconOverlayOpacity > 0 && drawer.monochrome != true {
+          Image { src: a.icon; size: 36 * rowScale; tint: alpha(accent, cfg.iconOverlayOpacity / 100); opacity: 1; label: a.name }
+        }
+      } else {
+        // Missing icons still have a label so each app remains recognizable.
+        Text { text: upper(sub(trim(a.name), 0, 2)); font: chosenFont; fontSize: 16 * rowScale; color: primaryText; align: center }
+      }
+    }
+  }
+  component AlphabetRowLabels(a, rowScale, thumbView, manuallyMoved, rightSide = false) {
+    Column {
+      weight: 1
+      gap: rowScale
+      // Keep each shade close to its text, never across the full app row.
+      // Native Search retains its own surface; shade the transparent browser.
+      Row {
+        fill: width
+        align: center
+        gap: 6 * rowScale
+        if rightSide { Spacer { weight: 1 } }
+        if thumbView && manuallyMoved && !rightSide {
+          Box { width: 2 * rowScale; height: 21 * rowScale; background: accent; radius: 1 }
+        }
+        Text {
+          text: a.name
+          font: chosenFont
+          fontSize: 20 * rowScale
+          color: primaryText
+          maxLines: 1
+          padding: cfg.shadeAppLabels && thumbView ? [16 * rowScale, 6 * rowScale] : [0, 0]
+          background: cfg.shadeAppLabels && thumbView ? appLabelShade : transparent
+          radius: cfg.shadeAppLabels && cfg.roundAppLabels && thumbView ? 16 * rowScale : 0
+        }
+        if thumbView && manuallyMoved && rightSide { Box { width: 2 * rowScale; height: 21 * rowScale; background: accent; radius: 1 } }
+      }
+      if a.profile != null {
+        Row {
+          fill: width
+          if rightSide { Spacer { weight: 1 } }
+          Text {
+            text: a.profile
+            font: chosenFont
+            fontSize: 11 * rowScale
+            color: secondaryText
+            maxLines: 1
+            padding: cfg.shadeAppLabels && thumbView ? [14 * rowScale, 5 * rowScale] : [0, 0]
+            background: cfg.shadeAppLabels && thumbView ? appLabelShade : transparent
+            radius: cfg.shadeAppLabels && cfg.roundAppLabels && thumbView ? 11 * rowScale : 0
+          }
+        }
+      }
+    }
+  }
+
   component AppRow(a, searchView = false, thumbView = false, interactive = true, folderView = false) {
     let rowScale = thumbView ? appScale : 1
     let appLetter = contains(fullAlphabet, upper(sub(trim(a.name), 0, 1))) ? upper(sub(trim(a.name), 0, 1)) : "#"
     let appGroupKeys = folderView ? folderKeys : get(appKeyGroups, appLetter, [])
     let appGroupIndex = indexOf(appGroupKeys, a.key)
     let manuallyMoved = any(manualAppMoves, m => m.key == a.key)
+    let rightSide = thumbView && !searchView && !folderView && contains(rightAlignedAppKeys, a.key)
     // Keep one stable component root through move-mode transitions.
     Box {
       fill: width
@@ -1143,8 +1208,10 @@ face "Omagara" {
             if moveTargetIndex != moveOriginIndex {
               manualAppMoves = manualAppMoves + [{letter: moveLetter, key: moveKey, anchor: previousAnchor, after: moveTargetIndex > 0}]
             }
+            rightAlignedAppKeys = moveSideRight ? unique(rightAlignedAppKeys + [moveKey]) : rightAlignedAppKeys.filter(k => k != moveKey)
             moveKey = a.key
             moveLetter = appLetter
+            moveSideRight = contains(rightAlignedAppKeys, a.key)
             moveTargetIndex = nextIndex
             moveDragX = 0
             moveDragY = 0
@@ -1184,6 +1251,7 @@ face "Omagara" {
               onTap: {
                 moveMode = "alphabet"
                 moveKey = a.key
+                moveSideRight = contains(rightAlignedAppKeys, a.key)
                 moveDragging = false
                 moveLiftStarted = time
                 moveLetter = appLetter
@@ -1273,61 +1341,12 @@ face "Omagara" {
           }
         }
       }
-      if cfg.icons {
-        Box {
-          size: 36 * rowScale
-          align: center
-          // Keep the original icon; theme overlay is optional and requires
-          // Colored icons in the launcher's Style settings.
-          if a.icon != null && a.icon != "" {
-            Image { src: a.icon; size: 36 * rowScale; label: a.name + (a.profile == null ? "" : " · " + a.profile) }
-            if cfg.iconStyle == "Theme overlay" && cfg.iconOverlayOpacity > 0 && drawer.monochrome != true {
-              Image { src: a.icon; size: 36 * rowScale; tint: alpha(accent, cfg.iconOverlayOpacity / 100); opacity: 1; label: a.name }
-            }
-          } else {
-            // Missing icons still have a label so each app remains recognizable.
-            Text { text: upper(sub(trim(a.name), 0, 2)); font: chosenFont; fontSize: 16 * rowScale; color: primaryText; align: center }
-          }
-        }
-      }
-      Column {
-        weight: 1
-        gap: rowScale
-        // Keep each shade close to its text, never across the full app row.
-        // Native Search retains its own surface; shade the transparent browser.
-        Row {
-          fill: width
-          align: center
-          gap: 6 * rowScale
-          if thumbView && manuallyMoved {
-            Box { width: 2 * rowScale; height: 21 * rowScale; background: accent; radius: 1 }
-          }
-          Text {
-            text: a.name
-            font: chosenFont
-            fontSize: 20 * rowScale
-            color: primaryText
-            maxLines: 1
-            padding: cfg.shadeAppLabels && thumbView ? [16 * rowScale, 6 * rowScale] : [0, 0]
-            background: cfg.shadeAppLabels && thumbView ? appLabelShade : transparent
-            radius: cfg.shadeAppLabels && cfg.roundAppLabels && thumbView ? 16 * rowScale : 0
-          }
-        }
-        if a.profile != null {
-          Row {
-            fill: width
-            Text {
-              text: a.profile
-              font: chosenFont
-              fontSize: 11 * rowScale
-              color: secondaryText
-              maxLines: 1
-              padding: cfg.shadeAppLabels && thumbView ? [14 * rowScale, 5 * rowScale] : [0, 0]
-              background: cfg.shadeAppLabels && thumbView ? appLabelShade : transparent
-              radius: cfg.shadeAppLabels && cfg.roundAppLabels && thumbView ? 11 * rowScale : 0
-            }
-          }
-        }
+      if rightSide {
+        AlphabetRowLabels { a: a; rowScale: rowScale; thumbView: thumbView; manuallyMoved: manuallyMoved; rightSide: true }
+        if cfg.icons { AlphabetRowIcon { a: a; rowScale: rowScale } }
+      } else {
+        if cfg.icons { AlphabetRowIcon { a: a; rowScale: rowScale } }
+        AlphabetRowLabels { a: a; rowScale: rowScale; thumbView: thumbView; manuallyMoved: manuallyMoved }
       }
     }
     }
@@ -1760,14 +1779,17 @@ face "Omagara" {
                 pinnedLayouts = pinDraftLayouts
                 pinnedAppKeys = pinDraftKeys
               }
-            } else if moveMode == "alphabet" && moveTargetIndex != moveOriginIndex {
-              let neighbor = moveTargetIndex == 0 ? get(moveOtherKeys, 0) : get(moveOtherKeys, moveTargetIndex - 1)
-              if neighbor != null {
-                manualAppMoves = manualAppMoves + [{letter: moveLetter, key: moveKey, anchor: neighbor, after: moveTargetIndex > 0}]
-                appVelocity = 0
-                appScroll = appOffset
-                appAnchor = ""
+            } else if moveMode == "alphabet" {
+              if moveTargetIndex != moveOriginIndex {
+                let neighbor = moveTargetIndex == 0 ? get(moveOtherKeys, 0) : get(moveOtherKeys, moveTargetIndex - 1)
+                if neighbor != null {
+                  manualAppMoves = manualAppMoves + [{letter: moveLetter, key: moveKey, anchor: neighbor, after: moveTargetIndex > 0}]
+                  appVelocity = 0
+                  appScroll = appOffset
+                  appAnchor = ""
+                }
               }
+              rightAlignedAppKeys = moveSideRight ? unique(rightAlignedAppKeys + [moveKey]) : rightAlignedAppKeys.filter(k => k != moveKey)
             }
           }
           moveMode = ""
@@ -1787,6 +1809,7 @@ face "Omagara" {
   component FloatingMoveApp(a, alphabetMode = false, slotWidth = 180, slotHeight = 48, iconSize = 34, baseX = 0, baseY = 0, snapX = 0, snapY = 0, showText = true, viewportHeight = 0) {
     let panelWidth = alphabetMode ? appPanelWidth : noticeWidth
     let floatingWidth = alphabetMode ? min(panelWidth, max(40, min(panelWidth - 80, 205))) : min(slotWidth, max(40, panelWidth - 80))
+    let rightSideSnap = max(0, panelWidth - floatingWidth - 8)
     let hoverAge = moveMode != "" && !cfg.reduceMotion ? max(0, time - moveLiftStarted) : 0
     let liftPhase = cfg.reduceMotion ? 1 : 1 - pow(1 - clamp(hoverAge / 0.22, 0, 1), 3)
     let hoverLift = cfg.reduceMotion ? 0 : liftPhase * (2 + 1.2 * sin(hoverAge * 4.8))
@@ -1826,6 +1849,9 @@ face "Omagara" {
           moveDragging = true
           moveDragX = nextX
           moveDragY = nextY
+          if alphabetMode && rightSideSnap > 24 {
+            moveSideRight = nextX > rightSideSnap * (moveSideRight ? 0.38 : 0.62)
+          }
           // Hit-test actual icon centers on the hovered row. The old
           // moveOriginIndex + dx/width calculation jumped to wrong slots
           // when source/destination rows had different icon or label widths.
@@ -1850,6 +1876,9 @@ face "Omagara" {
           align: center
           padding: [2, 2]
           gap: 6
+          if alphabetMode && moveSideRight {
+            Text { text: a.name; font: chosenFont; fontSize: 15; color: primaryText; maxLines: 1; weight: 1; align: end }
+          }
           if a.folderId != null {
             FolderIcon { f: find(customFolders, f => f.id == a.folderId); side: min(iconSize, slotHeight - 8) }
           } else if a.icon != null && a.icon != "" {
@@ -1857,7 +1886,7 @@ face "Omagara" {
           } else {
             Text { text: upper(sub(trim(a.name), 0, 1)); font: chosenFont; fontSize: 18; color: primaryText; width: iconSize; align: center }
           }
-          if alphabetMode || showText {
+          if (alphabetMode || showText) && !(alphabetMode && moveSideRight) {
             Text { text: a.name; font: chosenFont; fontSize: 15; color: primaryText; maxLines: 1; weight: 1 }
           }
         }
@@ -2826,6 +2855,7 @@ face "Omagara" {
             slotWidth: appPanelWidth - 8
             slotHeight: appRowHeight
             baseY: appPreviewing ? floatingWindowRow.top : floatingWindowRow.top - appOffset
+            snapX: moveSideRight ? max(0, appPanelWidth - 8 - min(appPanelWidth, max(40, min(appPanelWidth - 80, 205)))) : 0
             snapY: (moveTargetIndex - moveOriginIndex) * appRowHeight
             viewportHeight: appPanelHeight
           }
@@ -3791,18 +3821,19 @@ face "Omagara" {
             } else {
               Text { text: "Backup & reset"; color: accent; font: chosenFont; fontSize: 18; padding: [0, 8, 0, 4] }
               Text { text: "Export or restore Omagara preferences."; font: chosenFont; fontSize: 13; color: secondaryText }
-        Button { text: "Export Omagara settings to clipboard"; onTap: copy(toJson({version: 1, prefs: cfg, zones: worldZones, hiddenApps: hiddenAppKeys, musicApps: musicAppKeys, compactAlerts: compactAlertApps, hiddenNotifications: hiddenNoticeApps, manualMoves: manualAppMoves, folders: customFolders, folderSerial: folderSerial, pinnedApps: pinnedAppKeys, pinLayouts: pinnedLayouts})) }
+        Button { text: "Export Omagara settings to clipboard"; onTap: copy(toJson({version: 1, prefs: cfg, zones: worldZones, hiddenApps: hiddenAppKeys, musicApps: musicAppKeys, compactAlerts: compactAlertApps, hiddenNotifications: hiddenNoticeApps, manualMoves: manualAppMoves, rightAlignedApps: rightAlignedAppKeys, folders: customFolders, folderSerial: folderSerial, pinnedApps: pinnedAppKeys, pinLayouts: pinnedLayouts})) }
         Input { text: importText; placeholder: "Paste Omagara settings JSON"; lines: 3; onChange: importText = value }
         Button {
           text: "Import Omagara settings"
           onTap: {
             let imported = parseJson(importText)
-            if imported.version == 1 && all(keys(defaults), k => (k == "shadeHeaderOpacity" || k == "shadeAlphabetOpacity" || k == "shadeNoticeOpacity" || k == "shadeCardOpacity" || k == "shadeAppOpacity" || k == "shadeButtonOpacity") ? get(imported.prefs, k) == null || contains(range(101), get(imported.prefs, k)) : k == "sortMode" ? get(imported.prefs, k) == null || contains(sortModeChoices, get(imported.prefs, k)) || get(imported.prefs, k) == "Manual" : k == "noticeStartPercent" ? get(imported.prefs, k) == null || contains(range(6, 51), get(imported.prefs, k)) : k == "appScale" ? get(imported.prefs, k) == null || contains(appScaleChoices, get(imported.prefs, k)) : k == "hapticFeedback" ? get(imported.prefs, k) == null || contains(hapticChoices, get(imported.prefs, k)) : k == "bubbleBorder" ? get(imported.prefs, k) == null || get(imported.prefs, k) == true || get(imported.prefs, k) == false : k == "iconStyle" ? get(imported.prefs, k) == null || contains(iconStyleChoices, get(imported.prefs, k)) : k == "iconOverlayOpacity" ? get(imported.prefs, k) == null || contains(iconOverlayChoices, get(imported.prefs, k)) : k == "faceFont" ? get(imported.prefs, k) == null || contains(faceFontChoices, get(imported.prefs, k)) : k == "headerAlignment" ? get(imported.prefs, k) == null || contains(headerAlignmentChoices, get(imported.prefs, k)) : k == "textTone" ? get(imported.prefs, k) == null || contains(textToneChoices, get(imported.prefs, k)) : k == "textContrast" ? get(imported.prefs, k) == null || contains(textContrastChoices, get(imported.prefs, k)) : k == "customTextHex" ? get(imported.prefs, k) == null || match(get(imported.prefs, k), "^#[0-9A-Fa-f]{6}$") != null : k == "shadeColorMode" ? get(imported.prefs, k) == null || contains(shadeColorChoices, get(imported.prefs, k)) : k == "shadeCustomHex" ? get(imported.prefs, k) == null || match(get(imported.prefs, k), "^#[0-9A-Fa-f]{6}$") != null : k == "timeFormat" ? get(imported.prefs, k) == null || get(imported.prefs, k) == "System" || contains(timeFormatChoices, get(imported.prefs, k)) : k == "alphabetSide" ? get(imported.prefs, k) == null || contains(["Left", "Right"], get(imported.prefs, k)) : k == "controlSide" ? get(imported.prefs, k) == null || contains(["Left", "Right"], get(imported.prefs, k)) : k == "closeSide" ? get(imported.prefs, k) == null || contains(["Follow search", "Left", "Right"], get(imported.prefs, k)) : k == "showSwipeCue" || k == "holidayEasterEggs" ? get(imported.prefs, k) == null || get(imported.prefs, k) == true || get(imported.prefs, k) == false : get(imported.prefs, k) == true || get(imported.prefs, k) == false || (k == "calculator" || k == "searchContacts" || k == "notificationTimes" || k == "mediaPlayer" || k == "musicShortcuts" || k == "noticeAutoPosition" || k == "compactPins" || k == "batteryPercentage" || k == "dateAbbreviated") && get(imported.prefs, k) == null) && sub(toJson(imported.zones), 0, 1) == "[" && all(imported.zones, z => contains(zoneChoices, z)) && sub(toJson(imported.hiddenApps ?? []), 0, 1) == "[" && sub(toJson(imported.musicApps ?? []), 0, 1) == "[" && sub(toJson(imported.compactAlerts ?? []), 0, 1) == "[" && sub(toJson(imported.hiddenNotifications ?? []), 0, 1) == "[" && sub(toJson(imported.manualMoves ?? []), 0, 1) == "[" && all(imported.manualMoves ?? [], m => m.key != null && m.anchor != null && contains(fullAlphabet, m.letter) && (m.after == true || m.after == false)) && sub(toJson(imported.pinnedApps ?? []), 0, 1) == "[" && sub(toJson(imported.pinLayouts ?? []), 0, 1) == "[" && all(imported.pinLayouts ?? [], p => p.key != null && (p.showLabel == null || p.showLabel == true || p.showLabel == false) && (p.newRow == null || p.newRow == true || p.newRow == false)) && sub(toJson(imported.folders ?? []), 0, 1) == "[" && all(imported.folders ?? [], f => f.id != null && f.name != null && trim(f.name) != "" && len(f.name) <= 32 && sub(toJson(f.keys ?? []), 0, 1) == "[") && (imported.folderSerial == null || num(imported.folderSerial) >= 0 && num(imported.folderSerial) < 1000000000) {
+            if imported.version == 1 && all(keys(defaults), k => (k == "shadeHeaderOpacity" || k == "shadeAlphabetOpacity" || k == "shadeNoticeOpacity" || k == "shadeCardOpacity" || k == "shadeAppOpacity" || k == "shadeButtonOpacity") ? get(imported.prefs, k) == null || contains(range(101), get(imported.prefs, k)) : k == "sortMode" ? get(imported.prefs, k) == null || contains(sortModeChoices, get(imported.prefs, k)) || get(imported.prefs, k) == "Manual" : k == "noticeStartPercent" ? get(imported.prefs, k) == null || contains(range(6, 51), get(imported.prefs, k)) : k == "appScale" ? get(imported.prefs, k) == null || contains(appScaleChoices, get(imported.prefs, k)) : k == "hapticFeedback" ? get(imported.prefs, k) == null || contains(hapticChoices, get(imported.prefs, k)) : k == "bubbleBorder" ? get(imported.prefs, k) == null || get(imported.prefs, k) == true || get(imported.prefs, k) == false : k == "iconStyle" ? get(imported.prefs, k) == null || contains(iconStyleChoices, get(imported.prefs, k)) : k == "iconOverlayOpacity" ? get(imported.prefs, k) == null || contains(iconOverlayChoices, get(imported.prefs, k)) : k == "faceFont" ? get(imported.prefs, k) == null || contains(faceFontChoices, get(imported.prefs, k)) : k == "headerAlignment" ? get(imported.prefs, k) == null || contains(headerAlignmentChoices, get(imported.prefs, k)) : k == "textTone" ? get(imported.prefs, k) == null || contains(textToneChoices, get(imported.prefs, k)) : k == "textContrast" ? get(imported.prefs, k) == null || contains(textContrastChoices, get(imported.prefs, k)) : k == "customTextHex" ? get(imported.prefs, k) == null || match(get(imported.prefs, k), "^#[0-9A-Fa-f]{6}$") != null : k == "shadeColorMode" ? get(imported.prefs, k) == null || contains(shadeColorChoices, get(imported.prefs, k)) : k == "shadeCustomHex" ? get(imported.prefs, k) == null || match(get(imported.prefs, k), "^#[0-9A-Fa-f]{6}$") != null : k == "timeFormat" ? get(imported.prefs, k) == null || get(imported.prefs, k) == "System" || contains(timeFormatChoices, get(imported.prefs, k)) : k == "alphabetSide" ? get(imported.prefs, k) == null || contains(["Left", "Right"], get(imported.prefs, k)) : k == "controlSide" ? get(imported.prefs, k) == null || contains(["Left", "Right"], get(imported.prefs, k)) : k == "closeSide" ? get(imported.prefs, k) == null || contains(["Follow search", "Left", "Right"], get(imported.prefs, k)) : k == "showSwipeCue" || k == "holidayEasterEggs" ? get(imported.prefs, k) == null || get(imported.prefs, k) == true || get(imported.prefs, k) == false : get(imported.prefs, k) == true || get(imported.prefs, k) == false || (k == "calculator" || k == "searchContacts" || k == "notificationTimes" || k == "mediaPlayer" || k == "musicShortcuts" || k == "noticeAutoPosition" || k == "compactPins" || k == "batteryPercentage" || k == "dateAbbreviated") && get(imported.prefs, k) == null) && sub(toJson(imported.zones), 0, 1) == "[" && all(imported.zones, z => contains(zoneChoices, z)) && sub(toJson(imported.hiddenApps ?? []), 0, 1) == "[" && sub(toJson(imported.musicApps ?? []), 0, 1) == "[" && sub(toJson(imported.compactAlerts ?? []), 0, 1) == "[" && sub(toJson(imported.hiddenNotifications ?? []), 0, 1) == "[" && sub(toJson(imported.manualMoves ?? []), 0, 1) == "[" && all(imported.manualMoves ?? [], m => m.key != null && m.anchor != null && contains(fullAlphabet, m.letter) && (m.after == true || m.after == false)) && sub(toJson(imported.rightAlignedApps ?? []), 0, 1) == "[" && sub(toJson(imported.pinnedApps ?? []), 0, 1) == "[" && sub(toJson(imported.pinLayouts ?? []), 0, 1) == "[" && all(imported.pinLayouts ?? [], p => p.key != null && (p.showLabel == null || p.showLabel == true || p.showLabel == false) && (p.newRow == null || p.newRow == true || p.newRow == false)) && sub(toJson(imported.folders ?? []), 0, 1) == "[" && all(imported.folders ?? [], f => f.id != null && f.name != null && trim(f.name) != "" && len(f.name) <= 32 && sub(toJson(f.keys ?? []), 0, 1) == "[") && (imported.folderSerial == null || num(imported.folderSerial) >= 0 && num(imported.folderSerial) < 1000000000) {
               letter = highlightedLetter; appTracking = false
               prefs = reduce(keys(defaults), (m, k) => set(m, k, k == "searchContacts" ? false : k == "textContrast" ? "High" : k == "timeFormat" && get(imported.prefs, k) == "System" ? "24-hour" : k == "sortMode" && get(imported.prefs, k) == "Manual" ? "Most used" : (get(imported.prefs, k) ?? get(defaults, k))), {})
               worldZones = unique(imported.zones ?? [])
               hiddenAppKeys = unique(imported.hiddenApps ?? [])
               manualAppMoves = imported.manualMoves ?? []
+               rightAlignedAppKeys = unique(imported.rightAlignedApps ?? [])
               customFolders = imported.folders ?? []
               folderSerial = imported.folderSerial ?? 0
               pinnedAppKeys = unique(imported.pinnedApps ?? []).filter(k => sub(k, 0, 7) != "folder:" || any(imported.folders ?? [], f => "folder:" + f.id == k))
@@ -3823,7 +3854,7 @@ face "Omagara" {
         if resetConfirm {
           Text { text: "Reset Omagara appearance and world clocks?"; font: chosenFont }
           Row {
-            Button { text: "Confirm reset"; onTap: { letter = highlightedLetter; appTracking = false; prefs = {}; worldZones = []; hiddenAppKeys = []; manualAppMoves = []; customFolders = []; folderSerial = 0; pinnedAppKeys = []; pinnedLayouts = []; expandedPinnedKey = ""; pinnedNoticeShown = 4; pinnedMenuKey = ""; pinnedMenuShortcuts = null; musicAppKeys = []; compactAlertApps = []; hiddenNoticeApps = []; appPickerQuery = ""; holidayPreview = "Auto"; holidayAnimPlaying = false; holidayPlayedStamp = ""; resetConfirm = false; importText = ""; customTextEntry = ""; customShadeEntry = ""; importStatus = "" } }
+            Button { text: "Confirm reset"; onTap: { letter = highlightedLetter; appTracking = false; prefs = {}; worldZones = []; hiddenAppKeys = []; manualAppMoves = []; rightAlignedAppKeys = []; customFolders = []; folderSerial = 0; pinnedAppKeys = []; pinnedLayouts = []; expandedPinnedKey = ""; pinnedNoticeShown = 4; pinnedMenuKey = ""; pinnedMenuShortcuts = null; musicAppKeys = []; compactAlertApps = []; hiddenNoticeApps = []; appPickerQuery = ""; holidayPreview = "Auto"; holidayAnimPlaying = false; holidayPlayedStamp = ""; resetConfirm = false; importText = ""; customTextEntry = ""; customShadeEntry = ""; importStatus = "" } }
             Button { text: "Cancel"; onTap: resetConfirm = false }
           }
         }
