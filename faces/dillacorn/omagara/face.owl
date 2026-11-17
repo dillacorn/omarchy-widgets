@@ -1505,7 +1505,9 @@ face "Omagara" {
               moveDragging = false
               moveLiftStarted = time
               moveLetter = ""
-              moveTargetIndex = indexOf(moveOtherKeys, a.key)
+              // Initial selection uses the full pin order. moveOtherKeys
+              // excludes a.key, so looking it up there always yields -1.
+              moveTargetIndex = indexOf(pinnedAppKeys, a.key)
               moveDragX = 0
               moveDragY = 0
               expandedPinnedKey = ""
