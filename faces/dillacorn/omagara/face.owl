@@ -975,11 +975,19 @@ face "Omagara" {
     let hasOwnNotices = cfg.notifications && notices != null && notices.available != false && notificationOwner != null && notificationOwner.key == a.key && len(ownedNotices) > 0
     Box {
       size: iconSize
-      onTap: androidApp(a.key)
+      onTap: {
+        if moveMode == "pin" {
+          moveTargetIndex = indexOf(pinnedAppKeys, a.key)
+        } else if moveMode == "" {
+          androidApp(a.key)
+        }
+      }
       onLongPress: {
-        pinnedMenuShortcuts = null
-        pinnedMenuKey = a.key
-        pinnedMenuShortcuts = shortcuts(a.key)
+        if moveMode == "" {
+          pinnedMenuShortcuts = null
+          pinnedMenuKey = a.key
+          pinnedMenuShortcuts = shortcuts(a.key)
+        }
       }
       if a.icon != null && a.icon != "" {
         Image { src: a.icon; size: iconSize; label: a.name + (a.profile == null ? "" : " · " + a.profile) }
@@ -1010,7 +1018,7 @@ face "Omagara" {
         }
       }
       Popup {
-        visible: pinnedMenuKey == a.key && pinnedMenuShortcuts != null
+        visible: moveMode == "" && pinnedMenuKey == a.key && pinnedMenuShortcuts != null
         onDismiss: { pinnedMenuKey = ""; pinnedMenuShortcuts = null }
         position: below
         width: 220
@@ -1025,8 +1033,8 @@ face "Omagara" {
               moveKey = a.key
               moveLetter = ""
               moveTargetIndex = indexOf(pinnedAppKeys, a.key)
-              moveDragBaseIndex = moveTargetIndex
-              moveDragDistance = 0
+              moveDragX = 0
+              moveDragY = 0
               expandedPinnedKey = ""
               pinnedMenuKey = ""; pinnedMenuShortcuts = null
             }
@@ -1378,11 +1386,19 @@ face "Omagara" {
                   padding: cfg.shadeAppLabels ? [9, 5] : [0, 0]
                   background: cfg.shadeAppLabels ? appLabelShade : transparent
                   radius: cfg.shadeAppLabels && cfg.roundAppLabels ? 8 : 0
-                  onTap: androidApp(a.key)
+                  onTap: {
+                    if moveMode == "pin" {
+                      moveTargetIndex = indexOf(pinnedAppKeys, a.key)
+                    } else if moveMode == "" {
+                      androidApp(a.key)
+                    }
+                  }
                   onLongPress: {
-                    pinnedMenuShortcuts = null
-                    pinnedMenuKey = a.key
-                    pinnedMenuShortcuts = shortcuts(a.key)
+                    if moveMode == "" {
+                      pinnedMenuShortcuts = null
+                      pinnedMenuKey = a.key
+                      pinnedMenuShortcuts = shortcuts(a.key)
+                    }
                   }
                 }
               }
@@ -1946,8 +1962,8 @@ face "Omagara" {
                 moveKey = a.key
                 moveLetter = appLetter
                 moveTargetIndex = indexOf(get(groups, appLetter, []).map(x => x.key), a.key)
-                moveDragBaseIndex = moveTargetIndex
-                moveDragDistance = 0
+                moveDragX = 0
+                moveDragY = 0
                 appVelocity = 0
                 appScroll = appOffset
                 menu = ""
