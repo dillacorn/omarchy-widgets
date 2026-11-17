@@ -386,7 +386,7 @@ face "Omagara" {
         : take(rows.filter(a => a.key != m.key), indexOf(rows.filter(a => a.key != m.key).map(a => a.key), m.anchor) + (m.after ? 1 : 0))
           + [find(rows, a => a.key == m.key)]
           + drop(rows.filter(a => a.key != m.key), indexOf(rows.filter(a => a.key != m.key).map(a => a.key), m.anchor) + (m.after ? 1 : 0)),
-      get(automaticGroups, moveLetter, [])).map(a => a.key) : []
+      get(automaticGroups, moveLetter, [])).filter(a => !contains(hiddenAppKeys, a.key)).map(a => a.key) : []
   let alphabetAtResetPosition = moveMode == "alphabet" && toJson(movePreviewKeys) == toJson(alphabetResetKeys)
   let moveApp = moveMode == "pin" ? find(pinnedApps, a => a.key == moveKey) : find(installed ?? [], a => a.key == moveKey)
   // Freeze mapping and geometry for the entire touch, even if apps update.
@@ -2744,143 +2744,176 @@ face "Omagara" {
       ripple: false
       onPress: {
         if moveMode != "alphabet" {
-        // Each alphabet opening re-arms the charm for this day.
-        holidayAnimPlaying = false
-        holidayPlayedStamp = ""
-        appTracking = false
-        appScroll = appOffset
-        appVelocity = 0
-        heldAlphabet = liveAlphabet
-        railHeld = true
-        // Disjoint hit regions: alphabet [0, railHeight), folders, then cog.
-        // No dead zone can fall through to the last alphabet letter.
-        railSettingsSelected = visual && y >= railHeight + len(folderStops) * railStep
-        railFolderSelected = visual && y >= railHeight && y < railHeight + len(folderStops) * railStep ? clamp(floor((y - railHeight) / railStep), 0, max(0, len(folderStops) - 1)) : -1
-        railFolderLongPressed = false
-        draggingSide = 0
-        railReturning = false
-        // A new touch cancels the optional ripple immediately.
-        railWiggling = false
-        railWiggleStrength = 0
-        railFlickStartY = y
-        railFlickLastY = y
-        railFlickStarted = time
-        // Beyond an endpoint, the worm follows the thumb 1:1 up to the screen edge.
-        let edgeY = y < railStep / 2 ? y - railStep / 2 : y > railPaintHeight - railStep / 2 ? y - (railPaintHeight - railStep / 2) : 0
-        railOverpull = len(alphabet) < 2 ? 0 : clamp(edgeY, -railUpperReach, railLowerReach)
-        railEnterStart = time
-        railEntering = cfg.curve && !cfg.reduceMotion
-        hapticSteps = 0
-        // Track absolute thumb position while the rail's hit cells stay fixed.
-        // Mirror the inward-facing curve when the rail is on the left.
-        railPull = visual ? (side == 1 ? clamp(106 - x, 0, railMaxReach) : clamp(62 + x, 0, railMaxReach)) : min(84, railMaxReach)
-        railThumbX = side == 1 ? (tileWidth ?? 400) - screenRight - 4 - (visual ? 44 : 20) + x : screenLeft + (visual ? 4 : 0) + x
-        touchY = clamp(railTop + y, screenTop, (tileHeight ?? 800) - screenInset)
-        fingerPosition = clamp(y / railStep - 0.5, 0, max(0, len(alphabet) + len(folderStops) - (railSettingsSelected ? 0 : 1)))
-        let onAlphabet = y < railHeight
-        let pressedLetter = onAlphabet ? get(alphabet, clamp(floor(y / railStep), 0, max(0, len(alphabet) - 1)), letter) : letter
-        if onAlphabet { letter = pressedLetter }
-        if cfg.hapticFeedback != "Off" { haptic() }
-        // Keep the continuous list near the same position on release.
-        let pressedApps = get(groups, pressedLetter, [])
-        let pressedHeight = appLabelHeight + len(pressedApps) * appRowHeight
-        let pressedCenter = railTop + railOverpull + (max(0, indexOf(alphabet, pressedLetter)) + 0.5) * railStep - appSafeTop
-        let pressedBaseTop = clamp(pressedCenter - pressedHeight / 2, appEdgeSpace, max(appEdgeSpace, appPanelHeight - appEdgeSpace - pressedHeight))
-        let pressedFavorite = first(pressedApps.filter(a => (a.score ?? 0) > 0).sortBy(a => -(a.score ?? 0)))
-        let pressedFavoriteIndex = pressedFavorite == null ? -1 : indexOf(pressedApps.map(a => a.key), pressedFavorite.key)
-        let pressedAlphabetWeight = 0.80 + 0.20 * max(0, indexOf(alphabet, pressedLetter)) / max(1, len(alphabet) - 1)
-        let pressedBias = pressedFavorite == null ? 0 : clamp(((pressedFavorite.score ?? 0) / 4), 0, 1) * clamp((pressedHeight - appPanelHeight * 0.50) / max(1, appPanelHeight * 0.30), 0, 1) * pressedAlphabetWeight
-        let pressedTargetY = clamp(pressedCenter * 0.84, appEdgeSpace + appLabelHeight + appRowHeight / 2, max(appEdgeSpace + appLabelHeight + appRowHeight / 2, appPanelHeight - appEdgeSpace - appRowHeight / 2))
-        let pressedShift = pressedFavoriteIndex < 0 ? 0 : clamp((pressedTargetY - (pressedBaseTop + appLabelHeight + (pressedFavoriteIndex + 0.5) * appRowHeight)) * pressedBias, -appPanelHeight * 0.50, appPanelHeight * 0.50)
-        let pressedTop = pressedBaseTop + pressedShift
-        // Sliding onto the cog navigates to the actual bottom settings menu.
-        appScroll = railSettingsSelected ? appMaxScroll : railFolderSelected >= 0 ? clamp(appFolderTop + appLabelHeight - appPanelHeight * 0.3, 0, appMaxScroll) : clamp(get(appSectionStarts, max(0, indexOf(appSections, pressedLetter)), 0) - pressedTop, 0, appMaxScroll)
-        menu = ""
-        activeSide = 1
-        browsing = true
-        expandedStack = ""
-        replyKey = ""
-        replyDraft = ""
-      
-        }}
+          // Each alphabet opening re-arms the charm for this day.
+          holidayAnimPlaying = false
+          holidayPlayedStamp = ""
+          appTracking = false
+          appScroll = appOffset
+          appVelocity = 0
+          heldAlphabet = liveAlphabet
+          railHeld = true
+          // Disjoint hit regions: alphabet [0, railHeight), folders, then cog.
+          // No dead zone can fall through to the last alphabet letter.
+          railSettingsSelected = visual && y >= railHeight + len(folderStops) * railStep
+          railFolderSelected = visual && y >= railHeight && y < railHeight + len(folderStops) * railStep ? clamp(floor((y - railHeight) / railStep), 0, max(0, len(folderStops) - 1)) : -1
+          railFolderLongPressed = false
+          draggingSide = 0
+          railReturning = false
+          // A new touch cancels the optional ripple immediately.
+          railWiggling = false
+          railWiggleStrength = 0
+          railFlickStartY = y
+          railFlickLastY = y
+          railFlickStarted = time
+          // Beyond an endpoint, the worm follows the thumb 1:1 up to the screen edge.
+          let edgeY = y < railStep / 2 ? y - railStep / 2 : y > railPaintHeight - railStep / 2 ? y - (railPaintHeight - railStep / 2) : 0
+          railOverpull = len(alphabet) < 2 ? 0 : clamp(edgeY, -railUpperReach, railLowerReach)
+          railEnterStart = time
+          railEntering = cfg.curve && !cfg.reduceMotion
+          hapticSteps = 0
+          // Track absolute thumb position while the rail's hit cells stay fixed.
+          // Mirror the inward-facing curve when the rail is on the left.
+          railPull = visual ? (side == 1 ? clamp(106 - x, 0, railMaxReach) : clamp(62 + x, 0, railMaxReach)) : min(84, railMaxReach)
+          railThumbX = side == 1 ? (tileWidth ?? 400) - screenRight - 4 - (visual ? 44 : 20) + x : screenLeft + (visual ? 4 : 0) + x
+          touchY = clamp(railTop + y, screenTop, (tileHeight ?? 800) - screenInset)
+          fingerPosition = clamp(y / railStep - 0.5, 0, max(0, len(alphabet) + len(folderStops) - (railSettingsSelected ? 0 : 1)))
+          let onAlphabet = y < railHeight
+          let pressedLetter = onAlphabet ? get(alphabet, clamp(floor(y / railStep), 0, max(0, len(alphabet) - 1)), letter) : letter
+          if onAlphabet { letter = pressedLetter }
+          if cfg.hapticFeedback != "Off" { haptic() }
+          // Keep the continuous list near the same position on release.
+          let pressedApps = get(groups, pressedLetter, [])
+          let pressedHeight = appLabelHeight + len(pressedApps) * appRowHeight
+          let pressedCenter = railTop + railOverpull + (max(0, indexOf(alphabet, pressedLetter)) + 0.5) * railStep - appSafeTop
+          let pressedBaseTop = clamp(pressedCenter - pressedHeight / 2, appEdgeSpace, max(appEdgeSpace, appPanelHeight - appEdgeSpace - pressedHeight))
+          let pressedFavorite = first(pressedApps.filter(a => (a.score ?? 0) > 0).sortBy(a => -(a.score ?? 0)))
+          let pressedFavoriteIndex = pressedFavorite == null ? -1 : indexOf(pressedApps.map(a => a.key), pressedFavorite.key)
+          let pressedAlphabetWeight = 0.80 + 0.20 * max(0, indexOf(alphabet, pressedLetter)) / max(1, len(alphabet) - 1)
+          let pressedBias = pressedFavorite == null ? 0 : clamp(((pressedFavorite.score ?? 0) / 4), 0, 1) * clamp((pressedHeight - appPanelHeight * 0.50) / max(1, appPanelHeight * 0.30), 0, 1) * pressedAlphabetWeight
+          let pressedTargetY = clamp(pressedCenter * 0.84, appEdgeSpace + appLabelHeight + appRowHeight / 2, max(appEdgeSpace + appLabelHeight + appRowHeight / 2, appPanelHeight - appEdgeSpace - appRowHeight / 2))
+          let pressedShift = pressedFavoriteIndex < 0 ? 0 : clamp((pressedTargetY - (pressedBaseTop + appLabelHeight + (pressedFavoriteIndex + 0.5) * appRowHeight)) * pressedBias, -appPanelHeight * 0.50, appPanelHeight * 0.50)
+          let pressedTop = pressedBaseTop + pressedShift
+          // Sliding onto the cog navigates to the actual bottom settings menu.
+          appScroll = railSettingsSelected ? appMaxScroll : railFolderSelected >= 0 ? clamp(appFolderTop + appLabelHeight - appPanelHeight * 0.3, 0, appMaxScroll) : clamp(get(appSectionStarts, max(0, indexOf(appSections, pressedLetter)), 0) - pressedTop, 0, appMaxScroll)
+          menu = ""
+          activeSide = 1
+          browsing = true
+          expandedStack = ""
+          replyKey = ""
+          replyDraft = ""
+        }
+      }
       onDrag: {
         if moveMode != "alphabet" {
-        appTracking = false
-        appVelocity = 0
-        railReturning = false
-        railFlickLastY = y
-        railHeld = true
-        draggingSide = 1
-        let nextSettings = visual && y >= railHeight + len(folderStops) * railStep
-        let nextFolder = visual && y >= railHeight && y < railHeight + len(folderStops) * railStep ? clamp(floor((y - railHeight) / railStep), 0, max(0, len(folderStops) - 1)) : -1
-        let nextOnAlphabet = y < railHeight
-        let edgeY = y < railStep / 2 ? y - railStep / 2 : y > railPaintHeight - railStep / 2 ? y - (railPaintHeight - railStep / 2) : 0
-        railOverpull = len(alphabet) < 2 ? 0 : clamp(edgeY, -railUpperReach, railLowerReach)
-        // Track absolute thumb position while the rail's hit cells stay fixed.
-        // Mirror the inward-facing curve when the rail is on the left.
-        railPull = visual ? (side == 1 ? clamp(106 - x, 0, railMaxReach) : clamp(62 + x, 0, railMaxReach)) : min(84, railMaxReach)
-        railThumbX = side == 1 ? (tileWidth ?? 400) - screenRight - 4 - (visual ? 44 : 20) + x : screenLeft + (visual ? 4 : 0) + x
-        touchY = clamp(railTop + y, screenTop, (tileHeight ?? 800) - screenInset)
-        fingerPosition = clamp(y / railStep - 0.5, 0, max(0, len(alphabet) + len(folderStops) - (nextSettings ? 0 : 1)))
-        let nextLetter = nextOnAlphabet ? get(alphabet, clamp(floor(y / railStep), 0, max(0, len(alphabet) - 1)), letter) : letter
-        if nextSettings != railSettingsSelected || nextFolder != railFolderSelected || (nextOnAlphabet && nextLetter != letter) {
-          hapticSteps = hapticSteps + 1
-          // Entering Settings must give one definite bump, even with Reduced haptics.
-          if cfg.hapticFeedback != "Off" && (nextSettings || cfg.hapticFeedback == "Every letter" || hapticSteps % 2 == 0) { haptic() }
+          appTracking = false
+          appVelocity = 0
+          railReturning = false
+          railFlickLastY = y
+          railHeld = true
+          draggingSide = 1
+          let nextSettings = visual && y >= railHeight + len(folderStops) * railStep
+          let nextFolder = visual && y >= railHeight && y < railHeight + len(folderStops) * railStep ? clamp(floor((y - railHeight) / railStep), 0, max(0, len(folderStops) - 1)) : -1
+          let nextOnAlphabet = y < railHeight
+          let edgeY = y < railStep / 2 ? y - railStep / 2 : y > railPaintHeight - railStep / 2 ? y - (railPaintHeight - railStep / 2) : 0
+          railOverpull = len(alphabet) < 2 ? 0 : clamp(edgeY, -railUpperReach, railLowerReach)
+          // Track absolute thumb position while the rail's hit cells stay fixed.
+          // Mirror the inward-facing curve when the rail is on the left.
+          railPull = visual ? (side == 1 ? clamp(106 - x, 0, railMaxReach) : clamp(62 + x, 0, railMaxReach)) : min(84, railMaxReach)
+          railThumbX = side == 1 ? (tileWidth ?? 400) - screenRight - 4 - (visual ? 44 : 20) + x : screenLeft + (visual ? 4 : 0) + x
+          touchY = clamp(railTop + y, screenTop, (tileHeight ?? 800) - screenInset)
+          fingerPosition = clamp(y / railStep - 0.5, 0, max(0, len(alphabet) + len(folderStops) - (nextSettings ? 0 : 1)))
+          let nextLetter = nextOnAlphabet ? get(alphabet, clamp(floor(y / railStep), 0, max(0, len(alphabet) - 1)), letter) : letter
+          if nextSettings != railSettingsSelected || nextFolder != railFolderSelected || (nextOnAlphabet && nextLetter != letter) {
+            hapticSteps = hapticSteps + 1
+            // Entering Settings must give one definite bump, even with Reduced haptics.
+            if cfg.hapticFeedback != "Off" && (nextSettings || cfg.hapticFeedback == "Every letter" || hapticSteps % 2 == 0) { haptic() }
+          }
+          railSettingsSelected = nextSettings
+          railFolderSelected = nextFolder
+          if nextOnAlphabet { letter = nextLetter }
+          let nextApps = get(groups, nextLetter, [])
+          let nextHeight = appLabelHeight + len(nextApps) * appRowHeight
+          let nextCenter = railTop + railOverpull + (max(0, indexOf(alphabet, nextLetter)) + 0.5) * railStep - appSafeTop
+          let nextBaseTop = clamp(nextCenter - nextHeight / 2, appEdgeSpace, max(appEdgeSpace, appPanelHeight - appEdgeSpace - nextHeight))
+          let nextFavorite = first(nextApps.filter(a => (a.score ?? 0) > 0).sortBy(a => -(a.score ?? 0)))
+          let nextFavoriteIndex = nextFavorite == null ? -1 : indexOf(nextApps.map(a => a.key), nextFavorite.key)
+          let nextAlphabetWeight = 0.80 + 0.20 * max(0, indexOf(alphabet, nextLetter)) / max(1, len(alphabet) - 1)
+          let nextBias = nextFavorite == null ? 0 : clamp(((nextFavorite.score ?? 0) / 4), 0, 1) * clamp((nextHeight - appPanelHeight * 0.50) / max(1, appPanelHeight * 0.30), 0, 1) * nextAlphabetWeight
+          let nextTargetY = clamp(nextCenter * 0.84, appEdgeSpace + appLabelHeight + appRowHeight / 2, max(appEdgeSpace + appLabelHeight + appRowHeight / 2, appPanelHeight - appEdgeSpace - appRowHeight / 2))
+          let nextShift = nextFavoriteIndex < 0 ? 0 : clamp((nextTargetY - (nextBaseTop + appLabelHeight + (nextFavoriteIndex + 0.5) * appRowHeight)) * nextBias, -appPanelHeight * 0.50, appPanelHeight * 0.50)
+          let nextTop = nextBaseTop + nextShift
+          appScroll = nextSettings ? appMaxScroll : nextFolder >= 0 ? clamp(appFolderTop + appLabelHeight - appPanelHeight * 0.3, 0, appMaxScroll) : clamp(get(appSectionStarts, max(0, indexOf(appSections, nextLetter)), 0) - nextTop, 0, appMaxScroll)
+          menu = ""
+          activeSide = 1
+          browsing = true
+          expandedStack = ""
+          replyKey = ""
+          replyDraft = ""
         }
-        railSettingsSelected = nextSettings
-        railFolderSelected = nextFolder
-        if nextOnAlphabet { letter = nextLetter }
-        let nextApps = get(groups, nextLetter, [])
-        let nextHeight = appLabelHeight + len(nextApps) * appRowHeight
-        let nextCenter = railTop + railOverpull + (max(0, indexOf(alphabet, nextLetter)) + 0.5) * railStep - appSafeTop
-        let nextBaseTop = clamp(nextCenter - nextHeight / 2, appEdgeSpace, max(appEdgeSpace, appPanelHeight - appEdgeSpace - nextHeight))
-        let nextFavorite = first(nextApps.filter(a => (a.score ?? 0) > 0).sortBy(a => -(a.score ?? 0)))
-        let nextFavoriteIndex = nextFavorite == null ? -1 : indexOf(nextApps.map(a => a.key), nextFavorite.key)
-        let nextAlphabetWeight = 0.80 + 0.20 * max(0, indexOf(alphabet, nextLetter)) / max(1, len(alphabet) - 1)
-        let nextBias = nextFavorite == null ? 0 : clamp(((nextFavorite.score ?? 0) / 4), 0, 1) * clamp((nextHeight - appPanelHeight * 0.50) / max(1, appPanelHeight * 0.30), 0, 1) * nextAlphabetWeight
-        let nextTargetY = clamp(nextCenter * 0.84, appEdgeSpace + appLabelHeight + appRowHeight / 2, max(appEdgeSpace + appLabelHeight + appRowHeight / 2, appPanelHeight - appEdgeSpace - appRowHeight / 2))
-        let nextShift = nextFavoriteIndex < 0 ? 0 : clamp((nextTargetY - (nextBaseTop + appLabelHeight + (nextFavoriteIndex + 0.5) * appRowHeight)) * nextBias, -appPanelHeight * 0.50, appPanelHeight * 0.50)
-        let nextTop = nextBaseTop + nextShift
-        appScroll = nextSettings ? appMaxScroll : nextFolder >= 0 ? clamp(appFolderTop + appLabelHeight - appPanelHeight * 0.3, 0, appMaxScroll) : clamp(get(appSectionStarts, max(0, indexOf(appSections, nextLetter)), 0) - nextTop, 0, appMaxScroll)
-        menu = ""
-        activeSide = 1
-        browsing = true
-        expandedStack = ""
-        replyKey = ""
-        replyDraft = ""
-      
-        }}
+      }
       onTap: {
         if moveMode != "alphabet" {
-        holidayAnimPlaying = false; holidayPlayedStamp = ""
-        if railFolderSelected >= 0 && !railFolderLongPressed {
-          // The shortcut selects the collected folder rows, not a new page.
-          activeSide = 0; railHeld = false; draggingSide = 0; railSettingsSelected = false; browsing = true; railPull = 0
-          appVelocity = 0; menu = ""; folderOpenId = ""
-          appScroll = clamp(appFolderTop + appLabelHeight - appPanelHeight * 0.3, 0, appMaxScroll)
-        } else if !railFolderLongPressed {
-          browsing = true; activeSide = 0; railHeld = false; railSettingsSelected = false; railPull = 0
+          holidayAnimPlaying = false; holidayPlayedStamp = ""
+          if railFolderSelected >= 0 && !railFolderLongPressed {
+            // The shortcut selects the collected folder rows, not a new page.
+            activeSide = 0; railHeld = false; draggingSide = 0; railSettingsSelected = false; browsing = true; railPull = 0
+            appVelocity = 0; menu = ""; folderOpenId = ""
+            appScroll = clamp(appFolderTop + appLabelHeight - appPanelHeight * 0.3, 0, appMaxScroll)
+          } else if !railFolderLongPressed {
+            browsing = true; activeSide = 0; railHeld = false; railSettingsSelected = false; railPull = 0
+          }
         }
-      
-        }}
+      }
       onLongPress: {
         if moveMode != "alphabet" {
-        if railFolderSelected >= 0 {
-          railFolderLongPressed = true
-          activeSide = 0; railHeld = false; draggingSide = 0; browsing = false; appVelocity = 0; menu = ""; folderOpenId = ""
-          folderDraft = ""; screenMode = "folderList"
-          screen()
+          if railFolderSelected >= 0 {
+            railFolderLongPressed = true
+            activeSide = 0; railHeld = false; draggingSide = 0; browsing = false; appVelocity = 0; menu = ""; folderOpenId = ""
+            folderDraft = ""; screenMode = "folderList"
+            screen()
+          }
         }
-      
-        }}
+      }
       // A press is cancelled when the drag detector consumes its first move.
       // Keep the curve active in either detector order at that transition;
       // a real drag release/cancellation always clears both states below.
       onRelease: {
         if moveMode != "alphabet" {
-        if draggingSide == 0 {
-          // Capture the actual visible shape, including partial entrance.
+          if draggingSide == 0 {
+            // Capture the actual visible shape, including partial entrance.
+            railReturnFrom = railOverpull
+            railReturnPull = railPull
+            railReturnScale = railEnterEase
+            railReturnStart = time
+            railReturning = !cfg.reduceMotion && (abs(railOverpull) > 0.5 || cfg.curve && railPull * railEnterEase > 0.5)
+            railOverpull = 0
+            railEntering = false
+            activeSide = 0; railHeld = false; railSettingsSelected = false; railPull = 0
+          }
+        }
+      }
+      onDragEnd: {
+        if moveMode != "alphabet" {
+          // Lower-to-upper and upper-to-lower flicks create opposite ripples.
+          let flickTravel = railFlickLastY - railFlickStartY
+          let flickAge = max(0.04, time - railFlickStarted)
+          let flickDistance = abs(flickTravel)
+          let flickSpeed = flickDistance / flickAge
+          // Tap/hold releases cannot ripple. Short, fast drags barely move
+          // the ribbon; only a long, fast directional sweep reaches full power.
+          let upFlick = railFlickStartY >= railHeight * 0.55 && flickTravel < 0
+          let downFlick = railFlickStartY <= railHeight * 0.45 && flickTravel > 0
+          let distanceGain = pow(clamp((flickDistance - max(44, railStep * 2.5)) / max(1, railHeight * 0.65), 0, 1), 1.4)
+          let speedGain = clamp((flickSpeed - 350) / 500, 0, 1)
+          let wiggleGain = distanceGain * speedGain
+          railWiggleStrength = wiggleGain
+          railWiggleDuration = 0.36 + 1.30 * wiggleGain
+          railWiggling = !cfg.reduceMotion && draggingSide == 1 && (upFlick || downFlick) && flickAge <= 0.6 && flickSpeed >= 520 && wiggleGain > 0.012
+          if railWiggling {
+            railWiggleStarted = time
+            railWiggleOrigin = clamp(railFlickStartY / railStep - 0.5, 0, max(0, len(alphabet) - 1))
+            railWiggleDirection = upFlick ? -1 : 1
+          }
           railReturnFrom = railOverpull
           railReturnPull = railPull
           railReturnScale = railEnterEase
@@ -2888,46 +2921,13 @@ face "Omagara" {
           railReturning = !cfg.reduceMotion && (abs(railOverpull) > 0.5 || cfg.curve && railPull * railEnterEase > 0.5)
           railOverpull = 0
           railEntering = false
-          activeSide = 0; railHeld = false; railSettingsSelected = false; railPull = 0
+          draggingSide = 0; activeSide = 0; railHeld = false; railSettingsSelected = false; railPull = 0
+          if railFolderSelected >= 0 && !railFolderLongPressed {
+            browsing = true; appVelocity = 0; menu = ""; folderOpenId = ""
+            appScroll = clamp(appFolderTop + appLabelHeight - appPanelHeight * 0.3, 0, appMaxScroll)
+          }
         }
-      
-        }}
-      onDragEnd: {
-        if moveMode != "alphabet" {
-        // Lower-to-upper and upper-to-lower flicks create opposite ripples.
-        let flickTravel = railFlickLastY - railFlickStartY
-        let flickAge = max(0.04, time - railFlickStarted)
-        let flickDistance = abs(flickTravel)
-        let flickSpeed = flickDistance / flickAge
-        // Tap/hold releases cannot ripple. Short, fast drags barely move
-        // the ribbon; only a long, fast directional sweep reaches full power.
-        let upFlick = railFlickStartY >= railHeight * 0.55 && flickTravel < 0
-        let downFlick = railFlickStartY <= railHeight * 0.45 && flickTravel > 0
-        let distanceGain = pow(clamp((flickDistance - max(44, railStep * 2.5)) / max(1, railHeight * 0.65), 0, 1), 1.4)
-        let speedGain = clamp((flickSpeed - 350) / 500, 0, 1)
-        let wiggleGain = distanceGain * speedGain
-        railWiggleStrength = wiggleGain
-        railWiggleDuration = 0.36 + 1.30 * wiggleGain
-        railWiggling = !cfg.reduceMotion && draggingSide == 1 && (upFlick || downFlick) && flickAge <= 0.6 && flickSpeed >= 520 && wiggleGain > 0.012
-        if railWiggling {
-          railWiggleStarted = time
-          railWiggleOrigin = clamp(railFlickStartY / railStep - 0.5, 0, max(0, len(alphabet) - 1))
-          railWiggleDirection = upFlick ? -1 : 1
-        }
-        railReturnFrom = railOverpull
-        railReturnPull = railPull
-        railReturnScale = railEnterEase
-        railReturnStart = time
-        railReturning = !cfg.reduceMotion && (abs(railOverpull) > 0.5 || cfg.curve && railPull * railEnterEase > 0.5)
-        railOverpull = 0
-        railEntering = false
-        draggingSide = 0; activeSide = 0; railHeld = false; railSettingsSelected = false; railPull = 0
-        if railFolderSelected >= 0 && !railFolderLongPressed {
-          browsing = true; appVelocity = 0; menu = ""; folderOpenId = ""
-          appScroll = clamp(appFolderTop + appLabelHeight - appPanelHeight * 0.3, 0, appMaxScroll)
-        }
-      
-        }}
+      }
       // The selected edge draws the glyphs; the other edge is optional input.
       // Keep showing the worm during its release return even if idle alphabet is hidden.
       if visual && (cfg.idleAlphabet || activeSide != 0 || railReturning || railWiggling) {
