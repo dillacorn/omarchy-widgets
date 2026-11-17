@@ -1914,14 +1914,24 @@ face "Omagara" {
     let appGroupKeys = folderView ? folderKeys : get(appKeyGroups, appLetter, [])
     let appGroupIndex = indexOf(appGroupKeys, a.key)
     let manuallyMoved = any(manualAppMoves, m => m.key == a.key)
+    // The highlighted app itself is draggable in the real alphabet list.
+    if moveMode == "alphabet" && moveKey == a.key && thumbView && !searchView && !folderView {
+      FloatingMoveApp { a: a; alphabetMode: true; slotWidth: appPanelWidth - 8; slotHeight: appRowHeight }
+    } else {
     Row {
       fill: width
       height: thumbView ? appRowHeight : null
       align: center
       gap: 16 * rowScale
       padding: [4 * rowScale, thumbView ? 8 * rowScale : 12]
+      background: moveMode == "alphabet" && moveLetter == appLetter && moveTargetIndex == appGroupIndex ? alpha(accent, 0.18) : transparent
+      radius: 7
       onTap: {
-        if interactive {
+        if interactive && moveMode == "alphabet" && !searchView && !folderView {
+          moveTargetIndex = indexOf(moveKeys, a.key)
+          moveDragX = 0
+          moveDragY = (moveTargetIndex - moveOriginIndex) * appRowHeight
+        } else if interactive && moveMode == "" {
         let launchKey = a.key
         appVelocity = 0; browsing = false
         activeSide = 0
@@ -1938,7 +1948,7 @@ face "Omagara" {
         }
       }
       onLongPress: {
-        if interactive {
+        if interactive && moveMode == "" {
         if !folderView {
           appScroll = appOffset
           appVelocity = 0
@@ -1950,7 +1960,7 @@ face "Omagara" {
         }
       }
       Popup {
-        visible: interactive && menu == a.key && menuShortcuts != null
+        visible: interactive && moveMode == "" && menu == a.key && menuShortcuts != null
         position: above
         onDismiss: menu = ""
         width: 220
@@ -2109,6 +2119,7 @@ face "Omagara" {
           }
         }
       }
+    }
     }
   }
 
