@@ -1501,6 +1501,80 @@ face "Omagara" {
       if mediaNeedsAccess && !cfg.notifications {
         Text { text: "Media controls need notification access. Tap to allow."; font: chosenFont; fontSize: 12; color: accent; onTap: media("open") }
       }
+      // Same home coordinates, with live projected slots. Keys are stable,
+      // so OWL springs slide every OTHER pin aside as the dragged pin snaps.
+      if moveMode == "pin" {
+        Box {
+          width: noticeWidth
+          height: max(48 * len(pinnedRows), 48 * len(pinDraftRows))
+          let destination = find(pinTargetSlots, slot => slot.key == moveKey)
+          let origin = find(pinSourceSlots, slot => slot.key == moveKey)
+          if destination != null {
+            Box {
+              width: destination.width
+              height: 42
+              offset: [destination.x, destination.y]
+              animate offset: spring(0.80, 220)
+              background: alpha(accent, 0.15)
+              border: 1
+              borderColor: alpha(accent, 0.80)
+              radius: 9
+            }
+          }
+          for a in pinnedApps.filter(app => app.key != moveKey) key a.key {
+            let slot = find(pinTargetSlots, p => p.key == a.key)
+            if slot != null {
+              Box {
+                width: slot.width
+                height: 42
+                offset: [slot.x, slot.y]
+                animate offset: spring(0.79, 210)
+                Row {
+                  width: slot.width
+                  height: 42
+                  align: center
+                  gap: 8
+                  padding: [2, 2]
+                  HomePinIcon { a: a; iconSize: slot.iconSize }
+                  if slot.showLabel {
+                    Text {
+                      text: a.name
+                      width: slot.labelWidth
+                      maxLines: 1
+                      font: chosenFont
+                      fontSize: 15
+                      color: primaryText
+                      padding: cfg.shadeAppLabels ? [9, 5] : [0, 0]
+                      background: cfg.shadeAppLabels ? appLabelShade : transparent
+                      radius: cfg.shadeAppLabels && cfg.roundAppLabels ? 8 : 0
+                      onTap: {
+                        moveTargetIndex = indexOf(pinnedAppKeys, a.key)
+                        moveDragging = false
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          // Paint the selected card LAST, on top of its shifting neighbors.
+          if moveApp != null && destination != null && origin != null {
+            Box {
+              width: origin.width
+              height: 42
+              offset: [origin.x, origin.y]
+              FloatingMoveApp {
+                a: moveApp
+                slotWidth: destination.width
+                slotHeight: 42
+                snapX: destination.x - origin.x
+                snapY: destination.y - origin.y
+                showText: destination.showLabel
+              }
+            }
+          }
+        }
+      } else {
       // Each pin owns its own label and row break. Flow wraps if necessary
       // instead of overflowing the worm on narrow screens.
       for rowPins in pinnedRows key toJson(rowPins.map(a => a.key)) {
@@ -1563,6 +1637,7 @@ face "Omagara" {
             HomePinNotifications { a: expandedRowApp }
           }
         }
+      }
       }
       if cfg.notifications {
       if notices == null {
