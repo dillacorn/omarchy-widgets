@@ -1706,7 +1706,7 @@ face "Omagara" {
         background: alpha(#111827, 0.94)
         border: 1
         borderColor: alpha(#FAFAFA, 0.30)
-        radius: 6
+        radius: cfg.roundAppLabels ? 6 : 0
         onTap: {
           moveMode = ""
           moveKey = ""
@@ -1724,7 +1724,7 @@ face "Omagara" {
         background: alpha(#111827, 0.94)
         border: 1
         borderColor: alpha(#FAFAFA, 0.30)
-        radius: 6
+        radius: cfg.roundAppLabels ? 6 : 0
         onTap: {
           if moveOriginIndex >= 0 && moveTargetIndex >= 0 && moveTargetIndex < len(moveKeys) {
             if moveMode == "pin" {
@@ -1977,7 +1977,7 @@ face "Omagara" {
               background: alpha(accent, 0.15)
               border: 1
               borderColor: alpha(accent, 0.80)
-              radius: 9
+              radius: cfg.roundAppLabels ? 9 : 0
             }
           }
           for a in pinnedApps.filter(app => app.key != moveKey) key a.key {
@@ -2081,7 +2081,7 @@ face "Omagara" {
               height: max(42, rowIconSize + 6)
               padding: [2, 2]
               background: moveMode == "pin" && moveTargetIndex == indexOf(pinnedAppKeys, a.key) ? alpha(accent, 0.19) : transparent
-              radius: 7
+              radius: cfg.roundAppLabels ? 7 : 0
               HomePinIcon { a: a; iconSize: rowIconSize; showNoticeDot: true }
               if showPinLabel {
                 Text {
@@ -2673,7 +2673,7 @@ face "Omagara" {
             background: alpha(accent, 0.10)
             border: 1
             borderColor: alpha(accent, 0.68)
-            radius: 7
+            radius: cfg.roundAppLabels ? 7 : 0
           }
         }
         // Paint selected app last, above neighbors flowing to final slots.
