@@ -327,6 +327,14 @@ face "Omagara" {
   let pinRowCapacity = max(1, floor((noticeWidth - 2) / 34))
   let folderPins = customFolders.map(f => {key: "folder:" + f.id, name: f.name, folderId: f.id})
   let pinnedApps = pinnedAppKeys.map(k => find(folderPins, p => p.key == k) ?? find(installed ?? [], a => a.key == k)).filter(a => a != null)
+  // Separate logical stacks from width-based automatic wraps. Dragging on
+  // narrow devices must not turn an automatic wrap into a saved row break.
+  let pinnedLogicalPlan = reduce(pinnedApps, (state, a) =>
+    len(state.numbers) == 0 || get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "newRow", true) != false
+      ? {numbers: state.numbers + [state.row + 1], row: state.row + 1}
+      : {numbers: state.numbers + [state.row], row: state.row},
+    {numbers: [], row: 0})
+  let pinnedLogicalRowNumbers = pinnedLogicalPlan.numbers
   // Preserve explicit row breaks; overflowing a row wraps automatically.
   // Derive source and preview rows the same way so drag targets remain aligned.
   let pinnedRowPlan = reduce(pinnedApps, (state, a) =>
@@ -465,47 +473,48 @@ face "Omagara" {
   let noticeBottom = max(screenTop + 12, (tileHeight ?? 800) - searchBottom - 60)
   // Shared content width and pin-row capacity were computed above.
 
-  // Preview and Save MUST use the same projected order and row breaks.
+  // Project by stable logical stacks, not by whichever neighbor happens
+  // to follow the dragged icon. Only the moved pin changes group membership.
   let pinDraftActive = moveMode == "pin" && moveOriginIndex >= 0
-  let pinDraftRelocated = pinDraftActive && moveTargetIndex != moveOriginIndex
   let pinDraftOriginVisible = indexOf(pinnedApps.map(p => p.key), moveKey)
-  let pinDraftOriginalTarget = get(moveKeys, moveTargetIndex)
-  let pinDraftTargetVisible = indexOf(pinnedApps.map(p => p.key), pinDraftOriginalTarget)
-  let pinDraftOriginRow = get(pinnedRowNumbers, pinDraftOriginVisible, -1)
-  let pinDraftTargetRow = get(pinnedRowNumbers, pinDraftTargetVisible, -2)
-  // The gesture threshold depends on the SOURCE row. Its preview appearance
-  // follows the DESTINATION row without stretching every app row.
+  let pinDraftOriginRow = get(pinnedRowNumbers, pinDraftOriginVisible, 1)
+  let pinDraftSourceGroupId = get(pinnedLogicalRowNumbers, pinDraftOriginVisible, 0)
+  // Hysteresis prevents a small diagonal movement from splitting a stack.
+  // The virtual row after the last real row allows downward unstacking.
+  let pinDraftHoverRow = clamp(pinDraftOriginRow + (abs(moveDragY) < 36 ? 0 : round(moveDragY / 48)), 1, len(pinnedRows) + 1)
+  let pinDraftHoverPins = get(pinnedRows, pinDraftHoverRow - 1, []).filter(p => p.key != moveKey)
   let pinSourceIconOnly = pinDraftActive && len(get(pinnedRows, pinDraftOriginRow - 1, [])) > 1
   let pinDragThreshold = pinSourceIconOnly ? 22 : 42
-  let pinDraftHorizontal = pinDraftActive && abs(moveDragX) >= pinDragThreshold && abs(moveDragX) * 2 >= abs(moveDragY)
-  let pinDraftSameRow = pinDraftHorizontal && pinDraftRelocated && pinDraftOriginRow > 0 && pinDraftOriginRow == pinDraftTargetRow
-  let pinDraftJoinBefore = pinDraftHorizontal && moveDragX >= pinDragThreshold && moveTargetIndex > 0
-  let pinDraftJoinAfter = pinDraftHorizontal && moveDragX <= -pinDragThreshold && moveTargetIndex < moveOriginIndex
-  let pinDraftOldLayout = find(pinnedLayouts, p => p.key == moveKey)
-  let pinDraftPreviouslyJoined = get(pinDraftOldLayout ?? {}, "newRow", true) == false
-  // Pulling a member DOWN out of a horizontal row creates a visible row,
-  // even when its order index stays the same (including the final pin).
-  let pinDraftVerticalBreak = pinDraftActive && !pinDraftHorizontal && !pinDraftRelocated && moveDragY >= 42 && len(get(pinnedRows, pinDraftOriginRow - 1, [])) > 1
-  let pinDraftChanged = pinDraftSameRow || pinDraftRelocated || pinDraftJoinBefore && !pinDraftPreviouslyJoined || pinDraftJoinAfter || pinDraftVerticalBreak
-  let pinDraftPriorNext = get(pinnedAppKeys, moveOriginIndex + 1)
-  let pinDraftFollowingKey = get(movePreviewKeys, moveTargetIndex + 1)
-  let pinDraftFollowingLayout = find(pinnedLayouts, p => p.key == pinDraftFollowingKey)
-  let pinDraftFollowingStartsRow = get(pinDraftFollowingLayout ?? {}, "newRow", true) != false
-  let pinDraftBreakKeys = unique([pinDraftPriorNext, pinDraftFollowingKey].filter(k => k != null && k != moveKey))
-  let pinDraftGroupKeys = get(pinnedRows, pinDraftOriginRow - 1, []).map(a => a.key)
-  let pinDraftGroupFirst = first(movePreviewKeys.filter(k => contains(pinDraftGroupKeys, k)))
-  let pinDraftLayouts = !pinDraftActive || !pinDraftChanged ? pinnedLayouts :
-    pinDraftSameRow ?
-      pinnedLayouts.filter(p => !contains(pinDraftGroupKeys, p.key)) +
-      pinDraftGroupKeys.map(k => merge(find(pinnedLayouts, p => p.key == k) ?? {key: k, showLabel: true}, {newRow: k == pinDraftGroupFirst})) :
-    pinDraftVerticalBreak ?
-      pinnedLayouts.filter(p => p.key != moveKey && p.key != pinDraftPriorNext) +
-      [merge(pinDraftOldLayout ?? {key: moveKey, showLabel: true}, {newRow: true})] +
-      (pinDraftPriorNext == null ? [] : [merge(find(pinnedLayouts, p => p.key == pinDraftPriorNext) ?? {key: pinDraftPriorNext, showLabel: true}, {newRow: true})]) :
-      pinnedLayouts.filter(p => p.key != moveKey && !contains(pinDraftBreakKeys, p.key)) +
-      pinDraftBreakKeys.map(k => merge(find(pinnedLayouts, p => p.key == k) ?? {key: k, showLabel: true}, {newRow: k == pinDraftFollowingKey ? (pinDraftJoinAfter ? false : pinDraftJoinBefore ? pinDraftFollowingStartsRow : true) : true})) +
-      [merge(pinDraftOldLayout ?? {key: moveKey, showLabel: true}, {newRow: pinDraftJoinBefore ? false : pinDraftJoinAfter ? pinDraftFollowingStartsRow : true})]
-  let pinDraftKeys = pinDraftActive && pinDraftChanged ? movePreviewKeys : pinnedAppKeys
+  let pinDraftHorizontalIntent = abs(moveDragX) >= pinDragThreshold && abs(moveDragX) * 2 >= abs(moveDragY)
+  // Sideways movement within a stack keeps its members together. A different
+  // row can be joined deliberately, otherwise a vertical drag makes one
+  // standalone row without changing any neighboring app's grouping.
+  let pinDraftJoinRow = pinDraftActive && len(pinDraftHoverPins) > 0 &&
+    (pinDraftHoverRow == pinDraftOriginRow ? pinSourceIconOnly : pinDraftHorizontalIntent)
+  let pinDraftHoverGroupId = len(pinDraftHoverPins) > 0 ?
+    get(pinnedLogicalRowNumbers, indexOf(pinnedApps.map(p => p.key), first(pinDraftHoverPins).key), -1) : -1
+  let pinDraftGroupId = pinDraftJoinRow ? pinDraftHoverGroupId :
+    pinDraftHoverRow == pinDraftOriginRow && len(pinDraftHoverPins) == 0 ? pinDraftSourceGroupId : -1
+  // Never insert a moved pin outside its hovered logical stack. Standalone
+  // drops land at an entire stack's boundary, not inside another stack.
+  let pinDraftBeforeGroup = count(moveOtherKeys, k =>
+    get(pinnedLogicalRowNumbers, indexOf(pinnedApps.map(p => p.key), k), 0) < pinDraftHoverGroupId)
+  let pinDraftAfterGroup = count(moveOtherKeys, k =>
+    get(pinnedLogicalRowNumbers, indexOf(pinnedApps.map(p => p.key), k), 0) <= pinDraftHoverGroupId)
+  let pinDraftStandaloneIndex = pinDraftHoverGroupId < 0 ? len(moveOtherKeys) :
+    pinDraftHoverGroupId == pinDraftSourceGroupId && moveDragY > 0 ? pinDraftAfterGroup : pinDraftBeforeGroup
+  let pinDraftInsertIndex = clamp(pinDraftJoinRow ?
+    clamp(moveTargetIndex, pinDraftBeforeGroup, pinDraftAfterGroup) :
+    pinDraftHoverRow == pinDraftOriginRow && len(pinDraftHoverPins) == 0 ? moveOriginIndex :
+    pinDraftStandaloneIndex, 0, len(moveOtherKeys))
+  let pinDraftChanged = pinDraftActive && (pinDraftInsertIndex != moveOriginIndex || pinDraftGroupId != pinDraftSourceGroupId)
+  let pinDraftKeys = pinDraftChanged ? take(moveOtherKeys, pinDraftInsertIndex) + [moveKey] + drop(moveOtherKeys, pinDraftInsertIndex) : pinnedAppKeys
+  let pinDraftGroupIds = pinDraftKeys.map(k => k == moveKey ? pinDraftGroupId :
+    get(pinnedLogicalRowNumbers, indexOf(pinnedApps.map(p => p.key), k), 0))
+  let pinDraftLayouts = !pinDraftChanged ? pinnedLayouts :
+    pinnedLayouts.filter(p => !contains(pinDraftKeys, p.key)) +
+    pinDraftKeys.map((k, i) => merge(find(pinnedLayouts, p => p.key == k) ?? {key: k, showLabel: true},
+      {newRow: i == 0 || get(pinDraftGroupIds, i - 1, 0) != get(pinDraftGroupIds, i, 0)}))
   let pinDraftApps = pinDraftKeys.map(k => find(pinnedApps, a => a.key == k)).filter(a => a != null)
   let pinDraftRowPlan = reduce(pinDraftApps, (state, a) =>
     state.used == 0 || state.used >= pinRowCapacity || get(find(pinDraftLayouts, p => p.key == a.key) ?? {}, "newRow", true) != false
@@ -1780,16 +1789,20 @@ face "Omagara" {
           moveDragging = true
           moveDragX = nextX
           moveDragY = nextY
-          let displayIndex = indexOf(pinnedApps.map(p => p.key), moveKey)
-          let sourceRow = get(pinnedRowNumbers, displayIndex, 1)
-          let targetRow = clamp(sourceRow + round(nextY / 48), 1, max(1, len(pinnedRows)))
-          let targetRowPins = get(pinnedRows, targetRow - 1, [])
-          let targetPin = nextX >= 42 ? last(targetRowPins) : first(targetRowPins)
-          let targetPinIndex = targetPin == null ? moveOriginIndex : indexOf(pinnedAppKeys, targetPin.key)
-          let differentRow = targetRow != sourceRow
-          let pinPitch = max(24, get(find(pinSourceSlots, p => p.key == moveKey) ?? {}, "width", 38) + 6)
-          let pinIndex = abs(nextY) >= 24 ? (differentRow ? targetPinIndex : nextY > 0 && len(targetRowPins) > 1 ? indexOf(pinnedAppKeys, last(targetRowPins).key) : moveOriginIndex) : moveOriginIndex + round(nextX / pinPitch)
-          let nextIndex = alphabetMode ? moveOriginIndex + round(nextY / appRowHeight) : pinIndex
+          // Hit-test actual icon centers on the hovered row. The old
+          // moveOriginIndex + dx/width calculation jumped to wrong slots
+          // when source/destination rows had different icon or label widths.
+          let nextIndex = moveOriginIndex + round(nextY / appRowHeight)
+          if !alphabetMode {
+            let sourceSlot = find(pinSourceSlots, p => p.key == moveKey)
+            let sourceRow = get(pinnedRowNumbers, indexOf(pinnedApps.map(p => p.key), moveKey), 1)
+            let hoverRow = clamp(sourceRow + (abs(nextY) < 36 ? 0 : round(nextY / 48)), 1, len(pinnedRows) + 1)
+            let hoverRowY = (hoverRow - 1) * 48
+            let hoverCenterX = get(sourceSlot ?? {}, "x", 0) + nextX + 2 + get(sourceSlot ?? {}, "iconSize", 34) / 2
+            let beforeRow = count(pinSourceSlots, p => p.key != moveKey && p.y < hoverRowY)
+            let beforeIcon = count(pinSourceSlots, p => p.key != moveKey && p.y == hoverRowY && hoverCenterX > p.x + 2 + p.iconSize / 2)
+            nextIndex = beforeRow + beforeIcon
+          }
           moveTargetIndex = clamp(nextIndex, 0, max(0, len(moveKeys) - 1))
         }
         onDragEnd: moveDragging = false
@@ -1986,7 +1999,7 @@ face "Omagara" {
                       onTap: {
                         let tappedSourceSlot = find(pinSourceSlots, p => p.key == moveKey)
                         let target = find(pinSourceSlots, p => p.key == a.key)
-                        moveTargetIndex = indexOf(pinnedAppKeys, a.key)
+                        moveTargetIndex = indexOf(moveOtherKeys, a.key)
                         if tappedSourceSlot != null && target != null {
                           moveDragX = target.x - tappedSourceSlot.x
                           moveDragY = target.y - tappedSourceSlot.y
