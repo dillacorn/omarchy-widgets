@@ -1181,7 +1181,25 @@ face "Omagara" {
       background: transparent
       radius: 7
       onTap: {
-        if interactive && moveMode == "alphabet" && !searchView && !folderView && appLetter == moveLetter && a.key != moveKey {
+        if interactive && layoutEditMode == "alphabet" && moveMode == "" && thumbView && !searchView && !folderView {
+          let currentIndex = indexOf(get(groups, appLetter, []).map(x => x.key), a.key)
+          if currentIndex >= 0 {
+            moveMode = "alphabet"
+            moveKey = a.key
+            moveLetter = appLetter
+            moveSideRight = contains(rightAlignedAppKeys, a.key)
+            moveTargetIndex = currentIndex
+            moveDragX = 0
+            moveDragY = 0
+            moveDragging = false
+            moveLiftStarted = time
+            appVelocity = 0
+            appScroll = appOffset
+            appAnchor = ""
+            menu = ""
+            menuShortcuts = null
+          }
+        } else if interactive && moveMode == "alphabet" && !searchView && !folderView && appLetter == moveLetter && a.key != moveKey {
           moveTargetIndex = indexOf(moveOtherKeys, a.key)
           moveDragX = 0
           moveDragY = (moveTargetIndex - moveOriginIndex) * appRowHeight
@@ -1448,7 +1466,23 @@ face "Omagara" {
     Box {
       size: iconSize
       onTap: {
-        if moveMode == "pin" {
+        if layoutEditMode == "home" && moveMode == "" {
+          let currentIndex = indexOf(pinnedAppKeys, a.key)
+          if currentIndex >= 0 {
+            moveMode = "pin"
+            moveKey = a.key
+            moveLetter = ""
+            moveTargetIndex = currentIndex
+            moveDragX = 0
+            moveDragY = 0
+            moveDragging = false
+            moveLiftStarted = time
+            expandedPinnedKey = ""
+            folderOpenId = ""
+            pinnedMenuKey = ""
+            pinnedMenuShortcuts = null
+          }
+        } else if moveMode == "pin" {
           let origin = find(pinSourceSlots, p => p.key == moveKey)
           let target = find(pinSourceSlots, p => p.key == a.key)
           moveTargetIndex = indexOf(moveOtherKeys, a.key)
@@ -1506,7 +1540,7 @@ face "Omagara" {
       }
       // Theme-accent notification dot; no count badge or extra label.
       // The 16dp tap region preserves the existing expand and long-press actions.
-      if showNoticeDot && hasOwnNotices {
+      if showNoticeDot && hasOwnNotices && layoutEditMode != "home" {
         Box {
           size: 16
           offset: [max(0, iconSize - 13), -2]
@@ -2289,6 +2323,22 @@ face "Omagara" {
                         moveDragY = target.y - rowSourceSlot.y
                       }
                       moveDragging = false
+                    } else if moveMode == "" && layoutEditMode == "home" {
+                      let currentIndex = indexOf(pinnedAppKeys, a.key)
+                      if currentIndex >= 0 {
+                        moveMode = "pin"
+                        moveKey = a.key
+                        moveLetter = ""
+                        moveTargetIndex = currentIndex
+                        moveDragX = 0
+                        moveDragY = 0
+                        moveDragging = false
+                        moveLiftStarted = time
+                        expandedPinnedKey = ""
+                        folderOpenId = ""
+                        pinnedMenuKey = ""
+                        pinnedMenuShortcuts = null
+                      }
                     } else if moveMode == "" {
                       androidApp(a.key)
                     }
