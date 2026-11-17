@@ -2571,6 +2571,64 @@ face "Omagara" {
     }
   }
 
+  // Shared transport touch targets preserve the compact player while the
+  // expanded player places the same actions below the song details.
+  component MediaTransportControls(expanded) {
+    Row {
+      height: expanded ? 42 : 36
+      align: center
+      gap: expanded ? 4 : 3
+      Box {
+        width: 30
+        height: expanded ? 42 : 36
+        align: center
+        onTap: media("previous")
+        Canvas {
+          size: 18
+          line(13, 4, 6, 9, stroke: primaryText, width: 2.2, cap: round)
+          line(6, 9, 13, 14, stroke: primaryText, width: 2.2, cap: round)
+        }
+      }
+      Box {
+        width: 32
+        height: expanded ? 42 : 36
+        align: center
+        onTap: media("toggle")
+        Canvas {
+          size: 20
+          let cx = width / 2
+          let cy = height / 2
+          if playback.playing == true {
+            rect(cx - 6, cy - 7, 4, 14, radius: 1, fill: accent)
+            rect(cx + 2, cy - 7, 4, 14, radius: 1, fill: accent)
+          } else {
+            path([[cx - 4, cy - 8], [cx + 8, cy], [cx - 4, cy + 8]], closed: true, fill: accent)
+          }
+        }
+      }
+      Box {
+        width: 30
+        height: expanded ? 42 : 36
+        align: center
+        onTap: media("next")
+        Canvas {
+          size: 18
+          line(5, 4, 12, 9, stroke: primaryText, width: 2.2, cap: round)
+          line(12, 9, 5, 14, stroke: primaryText, width: 2.2, cap: round)
+        }
+      }
+      if showMusicApps {
+        Box {
+          width: 24
+          height: 36
+          align: center
+          onTap: musicAppsExpanded = !musicAppsExpanded
+          Text { text: musicAppsExpanded ? "▴" : "▾"; font: chosenFont; fontSize: 16; color: accent; align: center }
+        }
+      }
+    }
+  }
+
   component NotificationPanel() {
     Column {
       width: noticeWidth
@@ -2595,88 +2653,73 @@ face "Omagara" {
           background: noticeCardShade
           radius: cfg.roundNotifications ? 12 : 0
           if hasMedia {
-            // Keep the original compact row at rest. Expanded text and
-            // artwork respond to the same bounded vertical size adjustment.
+            // Compact remains a single row. Expanded mode gives the artwork
+            // most of the card height, with text ABOVE its transport controls.
             Row {
               fill: width
-              height: musicAreaExpanded ? 104 + round(musicAreaSize * 0.60) : 42
+              height: musicAreaExpanded ? 136 + round(musicAreaSize * 0.55) : 42
               gap: musicAreaExpanded ? 8 : 3
               align: center
               if playback.art != null {
-                Image { src: playback.art; size: musicAreaExpanded ? 48 + round(musicAreaSize * 0.35) : 32; label: "Now playing artwork" }
-              }
-              Column {
-                weight: 1
-                gap: musicAreaExpanded ? 4 : 1
-                onTap: media("open")
-                if musicAreaExpanded {
-                  Text { text: "Now playing"; font: chosenFont; fontSize: 11; maxLines: 1; color: accent }
-                }
-                Text {
-                  text: playback.title
-                  font: chosenFont
-                  fontSize: musicAreaExpanded ? 16 + floor(musicAreaSize / 40) : 13
-                  maxLines: 2
-                  color: primaryText
-                }
-                Text {
-                  text: playback.artist ?? playback.app ?? ""
-                  font: chosenFont
-                  fontSize: musicAreaExpanded ? 13 : 11
-                  maxLines: musicAreaExpanded ? 2 : 1
-                  color: secondaryText
-                }
-                if musicAreaExpanded && audioConnected {
-                  Text { text: audio.output.name ?? audio.output.type ?? "Connected"; font: chosenFont; fontSize: 11; maxLines: 1; color: secondaryText }
+                // Reserve room for transport buttons even on narrow columns.
+                Image {
+                  src: playback.art
+                  size: musicAreaExpanded ? max(48, min(128 + round(musicAreaSize * 0.55), noticeWidth - 148)) : 32
+                  label: "Now playing artwork"
                 }
               }
-              Box {
-                width: 30
-                height: musicAreaExpanded ? 48 : 36
-                align: center
-                onTap: media("previous")
-                Canvas {
-                  size: 18
-                  line(13, 4, 6, 9, stroke: primaryText, width: 2.2, cap: round)
-                  line(6, 9, 13, 14, stroke: primaryText, width: 2.2, cap: round)
+              if musicAreaExpanded {
+                Column {
+                  weight: 1
+                  height: 136 + round(musicAreaSize * 0.55)
+                  gap: 4
+                  Column {
+                    fill: width
+                    weight: 1
+                    gap: 2
+                    onTap: media("open")
+                    Text { text: "Now playing"; font: chosenFont; fontSize: 11; maxLines: 1; color: accent }
+                    Text {
+                      text: playback.title
+                      font: chosenFont
+                      fontSize: 16 + floor(musicAreaSize / 40)
+                      maxLines: 2
+                      color: primaryText
+                    }
+                    Text {
+                      text: playback.artist ?? playback.app ?? ""
+                      font: chosenFont
+                      fontSize: 13
+                      maxLines: musicAreaSize >= 40 ? 2 : 1
+                      color: secondaryText
+                    }
+                    if audioConnected {
+                      Text { text: audio.output.name ?? audio.output.type ?? "Connected"; font: chosenFont; fontSize: 11; maxLines: 1; color: secondaryText }
+                    }
+                  }
+                  MediaTransportControls { expanded: true }
                 }
-              }
-              Box {
-                width: 32
-                height: musicAreaExpanded ? 48 : 36
-                align: center
-                onTap: media("toggle")
-                Canvas {
-                  size: 20
-                  let cx = width / 2
-                  let cy = height / 2
-                  if playback.playing == true {
-                    rect(cx - 6, cy - 7, 4, 14, radius: 1, fill: accent)
-                    rect(cx + 2, cy - 7, 4, 14, radius: 1, fill: accent)
-                  } else {
-                    path([[cx - 4, cy - 8], [cx + 8, cy], [cx - 4, cy + 8]], closed: true, fill: accent)
+              } else {
+                Column {
+                  weight: 1
+                  gap: 1
+                  onTap: media("open")
+                  Text {
+                    text: playback.title
+                    font: chosenFont
+                    fontSize: 13
+                    maxLines: 2
+                    color: primaryText
+                  }
+                  Text {
+                    text: playback.artist ?? playback.app ?? ""
+                    font: chosenFont
+                    fontSize: 11
+                    maxLines: 1
+                    color: secondaryText
                   }
                 }
-              }
-              Box {
-                width: 30
-                height: musicAreaExpanded ? 48 : 36
-                align: center
-                onTap: media("next")
-                Canvas {
-                  size: 18
-                  line(5, 4, 12, 9, stroke: primaryText, width: 2.2, cap: round)
-                  line(12, 9, 5, 14, stroke: primaryText, width: 2.2, cap: round)
-                }
-              }
-              if showMusicApps {
-                Box {
-                  width: 24
-                  height: 36
-                  align: center
-                  onTap: musicAppsExpanded = !musicAppsExpanded
-                  Text { text: musicAppsExpanded ? "▴" : "▾"; font: chosenFont; fontSize: 16; color: accent; align: center }
-                }
+                MediaTransportControls { expanded: false }
               }
             }
           } else {
