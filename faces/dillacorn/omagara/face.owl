@@ -501,6 +501,14 @@ face "Omagara" {
     max(railTop - 46, screenTop + 12 + (len(headerRows) > 0 ? headerPadTop + headerShapeHeight + headerEditorLane + max(0, headerSpacing) : 0) + 8) :
     railTop - 42,
     screenTop + 8, max(screenTop + 8, screenTop + availableHeight - 44))
+  // During Home editing, relocate the Worm handle away from the first
+  // pinned row if that row is aligned against the alphabet side.
+  let topPinRow = get(pinnedRows, 0, [])
+  let topPinRight = len(topPinRow) > 0 &&
+    get(find(pinnedLayouts, p => p.key == first(topPinRow).key) ?? {}, "alignRight", false)
+  let wormHandleAvoidTopRow = layoutEditMode == "home" && len(topPinRow) > 0 &&
+    ((alphabetSide == 1 && topPinRight) || (alphabetSide == -1 && !topPinRight))
+  let wormHandleOnLeft = wormHandleAvoidTopRow ? alphabetSide == 1 : alphabetSide == -1
   // Clock/date/event rows disappear from the scroll document when disabled.
   // Search and the gesture cue have their own side preference. Close can
   // follow Search or use either edge independently, with the same rail clearance.
@@ -598,7 +606,9 @@ face "Omagara" {
   let pinSourceSlots = flatten(pinSourceAlignedGeometry.map(r => r.apps.map((a, i) => {
     key: a.key, x: r.rowOffset + sum(take(r.widths, i)) + i * 6, y: r.rowIndex * 48,
     width: get(r.widths, i, 38), iconSize: r.iconSize, labelWidth: r.labelWidth,
-    showLabel: len(r.apps) == 1
+    showLabel: len(r.apps) == 1,
+    iconAfterText: len(r.apps) == 1 &&
+      !get(find(pinnedLayouts, p => p.key == first(r.apps).key) ?? {}, "alignRight", false)
   })))
   // In-place slots use the existing 42dp row + 6dp gap.
   let pinTargetRowGeometry = pinDraftRows.map((row, ri) => {
@@ -617,7 +627,9 @@ face "Omagara" {
   let pinTargetSlots = flatten(pinTargetAlignedGeometry.map(r => r.apps.map((a, i) => {
     key: a.key, x: r.rowOffset + sum(take(r.widths, i)) + i * 6, y: r.rowIndex * 48,
     width: get(r.widths, i, 38), iconSize: r.iconSize, labelWidth: r.labelWidth,
-    showLabel: len(r.apps) == 1
+    showLabel: len(r.apps) == 1,
+    iconAfterText: len(r.apps) == 1 &&
+      !get(find(pinDraftLayouts, p => p.key == first(r.apps).key) ?? {}, "alignRight", false)
   })))
 
   // One native vertical document: no separate pin quota or fixed notification
@@ -1500,6 +1512,119 @@ face "Omagara" {
     }
   }
 
+  // Standalone Home labels mirror the icon without changing tap/hold behavior.
+  component HomePinRowText(a, labelWidth, iconAfterText = false) {
+    Text {
+      text: a.name
+      align: iconAfterText ? "end" : "start"
+      font: chosenFont
+      fontSize: 15
+      color: primaryText
+      maxLines: 1
+      width: labelWidth
+      padding: cfg.shadeAppLabels ? [9, 5] : [0, 0]
+      background: cfg.shadeAppLabels ? appLabelShade : transparent
+      radius: cfg.shadeAppLabels && cfg.roundAppLabels ? 8 : 0
+      onTap: {
+        if moveMode == "pin" {
+          let rowSourceSlot = find(pinSourceSlots, p => p.key == moveKey)
+          let target = find(pinSourceSlots, p => p.key == a.key)
+          moveTargetIndex = indexOf(moveOtherKeys, a.key)
+          if rowSourceSlot != null && target != null {
+            moveDragX = target.x - rowSourceSlot.x
+            moveDragY = target.y - rowSourceSlot.y
+          }
+          moveDragging = false
+        } else if moveMode == "" && layoutEditMode == "home" {
+          let currentIndex = indexOf(pinnedAppKeys, a.key)
+          if currentIndex >= 0 {
+            moveMode = "pin"
+            moveKey = a.key
+            moveLetter = ""
+            moveTargetIndex = currentIndex
+            moveDragX = 0
+            moveDragY = 0
+            moveDragging = false
+            moveLiftStarted = time
+            expandedPinnedKey = ""
+            folderOpenId = ""
+            pinnedMenuKey = ""
+            pinnedMenuShortcuts = null
+          }
+        } else if moveMode == "" {
+          androidApp(a.key)
+        }
+      }
+      onLongPress: {
+        if moveMode == "" {
+          pinnedMenuShortcuts = null
+          pinnedMenuKey = a.key
+          if a.folderId != null {
+    pinnedMenuShortcuts = []
+    } else {
+    pinnedMenuShortcuts = shortcuts(a.key)
+    }
+        }
+      }
+    }
+  }
+
+  // Preview labels keep their app-switching behavior after mirroring.
+  component HomePinMoveText(a, labelWidth, iconAfterText = false) {
+    Text {
+      text: a.name
+      align: iconAfterText ? "end" : "start"
+      width: labelWidth
+      maxLines: 1
+      font: chosenFont
+      fontSize: 15
+      color: primaryText
+      padding: cfg.shadeAppLabels ? [9, 5] : [0, 0]
+      background: cfg.shadeAppLabels ? appLabelShade : transparent
+      radius: cfg.shadeAppLabels && cfg.roundAppLabels ? 8 : 0
+      onTap: {
+        if moveMode == "pin" && layoutEditMode == "home" && a.key != moveKey {
+          let nextPinIndex = indexOf(pinDraftKeys, a.key)
+          if nextPinIndex >= 0 && moveOriginIndex >= 0 {
+            if pinDraftChanged {
+              pinnedLayouts = pinDraftLayouts
+              pinnedAppKeys = pinDraftKeys
+            }
+            moveKey = a.key
+            moveTargetIndex = nextPinIndex
+            moveDragX = 0
+            moveDragY = 0
+            moveDragging = false
+            moveLiftStarted = time
+          }
+        }
+      }
+      onLongPress: {
+    // Save current preview before selecting the held pin.
+    if moveMode == "pin" && a.key != moveKey && contains(pinDraftKeys, a.key) {
+    let nextPinIndex = indexOf(pinDraftKeys, a.key)
+    if moveOriginIndex >= 0 && moveTargetIndex >= 0 && moveTargetIndex < len(moveKeys) && nextPinIndex >= 0 {
+    if pinDraftChanged {
+    pinnedLayouts = pinDraftLayouts
+    pinnedAppKeys = pinDraftKeys
+    }
+    moveKey = a.key
+    moveTargetIndex = nextPinIndex
+    moveDragX = 0
+    moveDragY = 0
+    moveDragging = false
+    moveLiftStarted = time
+    expandedPinnedKey = ""
+    folderOpenId = ""
+    pinnedMenuKey = ""
+    pinnedMenuShortcuts = null
+    }
+    } else if moveMode == "" {
+          }
+      }
+    }
+  }
+
   component HomePinIcon(a, iconSize = 30, showNoticeDot = false) {
     // One context action affects the complete logical stack, not one pin.
     let pinIndex = indexOf(pinnedApps.map(p => p.key), a.key)
@@ -2119,7 +2244,7 @@ face "Omagara" {
 
   // Keep one anchored floating row and stable touch area through every snap.
   // Neighbors animate to slots; the selected item follows finger deltas alone.
-  component FloatingMoveApp(a, alphabetMode = false, slotWidth = 180, slotHeight = 48, iconSize = 34, baseX = 0, baseY = 0, snapX = 0, snapY = 0, showText = true, viewportHeight = 0) {
+  component FloatingMoveApp(a, alphabetMode = false, slotWidth = 180, slotHeight = 48, iconSize = 34, baseX = 0, baseY = 0, snapX = 0, snapY = 0, showText = true, viewportHeight = 0, iconAfterText = false) {
     let panelWidth = alphabetMode ? appPanelWidth : noticeWidth
     let floatingWidth = alphabetMode ? min(panelWidth, max(40, min(panelWidth - 80, 205))) : min(slotWidth, max(40, panelWidth - 80))
     let rightSideSnap = max(0, panelWidth - floatingWidth - 8)
@@ -2174,9 +2299,12 @@ face "Omagara" {
             let sourceRow = get(pinnedRowNumbers, indexOf(pinnedApps.map(p => p.key), moveKey), 1)
             let hoverRow = clamp(sourceRow + (abs(nextY) < 36 ? 0 : round(nextY / 48)), 1, len(pinnedRows) + 1)
             let hoverRowY = (hoverRow - 1) * 48
-            let hoverCenterX = get(sourceSlot ?? {}, "x", 0) + nextX + 2 + get(sourceSlot ?? {}, "iconSize", 34) / 2
+             let hoverCenterX = get(sourceSlot ?? {}, "x", 0) + nextX + 2 +
+               (get(sourceSlot ?? {}, "iconAfterText", false) ? get(sourceSlot ?? {}, "labelWidth", 0) + 8 : 0) +
+               get(sourceSlot ?? {}, "iconSize", 34) / 2
             let beforeRow = count(pinSourceSlots, p => p.key != moveKey && p.y < hoverRowY)
-            let beforeIcon = count(pinSourceSlots, p => p.key != moveKey && p.y == hoverRowY && hoverCenterX > p.x + 2 + p.iconSize / 2)
+             let beforeIcon = count(pinSourceSlots, p => p.key != moveKey && p.y == hoverRowY &&
+               hoverCenterX > p.x + 2 + (p.iconAfterText ? p.labelWidth + 8 : 0) + p.iconSize / 2)
             moveTargetIndex = clamp(beforeRow + beforeIcon, 0, max(0, len(moveKeys) - 1))
           } else {
             moveTargetIndex = clamp(nextIndex, 0, max(0, len(moveKeys) - 1))
@@ -2192,6 +2320,9 @@ face "Omagara" {
           if alphabetMode && moveSideRight {
             Text { text: a.name; font: chosenFont; fontSize: 15; color: primaryText; maxLines: 1; weight: 1; align: end }
           }
+          if !alphabetMode && showText && iconAfterText {
+            Text { text: a.name; font: chosenFont; fontSize: 15; color: primaryText; maxLines: 1; weight: 1; align: end }
+          }
           if a.folderId != null {
             FolderIcon { f: find(customFolders, f => f.id == a.folderId); side: min(iconSize, slotHeight - 8) }
           } else if a.icon != null && a.icon != "" {
@@ -2199,7 +2330,7 @@ face "Omagara" {
           } else {
             Text { text: upper(sub(trim(a.name), 0, 1)); font: chosenFont; fontSize: 18; color: primaryText; width: iconSize; align: center }
           }
-          if (alphabetMode || showText) && !(alphabetMode && moveSideRight) {
+          if (alphabetMode || showText) && !(alphabetMode && moveSideRight) && !(!alphabetMode && iconAfterText) {
             Text { text: a.name; font: chosenFont; fontSize: 15; color: primaryText; maxLines: 1; weight: 1 }
           }
         }
@@ -2367,59 +2498,12 @@ face "Omagara" {
                   align: center
                   gap: 8
                   padding: [2, 2]
+                  if slot.iconAfterText {
+                    HomePinMoveText { a: a; labelWidth: slot.labelWidth; iconAfterText: true }
+                  }
                   HomePinIcon { a: a; iconSize: slot.iconSize }
-                  if slot.showLabel {
-                    Text {
-                      text: a.name
-                      width: slot.labelWidth
-                      maxLines: 1
-                      font: chosenFont
-                      fontSize: 15
-                      color: primaryText
-                      padding: cfg.shadeAppLabels ? [9, 5] : [0, 0]
-                      background: cfg.shadeAppLabels ? appLabelShade : transparent
-                      radius: cfg.shadeAppLabels && cfg.roundAppLabels ? 8 : 0
-                      onTap: {
-                        if moveMode == "pin" && layoutEditMode == "home" && a.key != moveKey {
-                          let nextPinIndex = indexOf(pinDraftKeys, a.key)
-                          if nextPinIndex >= 0 && moveOriginIndex >= 0 {
-                            if pinDraftChanged {
-                              pinnedLayouts = pinDraftLayouts
-                              pinnedAppKeys = pinDraftKeys
-                            }
-                            moveKey = a.key
-                            moveTargetIndex = nextPinIndex
-                            moveDragX = 0
-                            moveDragY = 0
-                            moveDragging = false
-                            moveLiftStarted = time
-                          }
-                        }
-                      }
-                      onLongPress: {
-          // Save current preview before selecting the held pin.
-          if moveMode == "pin" && a.key != moveKey && contains(pinDraftKeys, a.key) {
-            let nextPinIndex = indexOf(pinDraftKeys, a.key)
-            if moveOriginIndex >= 0 && moveTargetIndex >= 0 && moveTargetIndex < len(moveKeys) && nextPinIndex >= 0 {
-              if pinDraftChanged {
-                pinnedLayouts = pinDraftLayouts
-                pinnedAppKeys = pinDraftKeys
-              }
-              moveKey = a.key
-              moveTargetIndex = nextPinIndex
-              moveDragX = 0
-              moveDragY = 0
-              moveDragging = false
-              moveLiftStarted = time
-              expandedPinnedKey = ""
-              folderOpenId = ""
-              pinnedMenuKey = ""
-              pinnedMenuShortcuts = null
-            }
-          } else if moveMode == "" {
-                          }
-                      }
-                    }
+                  if slot.showLabel && !slot.iconAfterText {
+                    HomePinMoveText { a: a; labelWidth: slot.labelWidth }
                   }
                 }
               }
@@ -2438,6 +2522,7 @@ face "Omagara" {
               snapX: destination.x - origin.x
               snapY: destination.y - origin.y
               showText: destination.showLabel
+              iconAfterText: destination.iconAfterText
               viewportHeight: max(48 * len(pinnedRows), 48 * len(pinDraftRows) + (pinDraftControlBelow ? 36 : 0))
             }
           }
@@ -2464,60 +2549,12 @@ face "Omagara" {
               padding: [2, 2]
               background: moveMode == "pin" && moveTargetIndex == indexOf(pinnedAppKeys, a.key) ? alpha(accent, 0.19) : transparent
               radius: cfg.roundAppLabels ? 7 : 0
+              if showPinLabel && !rowRight {
+                HomePinRowText { a: a; labelWidth: rowLabelWidth; iconAfterText: true }
+              }
               HomePinIcon { a: a; iconSize: rowIconSize; showNoticeDot: true }
-              if showPinLabel {
-                Text {
-                  text: a.name
-                  font: chosenFont
-                  fontSize: 15
-                  color: primaryText
-                  maxLines: 1
-                  width: rowLabelWidth
-                  padding: cfg.shadeAppLabels ? [9, 5] : [0, 0]
-                  background: cfg.shadeAppLabels ? appLabelShade : transparent
-                  radius: cfg.shadeAppLabels && cfg.roundAppLabels ? 8 : 0
-                  onTap: {
-                    if moveMode == "pin" {
-                      let rowSourceSlot = find(pinSourceSlots, p => p.key == moveKey)
-                      let target = find(pinSourceSlots, p => p.key == a.key)
-                      moveTargetIndex = indexOf(moveOtherKeys, a.key)
-                      if rowSourceSlot != null && target != null {
-                        moveDragX = target.x - rowSourceSlot.x
-                        moveDragY = target.y - rowSourceSlot.y
-                      }
-                      moveDragging = false
-                    } else if moveMode == "" && layoutEditMode == "home" {
-                      let currentIndex = indexOf(pinnedAppKeys, a.key)
-                      if currentIndex >= 0 {
-                        moveMode = "pin"
-                        moveKey = a.key
-                        moveLetter = ""
-                        moveTargetIndex = currentIndex
-                        moveDragX = 0
-                        moveDragY = 0
-                        moveDragging = false
-                        moveLiftStarted = time
-                        expandedPinnedKey = ""
-                        folderOpenId = ""
-                        pinnedMenuKey = ""
-                        pinnedMenuShortcuts = null
-                      }
-                    } else if moveMode == "" {
-                      androidApp(a.key)
-                    }
-                  }
-                  onLongPress: {
-                    if moveMode == "" {
-                      pinnedMenuShortcuts = null
-                      pinnedMenuKey = a.key
-                      if a.folderId != null {
-              pinnedMenuShortcuts = []
-            } else {
-              pinnedMenuShortcuts = shortcuts(a.key)
-            }
-                    }
-                  }
-                }
+              if showPinLabel && rowRight {
+                HomePinRowText { a: a; labelWidth: rowLabelWidth }
               }
             }
           }
@@ -3363,8 +3400,8 @@ face "Omagara" {
       }
       Box {
         fill: true
-        align: alphabetSide == -1 ? "topStart" : "topEnd"
-        padding: alphabetSide == -1 ? [screenLeft + 42, wormEditorTop, 0, 0] : [0, wormEditorTop, screenRight + 42, 0]
+        align: wormHandleOnLeft ? "topStart" : "topEnd"
+        padding: wormHandleOnLeft ? [screenLeft + 42, wormEditorTop, 0, 0] : [0, wormEditorTop, screenRight + 42, 0]
         LayoutSpacingHandle { zone: "rail" }
       }
     }
