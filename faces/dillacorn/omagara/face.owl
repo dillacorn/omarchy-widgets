@@ -319,9 +319,20 @@ face "Omagara" {
   let pickerApps = (installed ?? []).filter(a => trim(appPickerQuery) == "" || contains(lower(a.name), lower(trim(appPickerQuery))) || contains(lower(a.package), lower(trim(appPickerQuery)))).sortBy(a => lower(a.name)).take(40)
   let selectedMusicApps = (installed ?? []).filter(a => contains(musicAppKeys, a.key)).sortBy(a => lower(a.name)).take(5)
   // Stable folder IDs survive rename; prefix disambiguates app/profile keys.
+  // Only the available content width limits an individual horizontal row.
+  // The 24dp icon floor leaves 4dp padding and a 6dp gap between pins.
+  let noticeWidth = max(0, availableWidth - 80)
+  let pinRowCapacity = max(1, floor((noticeWidth - 2) / 34))
   let folderPins = customFolders.map(f => {key: "folder:" + f.id, name: f.name, folderId: f.id})
-  let pinnedApps = take(pinnedAppKeys.map(k => find(folderPins, p => p.key == k) ?? find(installed ?? [], a => a.key == k)).filter(a => a != null), 8)
-  let pinnedRowNumbers = map(range(len(pinnedApps)), i => sum(take(pinnedApps, i + 1).map((a, j) => j == 0 || get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "newRow", true) != false ? 1 : 0)))
+  let pinnedApps = pinnedAppKeys.map(k => find(folderPins, p => p.key == k) ?? find(installed ?? [], a => a.key == k)).filter(a => a != null)
+  // Preserve explicit row breaks; overflowing a row wraps automatically.
+  // Derive source and preview rows the same way so drag targets remain aligned.
+  let pinnedRowPlan = reduce(pinnedApps, (state, a) =>
+    state.used == 0 || state.used >= pinRowCapacity || get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "newRow", true) != false
+      ? {numbers: state.numbers + [state.row + 1], row: state.row + 1, used: 1}
+      : {numbers: state.numbers + [state.row], row: state.row, used: state.used + 1},
+    {numbers: [], row: 0, used: 0})
+  let pinnedRowNumbers = pinnedRowPlan.numbers
   let pinnedRows = unique(pinnedRowNumbers).map(r => pinnedApps.filter(a => get(pinnedRowNumbers, indexOf(pinnedApps.map(p => p.key), a.key), 0) == r))
   // Android notification identity is package + profile, not a launcher key.
   // Multiple activities for one package have only one notification owner.
@@ -451,8 +462,7 @@ face "Omagara" {
   // area. Stop 12dp above Search, leaving the lower screen clear for up/down
   // swipes even when notifications are present. Its scroll footer remains inside.
   let noticeBottom = max(screenTop + 12, (tileHeight ?? 800) - searchBottom - 60)
-  // One source of truth: 20dp outer left; 12dp clear of the 44dp right rail.
-  let noticeWidth = max(0, availableWidth - 80)
+  // Shared content width and pin-row capacity were computed above.
 
   // Preview and Save MUST use the same projected order and row breaks.
   let pinDraftActive = moveMode == "pin" && moveOriginIndex >= 0
@@ -495,8 +505,13 @@ face "Omagara" {
       pinDraftBreakKeys.map(k => merge(find(pinnedLayouts, p => p.key == k) ?? {key: k, showLabel: true}, {newRow: k == pinDraftFollowingKey ? (pinDraftJoinAfter ? false : pinDraftJoinBefore ? pinDraftFollowingStartsRow : true) : true})) +
       [merge(pinDraftOldLayout ?? {key: moveKey, showLabel: true}, {newRow: pinDraftJoinBefore ? false : pinDraftJoinAfter ? pinDraftFollowingStartsRow : true})]
   let pinDraftKeys = pinDraftActive && pinDraftChanged ? movePreviewKeys : pinnedAppKeys
-  let pinDraftApps = take(pinDraftKeys.map(k => find(pinnedApps, a => a.key == k)).filter(a => a != null), 8)
-  let pinDraftRowNumbers = map(range(len(pinDraftApps)), i => sum(take(pinDraftApps, i + 1).map((a, j) => j == 0 || get(find(pinDraftLayouts, p => p.key == a.key) ?? {}, "newRow", true) != false ? 1 : 0)))
+  let pinDraftApps = pinDraftKeys.map(k => find(pinnedApps, a => a.key == k)).filter(a => a != null)
+  let pinDraftRowPlan = reduce(pinDraftApps, (state, a) =>
+    state.used == 0 || state.used >= pinRowCapacity || get(find(pinDraftLayouts, p => p.key == a.key) ?? {}, "newRow", true) != false
+      ? {numbers: state.numbers + [state.row + 1], row: state.row + 1, used: 1}
+      : {numbers: state.numbers + [state.row], row: state.row, used: state.used + 1},
+    {numbers: [], row: 0, used: 0})
+  let pinDraftRowNumbers = pinDraftRowPlan.numbers
   let pinDraftRows = unique(pinDraftRowNumbers).map(r => pinDraftApps.filter(a => get(pinDraftRowNumbers, indexOf(pinDraftApps.map(p => p.key), a.key), 0) == r))
   // Projected row decides whether the floating app is icon-only. Make one
   // temporary 36dp lane after that row for the 32dp action controls.
@@ -2284,7 +2299,7 @@ face "Omagara" {
           }
         }
         Text {
-          text: contains(pinnedAppKeys, a.key) ? "Unpin app" : len(pinnedAppKeys) >= 8 ? "Pin limit reached (8)" : "Pin app"
+          text: contains(pinnedAppKeys, a.key) ? "Unpin app" : "Pin app"
           fill: width
           padding: [12, 14]
           onTap: {
@@ -2293,7 +2308,7 @@ face "Omagara" {
               pinnedAppKeys = pinnedAppKeys.filter(k => k != a.key)
               pinnedLayouts = pinnedLayouts.filter(p => p.key != a.key)
               if expandedPinnedKey == a.key { expandedPinnedKey = "" }
-            } else if len(pinnedAppKeys) < 8 {
+            } else {
               pinnedAppKeys = pinnedAppKeys + [a.key]
             }
           }
@@ -3112,13 +3127,13 @@ face "Omagara" {
               if i > 0 { Button { text: "↑"; onTap: customFolders = set(set(customFolders, i - 1, f), i, customFolders[i - 1]) } }
               if i < len(customFolders) - 1 { Button { text: "↓"; onTap: customFolders = set(set(customFolders, i + 1, f), i, customFolders[i + 1]) } }
               Button {
-                text: contains(pinnedAppKeys, "folder:" + f.id) ? "Unpin" : len(pinnedAppKeys) >= 8 ? "Pin limit (8)" : "Pin"
+                text: contains(pinnedAppKeys, "folder:" + f.id) ? "Unpin" : "Pin"
                 onTap: {
                   let folderPinKey = "folder:" + f.id
                   if contains(pinnedAppKeys, folderPinKey) {
                     pinnedAppKeys = pinnedAppKeys.filter(k => k != folderPinKey)
                     pinnedLayouts = pinnedLayouts.filter(p => p.key != folderPinKey)
-                  } else if len(pinnedAppKeys) < 8 {
+                  } else {
                     pinnedAppKeys = pinnedAppKeys + [folderPinKey]
                   }
                 }
@@ -3164,13 +3179,13 @@ face "Omagara" {
             }
           }
           Button {
-            text: contains(pinnedAppKeys, "folder:" + folderEditId) ? "Unpin folder" : len(pinnedAppKeys) >= 8 ? "Pin limit reached (8)" : "Pin folder"
+            text: contains(pinnedAppKeys, "folder:" + folderEditId) ? "Unpin folder" : "Pin folder"
             onTap: {
               let folderPinKey = "folder:" + folderEditId
               if contains(pinnedAppKeys, folderPinKey) {
                 pinnedAppKeys = pinnedAppKeys.filter(k => k != folderPinKey)
                 pinnedLayouts = pinnedLayouts.filter(p => p.key != folderPinKey)
-              } else if len(pinnedAppKeys) < 8 {
+              } else {
                 pinnedAppKeys = pinnedAppKeys + [folderPinKey]
               }
             }
@@ -3420,8 +3435,8 @@ face "Omagara" {
                 }
               }
               Text { text: "Most used is the default. Long-press an app in the A–Z list to move it within its letter or reset its automatic position. A small line marks moved apps. Search is unaffected."; font: chosenFont; fontSize: 12; color: secondaryText }
-              Text { text: "Pinned apps & folders · " + str(len(pinnedAppKeys)) + "/8"; color: accent; font: chosenFont; fontSize: 16; padding: [0, 12, 0, 2] }
-              Text { text: "Apps and folders share eight pin slots. Standalone pins show names; stacks hide them. Use Move app… to reorder or stack."; font: chosenFont; fontSize: 12; color: secondaryText }
+              Text { text: "Pinned apps & folders · " + str(len(pinnedAppKeys)) + " · " + str(pinRowCapacity) + " per row"; color: accent; font: chosenFont; fontSize: 16; padding: [0, 12, 0, 2] }
+              Text { text: "Pin as many apps and folders as needed. Rows wrap at this screen width; standalone pins show names and horizontal stacks hide them. Hold a pin to reorder."; font: chosenFont; fontSize: 12; color: secondaryText }
               for pinKey in pinnedAppKeys key pinKey {
                 let pinnedEntry = find(pinnedApps, a => a.key == pinKey)
                 Column {
@@ -3725,8 +3740,8 @@ face "Omagara" {
               manualAppMoves = imported.manualMoves ?? []
               customFolders = imported.folders ?? []
               folderSerial = imported.folderSerial ?? 0
-              pinnedAppKeys = take(unique(imported.pinnedApps ?? []).filter(k => sub(k, 0, 7) != "folder:" || any(imported.folders ?? [], f => "folder:" + f.id == k)), 8)
-              pinnedLayouts = (imported.pinLayouts ?? (get(imported.prefs, "compactPins", false) == true ? (imported.pinnedApps ?? []).take(8).map((k, i) => {key: k, showLabel: false, newRow: i == 0}) : [])).filter(p => contains(imported.pinnedApps ?? [], p.key)).take(8)
+              pinnedAppKeys = unique(imported.pinnedApps ?? []).filter(k => sub(k, 0, 7) != "folder:" || any(imported.folders ?? [], f => "folder:" + f.id == k))
+              pinnedLayouts = (imported.pinLayouts ?? (get(imported.prefs, "compactPins", false) == true ? (imported.pinnedApps ?? []).map((k, i) => {key: k, showLabel: false, newRow: i == 0}) : [])).filter(p => contains(imported.pinnedApps ?? [], p.key))
               expandedPinnedKey = ""
               pinnedNoticeShown = 4
               pinnedMenuKey = ""
