@@ -2252,7 +2252,7 @@ face "Omagara" {
       }
   }
 
-  // Minimal actions are part of the moving row, not a fixed screen overlay.
+  // Alphabet app move confirmation is docked at Search, not beside the row.
   // Alphabet move actions share Search's 48dp style and footer.
   component AlphabetMoveCancelButton() {
     Box {
