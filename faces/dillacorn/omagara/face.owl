@@ -461,11 +461,10 @@ face "Omagara" {
   let pinDraftTargetVisible = indexOf(pinnedApps.map(p => p.key), pinDraftOriginalTarget)
   let pinDraftOriginRow = get(pinnedRowNumbers, pinDraftOriginVisible, -1)
   let pinDraftTargetRow = get(pinnedRowNumbers, pinDraftTargetVisible, -2)
-  // Icon-only move actions use an extra temporary lane below the selected icon.
-  // Source and destination slots share the same row pitch during editing.
-  let pinControlBelow = pinDraftActive && (len(get(pinnedRows, pinDraftOriginRow - 1, [])) > 1 || get(find(pinnedLayouts, p => p.key == moveKey) ?? {}, "showLabel", true) == false)
-  let pinPreviewStep = pinControlBelow ? 88 : 48
-  let pinDragThreshold = pinControlBelow ? 22 : 42
+  // The gesture threshold depends on the SOURCE row. Its preview appearance
+  // follows the DESTINATION row without stretching every app row.
+  let pinSourceIconOnly = pinDraftActive && (len(get(pinnedRows, pinDraftOriginRow - 1, [])) > 1 || get(find(pinnedLayouts, p => p.key == moveKey) ?? {}, "showLabel", true) == false)
+  let pinDragThreshold = pinSourceIconOnly ? 22 : 42
   let pinDraftHorizontal = pinDraftActive && abs(moveDragX) >= pinDragThreshold && abs(moveDragX) * 2 >= abs(moveDragY)
   let pinDraftSameRow = pinDraftHorizontal && pinDraftRelocated && pinDraftOriginRow > 0 && pinDraftOriginRow == pinDraftTargetRow
   let pinDraftJoinBefore = pinDraftHorizontal && moveDragX >= pinDragThreshold && moveTargetIndex > 0
@@ -498,6 +497,11 @@ face "Omagara" {
   let pinDraftApps = take(pinDraftKeys.map(k => find(installed ?? [], a => a.key == k)).filter(a => a != null), 8)
   let pinDraftRowNumbers = map(range(len(pinDraftApps)), i => sum(take(pinDraftApps, i + 1).map((a, j) => j == 0 || get(find(pinDraftLayouts, p => p.key == a.key) ?? {}, "newRow", true) != false ? 1 : 0)))
   let pinDraftRows = unique(pinDraftRowNumbers).map(r => pinDraftApps.filter(a => get(pinDraftRowNumbers, indexOf(pinDraftApps.map(p => p.key), a.key), 0) == r))
+  // Projected row decides whether the floating app is icon-only. Make one
+  // temporary 36dp lane after that row for the 32dp action controls.
+  let pinDraftMoveRow = get(pinDraftRowNumbers, indexOf(pinDraftApps.map(p => p.key), moveKey), 1)
+  let pinDraftMoveRowPins = get(pinDraftRows, pinDraftMoveRow - 1, [])
+  let pinDraftControlBelow = pinDraftActive && (len(pinDraftMoveRowPins) > 1 || get(find(pinDraftLayouts, p => p.key == moveKey) ?? {}, "showLabel", true) == false)
   // In-place slots use the existing 42dp row + 6dp gap.
   let pinSourceRowGeometry = pinnedRows.map((row, ri) => {
     apps: row, rowIndex: ri,
@@ -509,7 +513,7 @@ face "Omagara" {
     widths: r.apps.map(a => r.iconSize + 4 + (len(r.apps) == 1 && get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false ? 8 + min(152, max(42, (noticeWidth - len(r.apps) * (r.iconSize + 12) - 8) / max(1, r.namedCount))) : 0))
   }))
   let pinSourceSlots = flatten(pinSourceSlotGeometry.map(r => r.apps.map((a, i) => {
-    key: a.key, x: sum(take(r.widths, i)) + i * 6, y: r.rowIndex * pinPreviewStep,
+    key: a.key, x: sum(take(r.widths, i)) + i * 6, y: r.rowIndex * 48,
     width: get(r.widths, i, 38), iconSize: r.iconSize, labelWidth: r.labelWidth,
     showLabel: len(r.apps) == 1 && get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false
   })))
@@ -524,7 +528,7 @@ face "Omagara" {
     widths: r.apps.map(a => r.iconSize + 4 + (len(r.apps) == 1 && get(find(pinDraftLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false ? 8 + min(152, max(42, (noticeWidth - len(r.apps) * (r.iconSize + 12) - 8) / max(1, r.namedCount))) : 0))
   }))
   let pinTargetSlots = flatten(pinTargetSlotGeometry.map(r => r.apps.map((a, i) => {
-    key: a.key, x: sum(take(r.widths, i)) + i * 6, y: r.rowIndex * pinPreviewStep,
+    key: a.key, x: sum(take(r.widths, i)) + i * 6, y: r.rowIndex * 48 + (pinDraftControlBelow && r.rowIndex >= pinDraftMoveRow ? 36 : 0),
     width: get(r.widths, i, 38), iconSize: r.iconSize, labelWidth: r.labelWidth,
     showLabel: len(r.apps) == 1 && get(find(pinDraftLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false
   })))
@@ -1410,7 +1414,7 @@ face "Omagara" {
           moveDragY = nextY
           let displayIndex = indexOf(pinnedApps.map(p => p.key), moveKey)
           let sourceRow = get(pinnedRowNumbers, displayIndex, 1)
-          let targetRow = clamp(sourceRow + round(nextY / pinPreviewStep), 1, max(1, len(pinnedRows)))
+          let targetRow = clamp(sourceRow + round(nextY / 48), 1, max(1, len(pinnedRows)))
           let targetRowPins = get(pinnedRows, targetRow - 1, [])
           let targetPin = nextX >= 42 ? last(targetRowPins) : first(targetRowPins)
           let targetPinIndex = targetPin == null ? moveOriginIndex : indexOf(pinnedAppKeys, targetPin.key)
@@ -1568,7 +1572,7 @@ face "Omagara" {
       if moveMode == "pin" {
         Box {
           width: noticeWidth
-          height: pinPreviewStep * max(len(pinnedRows), len(pinDraftRows))
+          height: max(48 * len(pinnedRows), 48 * len(pinDraftRows) + (pinDraftControlBelow ? 36 : 0))
           let destination = find(pinTargetSlots, slot => slot.key == moveKey)
           let origin = find(pinSourceSlots, slot => slot.key == moveKey)
           if destination != null {
@@ -1625,19 +1629,20 @@ face "Omagara" {
               }
             }
           }
-          // Preserve the selected app identity, width and origin during reorder.
+          // Keep the source anchor, but preview destination icon size,
+          // label visibility and ×/✓ placement before confirmation.
           if moveApp != null && destination != null && origin != null {
             FloatingMoveApp {
               a: moveApp
-              slotWidth: origin.width
+              slotWidth: destination.width
               slotHeight: 42
-              iconSize: origin.iconSize
+              iconSize: destination.iconSize
               baseX: origin.x
               baseY: origin.y
               snapX: destination.x - origin.x
               snapY: destination.y - origin.y
-              showText: origin.showLabel
-              viewportHeight: pinPreviewStep * max(len(pinnedRows), len(pinDraftRows))
+              showText: destination.showLabel
+              viewportHeight: max(48 * len(pinnedRows), 48 * len(pinDraftRows) + (pinDraftControlBelow ? 36 : 0))
             }
           }
         }
