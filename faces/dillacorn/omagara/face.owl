@@ -1325,67 +1325,100 @@ face "Omagara" {
       }
   }
 
-  // This node stays in the real home/A-Z layout while moving. Its shadow,
-  // spring and subtle levitation communicate that it has been lifted. The
-  // finger tracks continuous motion; releasing snaps to a projected grid slot.
-  component FloatingMoveApp(a, alphabetMode = false, slotWidth = 180, slotHeight = 48, snapX = 0, snapY = 0, showText = true) {
-    let floatingWidth = alphabetMode ? min(slotWidth - 10, 230) : showText ? min(noticeWidth, max(142, slotWidth + 32)) : max(42, slotWidth)
-    let hoverAge = moveMode != "" && !cfg.reduceMotion ? max(0, time - moveLiftStarted) : 0
-    let liftPhase = cfg.reduceMotion ? 1 : 1 - pow(1 - clamp(hoverAge / 0.22, 0, 1), 3)
-    let hoverLift = cfg.reduceMotion ? 0 : liftPhase * (2 + 1.6 * sin(hoverAge * 4.8))
-    let liveX = moveDragging ? moveDragX : snapX
-    let liveY = moveDragging ? moveDragY : snapY
-    let originSlot = find(pinSourceSlots, p => p.key == moveKey)
-    let originX = get(originSlot ?? {}, "x", 0)
-    let originY = get(originSlot ?? {}, "y", 0)
-    let gridMinX = -originX
-    let gridMaxX = max(gridMinX, noticeWidth - originX - floatingWidth)
-    let gridMinY = -originY
-    let gridMaxY = max(0, 48 * max(len(pinDraftRows), len(pinnedRows)) - originY - slotHeight)
-    // Magnetized grid with correct bounds even when labels disappear or a
-    // formerly joined last icon is pulled into an entirely new row.
-    let visualX = alphabetMode ? clamp(liveX, -9, 9) : clamp(moveDragging ? lerp(liveX, snapX, 0.18) : liveX, gridMinX, gridMaxX)
-    let visualY = moveDragging ? lerp(liveY, snapY, 0.18) : liveY
-    let limitedY = alphabetMode ? clamp(visualY, -moveOriginIndex * appRowHeight, max(0, len(moveKeys) - moveOriginIndex - 1) * appRowHeight) : clamp(visualY, gridMinY, gridMaxY)
-    Box {
-      width: slotWidth
-      height: slotHeight
+  // Minimal actions are part of the moving row, not a fixed screen overlay.
+  component MoveControls(controlHeight = 44) {
+    Row {
+      width: 72
+      height: controlHeight
+      gap: 0
+      align: center
       Box {
-        width: floatingWidth
-        height: slotHeight
-        offset: [visualX + 4, limitedY + 6]
-        animate offset: spring(0.78, 210)
-        background: alpha(background, 0.28)
-        radius: 10
+        width: 36
+        height: controlHeight
+        align: center
+        onTap: {
+          moveMode = ""
+          moveKey = ""
+          moveLetter = ""
+          moveDragX = 0
+          moveDragY = 0
+          moveDragging = false
+        }
+        Text { text: "×"; font: chosenFont; fontSize: 24; color: primaryText; align: center }
       }
       Box {
+        width: 36
+        height: controlHeight
+        align: center
+        onTap: {
+          if moveOriginIndex >= 0 && moveTargetIndex >= 0 && moveTargetIndex < len(moveKeys) {
+            if moveMode == "pin" {
+              if pinDraftChanged {
+                pinnedLayouts = pinDraftLayouts
+                pinnedAppKeys = pinDraftKeys
+              }
+            } else if moveMode == "alphabet" && moveTargetIndex != moveOriginIndex {
+              let neighbor = moveTargetIndex == 0 ? get(moveOtherKeys, 0) : get(moveOtherKeys, moveTargetIndex - 1)
+              if neighbor != null {
+                manualAppMoves = manualAppMoves + [{letter: moveLetter, key: moveKey, anchor: neighbor, after: moveTargetIndex > 0}]
+                appVelocity = 0
+                appScroll = appOffset
+                appAnchor = ""
+              }
+            }
+          }
+          moveMode = ""
+          moveKey = ""
+          moveLetter = ""
+          moveDragX = 0
+          moveDragY = 0
+          moveDragging = false
+        }
+        Text { text: "✓"; font: chosenFont; fontSize: 22; color: accent; align: center }
+      }
+    }
+  }
+
+  // Keep one anchored floating row and stable touch area through every snap.
+  // Neighbors animate to slots; the selected item follows finger deltas alone.
+  component FloatingMoveApp(a, alphabetMode = false, slotWidth = 180, slotHeight = 48, baseX = 0, baseY = 0, snapX = 0, snapY = 0, showText = true, viewportHeight = 0) {
+    let panelWidth = alphabetMode ? appPanelWidth : noticeWidth
+    let floatingWidth = alphabetMode ? min(panelWidth, max(114, min(panelWidth - 8, 260))) : min(panelWidth, max(114, slotWidth + 86))
+    let hoverAge = moveMode != "" && !cfg.reduceMotion ? max(0, time - moveLiftStarted) : 0
+    let liftPhase = cfg.reduceMotion ? 1 : 1 - pow(1 - clamp(hoverAge / 0.22, 0, 1), 3)
+    let hoverLift = cfg.reduceMotion ? 0 : liftPhase * (2 + 1.2 * sin(hoverAge * 4.8))
+    let minX = -baseX
+    let maxX = max(minX, panelWidth - baseX - floatingWidth)
+    let minY = -baseY
+    let maxY = max(minY, viewportHeight - baseY - slotHeight)
+    let visualX = clamp(moveDragging ? moveDragX : snapX, minX, maxX)
+    let visualY = clamp(moveDragging ? moveDragY : snapY, minY, maxY)
+    let paintedY = clamp(baseY + visualY - hoverLift, 0, max(0, viewportHeight - slotHeight))
+    Box {
+      width: panelWidth
+      height: viewportHeight
+      Box {
         width: floatingWidth
         height: slotHeight
-        offset: [visualX, limitedY - hoverLift]
-        animate offset: spring(0.79, 250)
-        scale: cfg.reduceMotion ? 1.045 : 1 + 0.075 * liftPhase + 0.014 * liftPhase * sin(hoverAge * 4.8)
-        animate scale: spring(0.80, 200)
-        background: alpha(surface, 0.79)
-        border: 2
-        borderColor: accent
-        radius: 9
+        offset: [baseX + visualX, paintedY]
+        animate offset: spring(0.83, 300)
+        scale: cfg.reduceMotion ? 1 : 1 + liftPhase * (0.025 + 0.006 * sin(hoverAge * 4.8))
+        animate scale: spring(0.84, 210)
         onDrag: {
+          // Start another drag from the displayed snap, not the old finger delta.
+          let nextX = (moveDragging ? moveDragX : visualX) + dx
+          let nextY = (moveDragging ? moveDragY : visualY) + dy
           moveDragging = true
-          let nextX = moveDragX + dx
-          let nextY = moveDragY + dy
           moveDragX = nextX
           moveDragY = nextY
-          // The grid is discrete. Only valid app slots can be selected.
           let displayIndex = indexOf(pinnedApps.map(p => p.key), moveKey)
-          let originRow = get(pinnedRowNumbers, displayIndex, 1)
-          let destinationRow = clamp(originRow + round(nextY / 48), 1, max(1, len(pinnedRows)))
-          let destinationItems = get(pinnedRows, destinationRow - 1, [])
-          let destinationPin = nextX >= 42 ? last(destinationItems) : first(destinationItems)
-          let destinationIndex = destinationPin == null ? moveOriginIndex : indexOf(pinnedAppKeys, destinationPin.key)
-          let differentRow = destinationRow != originRow
-          // Pulling a pin downward out of the last joined row places it
-          // AFTER its siblings, never above the row it was dragged out of.
-          let pinIndex = abs(nextY) >= 24 ? (differentRow ? destinationIndex : nextY > 0 && len(destinationItems) > 1 ? indexOf(pinnedAppKeys, last(destinationItems).key) : moveOriginIndex) : moveOriginIndex + round(nextX / 60)
+          let sourceRow = get(pinnedRowNumbers, displayIndex, 1)
+          let targetRow = clamp(sourceRow + round(nextY / 48), 1, max(1, len(pinnedRows)))
+          let targetRowPins = get(pinnedRows, targetRow - 1, [])
+          let targetPin = nextX >= 42 ? last(targetRowPins) : first(targetRowPins)
+          let targetPinIndex = targetPin == null ? moveOriginIndex : indexOf(pinnedAppKeys, targetPin.key)
+          let differentRow = targetRow != sourceRow
+          let pinIndex = abs(nextY) >= 24 ? (differentRow ? targetPinIndex : nextY > 0 && len(targetRowPins) > 1 ? indexOf(pinnedAppKeys, last(targetRowPins).key) : moveOriginIndex) : moveOriginIndex + round(nextX / 60)
           let nextIndex = alphabetMode ? moveOriginIndex + round(nextY / appRowHeight) : pinIndex
           moveTargetIndex = clamp(nextIndex, 0, max(0, len(moveKeys) - 1))
         }
@@ -1394,8 +1427,8 @@ face "Omagara" {
           fill: width
           height: slotHeight
           align: center
-          padding: [4, 7]
-          gap: 8
+          padding: [2, 2]
+          gap: 6
           if a.icon != null && a.icon != "" {
             Image { src: a.icon; size: min(34, slotHeight - 8); label: a.name }
           } else {
@@ -1403,10 +1436,10 @@ face "Omagara" {
           }
           if alphabetMode || showText {
             Text { text: a.name; font: chosenFont; fontSize: 15; color: primaryText; maxLines: 1; weight: 1 }
+          } else {
+            Spacer { weight: 1 }
           }
-          if alphabetMode || showText && floatingWidth > 92 {
-            Text { text: "⠿"; font: chosenFont; fontSize: 20; color: accent }
-          }
+          MoveControls { controlHeight: slotHeight - 4 }
         }
       }
     }
@@ -1589,20 +1622,18 @@ face "Omagara" {
               }
             }
           }
-          // Paint the selected card LAST, on top of its shifting neighbors.
+          // Preserve the selected app identity, width and origin during reorder.
           if moveApp != null && destination != null && origin != null {
-            Box {
-              width: origin.width
-              height: 42
-              offset: [origin.x, origin.y]
-              FloatingMoveApp {
-                a: moveApp
-                slotWidth: destination.width
-                slotHeight: 42
-                snapX: destination.x - origin.x
-                snapY: destination.y - origin.y
-                showText: destination.showLabel
-              }
+            FloatingMoveApp {
+              a: moveApp
+              slotWidth: origin.width
+              slotHeight: 42
+              baseX: origin.x
+              baseY: origin.y
+              snapX: destination.x - origin.x
+              snapY: destination.y - origin.y
+              showText: origin.showLabel
+              viewportHeight: max(48 * len(pinnedRows), 48 * len(pinDraftRows))
             }
           }
         }
@@ -1619,9 +1650,6 @@ face "Omagara" {
           gap: 6
           for a in rowPins key a.key {
             let showPinLabel = !rowJoined && get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false
-            if moveMode == "pin" && moveKey == a.key {
-              FloatingMoveApp { a: a; slotWidth: rowIconSize + (showPinLabel ? rowLabelWidth + 8 : 0) + 4; slotHeight: max(42, rowIconSize + 6) }
-            } else {
             Row {
               align: center
               gap: 8
@@ -1664,7 +1692,6 @@ face "Omagara" {
                   }
                 }
               }
-            }
             }
           }
         }
@@ -1727,63 +1754,6 @@ face "Omagara" {
         NotificationRow { item: noticeRow.item; stack: noticeRow.stack; summary: noticeRow.summary }
       }
       Spacer { width: noticeWidth; height: 20 }
-    }
-  }
-
-  // Small confirmation controls; no obscuring modal and no duplicate app list.
-  component MoveControls() {
-    // The control surface is physically small: it cannot cover drag targets.
-    Box {
-      width: min(210, max(150, availableWidth - 45))
-      height: 58
-      offset: [screenLeft + 20, max(screenTop + 60, (tileHeight ?? 800) - searchBottom - 122)]
-      Row {
-        fill: width
-        gap: 8
-        padding: [7, 8]
-        background: alpha(surface, 0.92)
-        border: 1
-        borderColor: accent
-        radius: 8
-        Button {
-          text: "× Cancel"
-          onTap: {
-            moveMode = ""
-            moveKey = ""
-            moveLetter = ""
-            moveDragX = 0
-            moveDragY = 0
-            moveDragging = false
-          }
-        }
-        Button {
-          text: "✓"
-          onTap: {
-            if moveOriginIndex >= 0 && moveTargetIndex >= 0 && moveTargetIndex < len(moveKeys) {
-              if moveMode == "pin" {
-                if pinDraftChanged {
-                  pinnedLayouts = pinDraftLayouts
-                  pinnedAppKeys = pinDraftKeys
-                }
-              } else if moveMode == "alphabet" && moveTargetIndex != moveOriginIndex {
-                let neighbor = moveTargetIndex == 0 ? get(moveOtherKeys, 0) : get(moveOtherKeys, moveTargetIndex - 1)
-                if neighbor != null {
-                  manualAppMoves = manualAppMoves + [{letter: moveLetter, key: moveKey, anchor: neighbor, after: moveTargetIndex > 0}]
-                  appVelocity = 0
-                  appScroll = appOffset
-                  appAnchor = ""
-                }
-              }
-            }
-            moveMode = ""
-            moveKey = ""
-            moveLetter = ""
-            moveDragX = 0
-            moveDragY = 0
-            moveDragging = false
-          }
-        }
-      }
     }
   }
 
@@ -2126,16 +2096,7 @@ face "Omagara" {
     Box {
       fill: width
       height: thumbView ? appRowHeight : null
-    // The highlighted app itself is draggable in the real alphabet list.
-    if moveMode == "alphabet" && moveKey == a.key && thumbView && !searchView && !folderView {
-      FloatingMoveApp {
-        a: a
-        alphabetMode: true
-        slotWidth: appPanelWidth - 8
-        slotHeight: appRowHeight
-        snapY: (moveTargetIndex - moveOriginIndex) * appRowHeight
-      }
-    } else {
+    // The chosen app is rendered separately over the full list viewport.
     Row {
       fill: width
       height: thumbView ? appRowHeight : null
@@ -2340,7 +2301,6 @@ face "Omagara" {
           }
         }
       }
-    }
     }
     }
   }
@@ -2582,7 +2542,7 @@ face "Omagara" {
           }
         }
         // Paint selected app last, above neighbors flowing to final slots.
-        for row in (moveMode == "alphabet" ? appWindow.filter(r => r.id != moveKey) + appWindow.filter(r => r.id == moveKey) : appWindow) key row.id {
+        for row in (moveMode == "alphabet" ? appWindow.filter(r => r.id != moveKey) : appWindow) key row.id {
           // Preview rows use their own bounded screen positions; ordinary
           // scrolling still uses continuous document coordinates.
           let rowY = appPreviewing ? row.top : row.top - appOffset
@@ -2692,6 +2652,19 @@ face "Omagara" {
                 }
               }
             }
+          }
+        }
+        // Give the selected app a full-viewport touch region so buttons stay
+        // attached and usable after it leaves its original alphabetical row.
+        if moveMode == "alphabet" && floatingWindowRow != null && moveApp != null {
+          FloatingMoveApp {
+            a: moveApp
+            alphabetMode: true
+            slotWidth: appPanelWidth - 8
+            slotHeight: appRowHeight
+            baseY: appPreviewing ? floatingWindowRow.top : floatingWindowRow.top - appOffset
+            snapY: (moveTargetIndex - moveOriginIndex) * appRowHeight
+            viewportHeight: appPanelHeight
           }
         }
         if len(apps) == 0 {
@@ -2990,10 +2963,6 @@ face "Omagara" {
           circle(originX, originY, 3.2, fill: alpha(#FFF5CB, fade))
         }
       }
-    }
-    // Only a small checkmark/cancel strip overlays the actual app layout.
-    if moveMode != "" {
-      MoveControls {}
     }
   }
 
