@@ -377,6 +377,17 @@ face "Omagara" {
   let moveOriginIndex = indexOf(moveKeys, moveKey)
   let moveOtherKeys = moveKeys.filter(k => k != moveKey)
   let movePreviewKeys = moveOriginIndex < 0 ? [] : take(moveOtherKeys, moveTargetIndex) + [moveKey] + drop(moveOtherKeys, moveTargetIndex)
+  // Replaying other users' manual moves without the selected app's
+  // overrides reveals where that app belongs when its marker is reset.
+  let alphabetResetKeys = moveMode == "alphabet" ?
+    reduce(manualAppMoves.filter(m => m.letter == moveLetter && m.key != moveKey), (rows, m) =>
+      m.key == m.anchor || indexOf(rows.map(a => a.key), m.key) < 0 || indexOf(rows.map(a => a.key), m.anchor) < 0
+        ? rows
+        : take(rows.filter(a => a.key != m.key), indexOf(rows.filter(a => a.key != m.key).map(a => a.key), m.anchor) + (m.after ? 1 : 0))
+          + [find(rows, a => a.key == m.key)]
+          + drop(rows.filter(a => a.key != m.key), indexOf(rows.filter(a => a.key != m.key).map(a => a.key), m.anchor) + (m.after ? 1 : 0)),
+      get(automaticGroups, moveLetter, [])).map(a => a.key) : []
+  let alphabetAtResetPosition = moveMode == "alphabet" && toJson(movePreviewKeys) == toJson(alphabetResetKeys)
   let moveApp = moveMode == "pin" ? find(pinnedApps, a => a.key == moveKey) : find(installed ?? [], a => a.key == moveKey)
   // Freeze mapping and geometry for the entire touch, even if apps update.
   let liveAlphabet = cfg.hideEmpty ? fullAlphabet.filter(c => len(get(groups, c, [])) > 0) : fullAlphabet
@@ -1309,7 +1320,11 @@ face "Omagara" {
           let previousAnchor = moveTargetIndex == 0 ? get(moveOtherKeys, 0) : get(moveOtherKeys, moveTargetIndex - 1)
           if moveOriginIndex >= 0 && moveTargetIndex >= 0 && moveTargetIndex < len(moveKeys) &&
              nextIndex >= 0 && (moveTargetIndex == moveOriginIndex || previousAnchor != null) {
-            if moveTargetIndex != moveOriginIndex {
+            if alphabetAtResetPosition {
+              if any(manualAppMoves, m => m.key == moveKey) {
+                manualAppMoves = manualAppMoves.filter(m => m.key != moveKey)
+              }
+            } else if moveTargetIndex != moveOriginIndex {
               manualAppMoves = manualAppMoves + [{letter: moveLetter, key: moveKey, anchor: previousAnchor, after: moveTargetIndex > 0}]
             }
             rightAlignedAppKeys = moveSideRight ? unique(rightAlignedAppKeys + [moveKey]) : rightAlignedAppKeys.filter(k => k != moveKey)
@@ -2209,7 +2224,12 @@ face "Omagara" {
                 pinnedAppKeys = pinDraftKeys
               }
             } else if moveMode == "alphabet" {
-              if moveTargetIndex != moveOriginIndex {
+              if alphabetAtResetPosition {
+                // No effective override remains. Remove history and its line.
+                if any(manualAppMoves, m => m.key == moveKey) {
+                  manualAppMoves = manualAppMoves.filter(m => m.key != moveKey)
+                }
+              } else if moveTargetIndex != moveOriginIndex {
                 let neighbor = moveTargetIndex == 0 ? get(moveOtherKeys, 0) : get(moveOtherKeys, moveTargetIndex - 1)
                 if neighbor != null {
                   manualAppMoves = manualAppMoves + [{letter: moveLetter, key: moveKey, anchor: neighbor, after: moveTargetIndex > 0}]
@@ -2704,6 +2724,7 @@ face "Omagara" {
       // Hit region stays fixed; the glyph transforms are visual only.
       ripple: false
       onPress: {
+        if moveMode != "alphabet" {
         // Each alphabet opening re-arms the charm for this day.
         holidayAnimPlaying = false
         holidayPlayedStamp = ""
@@ -2761,8 +2782,10 @@ face "Omagara" {
         expandedStack = ""
         replyKey = ""
         replyDraft = ""
-      }
+      
+        }}
       onDrag: {
+        if moveMode != "alphabet" {
         appTracking = false
         appVelocity = 0
         railReturning = false
@@ -2807,8 +2830,10 @@ face "Omagara" {
         expandedStack = ""
         replyKey = ""
         replyDraft = ""
-      }
+      
+        }}
       onTap: {
+        if moveMode != "alphabet" {
         holidayAnimPlaying = false; holidayPlayedStamp = ""
         if railFolderSelected >= 0 && !railFolderLongPressed {
           // The shortcut selects the collected folder rows, not a new page.
@@ -2818,19 +2843,23 @@ face "Omagara" {
         } else if !railFolderLongPressed {
           browsing = true; activeSide = 0; railHeld = false; railSettingsSelected = false; railPull = 0
         }
-      }
+      
+        }}
       onLongPress: {
+        if moveMode != "alphabet" {
         if railFolderSelected >= 0 {
           railFolderLongPressed = true
           activeSide = 0; railHeld = false; draggingSide = 0; browsing = false; appVelocity = 0; menu = ""; folderOpenId = ""
           folderDraft = ""; screenMode = "folderList"
           screen()
         }
-      }
+      
+        }}
       // A press is cancelled when the drag detector consumes its first move.
       // Keep the curve active in either detector order at that transition;
       // a real drag release/cancellation always clears both states below.
       onRelease: {
+        if moveMode != "alphabet" {
         if draggingSide == 0 {
           // Capture the actual visible shape, including partial entrance.
           railReturnFrom = railOverpull
@@ -2842,8 +2871,10 @@ face "Omagara" {
           railEntering = false
           activeSide = 0; railHeld = false; railSettingsSelected = false; railPull = 0
         }
-      }
+      
+        }}
       onDragEnd: {
+        if moveMode != "alphabet" {
         // Lower-to-upper and upper-to-lower flicks create opposite ripples.
         let flickTravel = railFlickLastY - railFlickStartY
         let flickAge = max(0.04, time - railFlickStarted)
@@ -2876,7 +2907,8 @@ face "Omagara" {
           browsing = true; appVelocity = 0; menu = ""; folderOpenId = ""
           appScroll = clamp(appFolderTop + appLabelHeight - appPanelHeight * 0.3, 0, appMaxScroll)
         }
-      }
+      
+        }}
       // The selected edge draws the glyphs; the other edge is optional input.
       // Keep showing the worm during its release return even if idle alphabet is hidden.
       if visual && (cfg.idleAlphabet || activeSide != 0 || railReturning || railWiggling) {
