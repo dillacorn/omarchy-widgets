@@ -467,13 +467,20 @@ face "Omagara" {
   let headerDateText = fmtTime(now, headerDatePattern) + headerBatteryText
   let compactHeaderDateText = fmtTime(now, "EEE, MMM d") + headerBatteryText
   let headerEventText = todayEvent != null ? todayEvent.title + " · " + (todayEvent.allDay ? "Today" : fmtTime(todayEvent.start, timePattern)) : ""
-  let headerClockFont = compact ? 36 : 48
-  let headerClockHeight = compact ? 47 : 63
+  // Shrink the clock smoothly as screen height, text width, or the Home
+  // header handle reduces its space. Keep a legible 18dp lower bound.
+  // OWL 21 does not measure text, so use the same approximate glyph widths
+  // for both the font fit and the header shade geometry.
+  let headerShapeMax = max(100, availableWidth - 60)
+  let headerClockGlyphUnits = cfg.faceFont == "Launcher" ? 0.68 * len(headerClockText) : sum(map(range(len(headerClockText)), i => contains(":., ", sub(headerClockText, i, i + 1)) ? 0.27 : 0.64))
+  let headerClockWidthBudget = max(70, min(headerShapeMax, noticeWidth - 12))
+  let headerClockFont = floor(clamp(min(48, (availableHeight - 320) / 6, 48 + min(0, headerSpacing) * 0.62, (headerClockWidthBudget - 16) / max(0.1, headerClockGlyphUnits)), 18, 48))
+  let headerClockHeight = round(63 * headerClockFont / 48)
+  let compactHeaderClockFont = floor(clamp(min(27, headerClockFont * 0.67, (min(118, noticeWidth * 0.36) - 4) / max(0.1, headerClockGlyphUnits)), 14, 27))
   let headerDateHeight = 27
   let headerEventHeight = 24
   let headerPadTop = max(0, (compactHeader ? 4 : compact ? 0 : 20) + min(0, headerSpacing))
-  let headerShapeMax = max(100, availableWidth - 60)
-  let headerClockWidth = min(headerShapeMax, 16 + headerClockFont * (cfg.faceFont == "Launcher" ? 0.68 * len(headerClockText) : sum(map(range(len(headerClockText)), i => contains(":., ", sub(headerClockText, i, i + 1)) ? 0.27 : 0.64))))
+  let headerClockWidth = min(headerShapeMax, 16 + headerClockFont * headerClockGlyphUnits)
   let headerDateWidth = min(headerShapeMax, 28 + 16 * (cfg.faceFont == "Launcher" ? 0.68 * len(headerDateText) : sum(map(range(len(headerDateText)), i => contains("iltfjI!.,:; '1", sub(headerDateText, i, i + 1)) ? 0.30 : contains("MW@QO", sub(headerDateText, i, i + 1)) ? 0.77 : 0.55))))
   let headerEventWidth = min(headerShapeMax, 26 + 13 * (cfg.faceFont == "Launcher" ? 0.68 * len(headerEventText) : sum(map(range(len(headerEventText)), i => contains("iltfjI!.,:; '1", sub(headerEventText, i, i + 1)) ? 0.30 : contains("MW@QO", sub(headerEventText, i, i + 1)) ? 0.77 : 0.55))))
   let headerRows = (cfg.clock ? [{w: headerClockWidth, h: headerClockHeight}] : []) + (cfg.date ? [{w: headerDateWidth, h: headerDateHeight}] : []) + (cfg.event && todayEvent != null ? [{w: headerEventWidth, h: headerEventHeight}] : [])
@@ -1738,7 +1745,7 @@ face "Omagara" {
                     text: headerClockText
                     width: min(118, noticeWidth * 0.36)
                     font: chosenFont
-                    fontSize: compact ? 22 : 27
+                    fontSize: compactHeaderClockFont
                     fontWeight: 300
                     color: primaryText
                     maxLines: 1
