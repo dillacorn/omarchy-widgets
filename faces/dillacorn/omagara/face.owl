@@ -1828,20 +1828,6 @@ face "Omagara" {
           }
           }
         }
-        // A small always-available button collapses/expands the clock/date.
-        if cfg.clock || cfg.date {
-          Box {
-            size: 26
-            offset: [max(0, noticeWidth - 30), headerPadTop + (compactHeader ? 8 : cfg.clock ? max(3, headerClockHeight / 2 - 13) : 3)]
-            radius: cfg.roundDate ? 6 : 0
-            background: alpha(surface, 0.84)
-            border: 1
-            borderColor: alpha(accent, 0.52)
-            align: center
-            onTap: compactHeader = !compactHeader
-            Text { text: compactHeader ? "▢" : "▤"; font: chosenFont; fontSize: 17; color: accent; align: center }
-          }
-        }
       }
   }
 
@@ -3696,7 +3682,7 @@ face "Omagara" {
               }
               Text { text: "Omagara time is set here; it does not follow Android's time format."; font: chosenFont; fontSize: 12; color: secondaryText }
               Text { text: "Home header"; color: accent; font: chosenFont; fontSize: 16; padding: [0, 12, 0, 2] }
-              Button { text: (compactHeader ? "✓ Compact header" : "Compact header") + " · " + (compactHeader ? "ON" : "OFF"); onTap: compactHeader = !compactHeader }
+              Button { text: (compactHeader ? "✓ " : "") + "Compact clock & date · " + (compactHeader ? "ON" : "OFF"); onTap: compactHeader = !compactHeader }
               Text { text: "Header alignment"; font: chosenFont; fontSize: 15 }
               Flow {
                 fill: width
