@@ -166,6 +166,13 @@ face "Omagara" {
   state settingsSection = "Home"
   // Layout handles are temporary; their bounded positions persist.
   state layoutEditMode = ""
+  // × restores the entire Home edit session; ✓ commits it.
+  state homeEditOriginalPinKeys = []
+  state homeEditOriginalPinLayouts = []
+  state homeEditOriginalHeaderSpacing = 0
+  state homeEditOriginalNoticeSpacing = 0
+  state homeEditOriginalRailShift = 0
+  state homeEditOriginalCompactHeader = false
   state alphabetRailShift = 0 persist
   state headerSpacing = 0 persist
   state noticeSpacing = 0 persist
@@ -3138,7 +3145,7 @@ face "Omagara" {
     // adjustment, unlike the old bottom-anchored Home controls.
     if layoutEditMode != "" || moveMode != "" {
       // Active apps still own their own ✓/×; Done cannot discard a draft.
-      if layoutEditMode != "" && moveMode == "" {
+      if layoutEditMode == "alphabet" && moveMode == "" {
         Box {
           fill: true
           align: topStart
@@ -3234,7 +3241,56 @@ face "Omagara" {
       fill: true
       align: controlSide == -1 ? "bottomStart" : "bottomEnd"
       padding: controlSide == -1 ? [controlLeft, 0, 0, searchBottom] : [0, 0, controlRight, searchBottom]
+      if layoutEditMode == "home" && !browsing {
+      // ✓ replaces Search at its original spot. × is to its left.
       Box {
+        fill: true
+        align: controlSide == -1 ? "bottomStart" : "bottomEnd"
+        padding: controlSide == -1 ? [controlLeft - 56, 0, 0, searchBottom] : [0, 0, controlRight, searchBottom]
+        Row {
+          width: 104
+          height: 48
+          gap: 8
+          Box {
+            size: 48
+            radius: cfg.roundSearch ? 24 : 0
+            border: cfg.bubbleBorder ? 1 : 0
+            borderColor: border
+            background: alpha(surface, cfg.shadeButtonOpacity / 100)
+            align: center
+            onTap: { pinnedAppKeys = homeEditOriginalPinKeys; pinnedLayouts = homeEditOriginalPinLayouts; headerSpacing = homeEditOriginalHeaderSpacing; noticeSpacing = homeEditOriginalNoticeSpacing; alphabetRailShift = homeEditOriginalRailShift; compactHeader = homeEditOriginalCompactHeader; moveMode = ""; moveKey = ""; moveLetter = ""; moveDragX = 0; moveDragY = 0; moveDragging = false; layoutEditMode = "" }
+            Text { text: "×"; font: chosenFont; fontSize: 25; color: primaryText; align: center }
+          }
+          Box {
+            size: 48
+            radius: cfg.roundSearch ? 24 : 0
+            border: cfg.bubbleBorder ? 1 : 0
+            borderColor: border
+            background: alpha(surface, cfg.shadeButtonOpacity / 100)
+            align: center
+            onTap: { if moveMode == "pin" && moveOriginIndex >= 0 && moveTargetIndex >= 0 && moveTargetIndex < len(moveKeys) && pinDraftChanged { pinnedLayouts = pinDraftLayouts; pinnedAppKeys = pinDraftKeys }; moveMode = ""; moveKey = ""; moveLetter = ""; moveDragX = 0; moveDragY = 0; moveDragging = false; layoutEditMode = "" }
+            Text { text: "✓"; font: chosenFont; fontSize: 25; color: primaryText; align: center }
+          }
+        }
+      }
+      // Settings cog sits directly above ✓ with identical styling.
+      Box {
+        fill: true
+        align: controlSide == -1 ? "bottomStart" : "bottomEnd"
+        padding: controlSide == -1 ? [controlLeft, 0, 0, searchBottom + 56] : [0, 0, controlRight, searchBottom + 56]
+          Box {
+            size: 48
+            radius: cfg.roundSearch ? 24 : 0
+            border: cfg.bubbleBorder ? 1 : 0
+            borderColor: border
+            background: alpha(surface, cfg.shadeButtonOpacity / 100)
+            align: center
+            onTap: { menu = ""; settingsSection = "Home"; resetConfirm = false; screenMode = "settings"; screen() }
+            Text { text: "⚙"; font: chosenFont; fontSize: 25; color: primaryText; align: center }
+          }
+      }
+    } else {
+    Box {
         size: 48
         // Lower-letter magnification crosses this area; restore on release.
         visible: activeSide == 0
@@ -3244,7 +3300,25 @@ face "Omagara" {
         background: alpha(surface, cfg.shadeButtonOpacity / 100)
         align: center
         onTap: { activeSide = 0; railHeld = false; draggingSide = 0; letter = first(liveAlphabet) ?? "A"; appScroll = 0; appAnchor = ""; menu = ""; appVelocity = 0; browsing = false; queryText = ""; expandedStack = ""; replyKey = ""; replyDraft = ""; screenMode = "search"; screen() }
-        onLongPress: { menu = ""; activeSide = 0; railHeld = false; draggingSide = 0; appScroll = 0; appAnchor = ""; letter = first(liveAlphabet) ?? "A"; appVelocity = 0; browsing = false; resetConfirm = false; screenMode = "settings"; screen() }
+        onLongPress: {
+          if !browsing && layoutEditMode == "" && moveMode == "" {
+            homeEditOriginalPinKeys = pinnedAppKeys
+            homeEditOriginalPinLayouts = pinnedLayouts
+            homeEditOriginalHeaderSpacing = headerSpacing
+            homeEditOriginalNoticeSpacing = noticeSpacing
+            homeEditOriginalRailShift = alphabetRailShift
+            homeEditOriginalCompactHeader = compactHeader
+            layoutEditMode = "home"
+            moveMode = ""; moveKey = ""; moveLetter = ""
+            moveDragX = 0; moveDragY = 0; moveDragging = false
+            activeSide = 0; railHeld = false; draggingSide = 0
+            expandedPinnedKey = ""; folderOpenId = ""
+            pinnedMenuKey = ""; pinnedMenuShortcuts = null; menu = ""
+          } else if layoutEditMode != "home" {
+            // Search/Alphabet keeps the existing long-press Settings behavior.
+            menu = ""; activeSide = 0; railHeld = false; draggingSide = 0; appScroll = 0; appAnchor = ""; letter = first(liveAlphabet) ?? "A"; appVelocity = 0; browsing = false; resetConfirm = false; screenMode = "settings"; screen()
+          }
+        }
         // A native Canvas magnifier avoids relying on an unsupported icon glyph.
         Canvas {
           size: 24
@@ -3252,6 +3326,7 @@ face "Omagara" {
           line(14.5, 14.5, 21, 21, stroke: primaryText, width: 2, cap: round)
         }
       }
+    }
     }
     // Passive L-shaped swipe cue: the elbow runs beside Search, then turns
     // inward toward the six-dot grip. Mirror it with Search and close position.
@@ -3666,7 +3741,15 @@ face "Omagara" {
               Text { text: "Edit layout"; color: accent; font: chosenFont; fontSize: 18; padding: [0, 8, 0, 4] }
               Button {
                 text: "Edit Home layout"
-                onTap: { layoutEditMode = "home"; moveMode = ""; browsing = false; activeSide = 0; railHeld = false; close() }
+                onTap: {
+                  homeEditOriginalPinKeys = pinnedAppKeys
+                  homeEditOriginalPinLayouts = pinnedLayouts
+                  homeEditOriginalHeaderSpacing = headerSpacing
+                  homeEditOriginalNoticeSpacing = noticeSpacing
+                  homeEditOriginalRailShift = alphabetRailShift
+                  homeEditOriginalCompactHeader = compactHeader
+                  layoutEditMode = "home"; moveMode = ""; browsing = false; activeSide = 0; railHeld = false; close()
+                }
               }
               Text { text: "Use the clock and alert ↑/↓ handles beside their sections, and the worm handle beside the letters. Drag the center of a handle for precise spacing. Tap Done to finish."; font: chosenFont; fontSize: 12; color: secondaryText }
               Button { text: "Reset Home spacing"; onTap: { headerSpacing = 0; noticeSpacing = 0 } }
