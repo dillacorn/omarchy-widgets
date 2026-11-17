@@ -1344,20 +1344,25 @@ face "Omagara" {
           let nextIndex = appLetter == moveLetter ?
             indexOf(movePreviewKeys, a.key) :
             indexOf(get(groups, appLetter, []).map(x => x.key), a.key)
-          let previousAnchor = moveTargetIndex == 0 ? get(moveOtherKeys, 0) : get(moveOtherKeys, moveTargetIndex - 1)
-          if moveOriginIndex >= 0 && moveTargetIndex >= 0 && moveTargetIndex < len(moveKeys) &&
-             nextIndex >= 0 && (moveTargetIndex == moveOriginIndex || previousAnchor != null) {
+          let previousAnchor = moveEffectiveTargetIndex == 0 ? get(moveOtherKeys, 0) : get(moveOtherKeys, moveEffectiveTargetIndex - 1)
+          if moveOriginIndex >= 0 && moveEffectiveTargetIndex >= 0 && moveEffectiveTargetIndex < len(moveKeys) &&
+             nextIndex >= 0 && (moveEffectiveTargetIndex == moveOriginIndex || previousAnchor != null) {
+            if moveMode == "alphabet" && moveEdgeDirection != 0 {
+              appScroll = appOffset
+              moveEdgeDirection = 0
+            }
             if alphabetAtResetPosition {
               if any(manualAppMoves, m => m.key == moveKey) {
                 manualAppMoves = manualAppMoves.filter(m => m.key != moveKey)
               }
-            } else if moveTargetIndex != moveOriginIndex {
-              manualAppMoves = manualAppMoves + [{letter: moveLetter, key: moveKey, anchor: previousAnchor, after: moveTargetIndex > 0}]
+            } else if moveEffectiveTargetIndex != moveOriginIndex {
+              manualAppMoves = manualAppMoves + [{letter: moveLetter, key: moveKey, anchor: previousAnchor, after: moveEffectiveTargetIndex > 0}]
             }
             rightAlignedAppKeys = moveSideRight ? unique(rightAlignedAppKeys + [moveKey]) : rightAlignedAppKeys.filter(k => k != moveKey)
             moveKey = a.key
             moveLetter = appLetter
             moveSideRight = contains(rightAlignedAppKeys, a.key)
+            moveEdgeDirection = 0
             moveTargetIndex = nextIndex
             moveDragX = 0
             moveDragY = 0
@@ -2372,9 +2377,13 @@ face "Omagara" {
         }
         onDragEnd: {
           if alphabetMode && moveEdgeDirection != 0 {
+            // Snapshot first. Mutating moveDragY before reading the live target
+            // could apply the autoscroll distance a second time.
+            let finalTarget = moveEffectiveTargetIndex
+            let finalDragY = moveDragY + moveEdgeDelta
             appScroll = appOffset
-            moveDragY = moveDragY + moveEdgeDelta
-            moveTargetIndex = moveEffectiveTargetIndex
+            moveTargetIndex = finalTarget
+            moveDragY = finalDragY
             moveEdgeDirection = 0
           }
           moveDragging = false
