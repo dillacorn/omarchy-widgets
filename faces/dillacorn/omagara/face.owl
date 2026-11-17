@@ -1381,9 +1381,9 @@ face "Omagara" {
 
   // Keep one anchored floating row and stable touch area through every snap.
   // Neighbors animate to slots; the selected item follows finger deltas alone.
-  component FloatingMoveApp(a, alphabetMode = false, slotWidth = 180, slotHeight = 48, baseX = 0, baseY = 0, snapX = 0, snapY = 0, showText = true, viewportHeight = 0) {
+  component FloatingMoveApp(a, alphabetMode = false, slotWidth = 180, slotHeight = 48, iconSize = 34, baseX = 0, baseY = 0, snapX = 0, snapY = 0, showText = true, viewportHeight = 0) {
     let panelWidth = alphabetMode ? appPanelWidth : noticeWidth
-    let floatingWidth = alphabetMode ? min(panelWidth, max(114, min(panelWidth - 8, 260))) : min(panelWidth, max(114, slotWidth + 86))
+    let floatingWidth = alphabetMode ? min(panelWidth, max(40, min(panelWidth - 80, 205))) : min(slotWidth, max(40, panelWidth - 80))
     let hoverAge = moveMode != "" && !cfg.reduceMotion ? max(0, time - moveLiftStarted) : 0
     let liftPhase = cfg.reduceMotion ? 1 : 1 - pow(1 - clamp(hoverAge / 0.22, 0, 1), 3)
     let hoverLift = cfg.reduceMotion ? 0 : liftPhase * (2 + 1.2 * sin(hoverAge * 4.8))
@@ -1394,13 +1394,19 @@ face "Omagara" {
     let visualX = clamp(moveDragging ? moveDragX : snapX, minX, maxX)
     let visualY = clamp(moveDragging ? moveDragY : snapY, minY, maxY)
     let paintedY = clamp(baseY + visualY - hoverLift, 0, max(0, viewportHeight - slotHeight))
+    // Keep the icon under its original finger position. Shift only the tiny
+    // action strip left when there is no room to its right.
+    let appX = baseX + visualX
+    let controlsLeft = appX + floatingWidth + 72 > panelWidth && appX >= 72
+    let controlsX = controlsLeft ? appX - 72 : min(panelWidth - 72, appX + floatingWidth)
+    let drawnWidth = controlsLeft ? floatingWidth : min(floatingWidth, max(40, controlsX - appX))
     Box {
       width: panelWidth
       height: viewportHeight
       Box {
-        width: floatingWidth
+        width: drawnWidth
         height: slotHeight
-        offset: [baseX + visualX, paintedY]
+        offset: [appX, paintedY]
         animate offset: spring(0.83, 300)
         scale: cfg.reduceMotion ? 1 : 1 + liftPhase * (0.025 + 0.006 * sin(hoverAge * 4.8))
         animate scale: spring(0.84, 210)
@@ -1430,17 +1436,22 @@ face "Omagara" {
           padding: [2, 2]
           gap: 6
           if a.icon != null && a.icon != "" {
-            Image { src: a.icon; size: min(34, slotHeight - 8); label: a.name }
+            Image { src: a.icon; size: min(iconSize, slotHeight - 8); label: a.name }
           } else {
-            Text { text: upper(sub(trim(a.name), 0, 1)); font: chosenFont; fontSize: 18; color: primaryText; width: 34; align: center }
+            Text { text: upper(sub(trim(a.name), 0, 1)); font: chosenFont; fontSize: 18; color: primaryText; width: iconSize; align: center }
           }
           if alphabetMode || showText {
             Text { text: a.name; font: chosenFont; fontSize: 15; color: primaryText; maxLines: 1; weight: 1 }
-          } else {
-            Spacer { weight: 1 }
           }
-          MoveControls { controlHeight: slotHeight - 4 }
         }
+      }
+      // Same horizontal line as the app, with an independent hit area.
+      Box {
+        width: 72
+        height: slotHeight
+        offset: [controlsX, paintedY]
+        animate offset: spring(0.83, 300)
+        MoveControls { controlHeight: slotHeight - 4 }
       }
     }
   }
@@ -1628,6 +1639,7 @@ face "Omagara" {
               a: moveApp
               slotWidth: origin.width
               slotHeight: 42
+              iconSize: origin.iconSize
               baseX: origin.x
               baseY: origin.y
               snapX: destination.x - origin.x
