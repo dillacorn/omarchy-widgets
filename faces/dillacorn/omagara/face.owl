@@ -3350,27 +3350,29 @@ face "Omagara" {
         AlphabetRail { side: 1 }
       }
     }
-    // Place the Worm control beside its first letters, not over Clear all.
-    if layoutEditMode != "" || moveMode != "" {
-      // Active apps still own their own ✓/×; Done cannot discard a draft.
-      if layoutEditMode == "alphabet" && moveMode == "" {
+    // Only explicit layout editing exposes the Worm adjustment handle.
+    // An alphabet app move must never summon it, even if browsing closes.
+    if layoutEditMode == "alphabet" && moveMode == "" && browsing {
+      // Active app moves keep their own controls; Done cannot discard a draft.
+      Box {
+        fill: true
+        align: topStart
+        padding: [screenLeft + 44, screenTop + 8, 0, 0]
         Box {
-          fill: true
-          align: topStart
-          padding: [screenLeft + 44, screenTop + 8, 0, 0]
-          Box {
-            width: 94
-            height: 34
-            radius: cfg.roundAppLabels ? 8 : 0
-            background: alpha(surface, 0.94)
-            border: 1
-            borderColor: alpha(accent, 0.64)
-            align: center
-            onTap: layoutEditMode = ""
-            Text { text: "✓ Done"; font: chosenFont; fontSize: 14; color: primaryText; align: center }
-          }
+          width: 94
+          height: 34
+          radius: cfg.roundAppLabels ? 8 : 0
+          background: alpha(surface, 0.94)
+          border: 1
+          borderColor: alpha(accent, 0.64)
+          align: center
+          onTap: layoutEditMode = ""
+          Text { text: "✓ Done"; font: chosenFont; fontSize: 14; color: primaryText; align: center }
         }
       }
+    }
+    if (layoutEditMode == "home" && !browsing && moveMode != "alphabet") ||
+       (layoutEditMode == "alphabet" && moveMode == "" && browsing) {
       Box {
         fill: true
         align: wormHandleOnLeft ? "topStart" : "topEnd"
