@@ -556,11 +556,8 @@ face "Omagara" {
     {numbers: [], row: 0, used: 0})
   let pinDraftRowNumbers = pinDraftRowPlan.numbers
   let pinDraftRows = unique(pinDraftRowNumbers).map(r => pinDraftApps.filter(a => get(pinDraftRowNumbers, indexOf(pinDraftApps.map(p => p.key), a.key), 0) == r))
-  // Projected row decides whether the floating app is icon-only. Make one
-  // temporary 36dp lane after that row for the 32dp action controls.
-  let pinDraftMoveRow = get(pinDraftRowNumbers, indexOf(pinDraftApps.map(p => p.key), moveKey), 1)
-  let pinDraftMoveRowPins = get(pinDraftRows, pinDraftMoveRow - 1, [])
-  let pinDraftControlBelow = pinDraftActive && len(pinDraftMoveRowPins) > 1
+  // The Home editor uses global ×/✓ and never reserves an extra pin row.
+  let pinDraftControlBelow = false
   // In-place slots use the existing 42dp row + 6dp gap.
   let pinSourceRowGeometry = pinnedRows.map((row, ri) => {
     apps: row, rowIndex: ri,
@@ -1595,28 +1592,7 @@ face "Omagara" {
         position: below
         width: 220
         gap: 0
-        if len(pinnedAppKeys) > 1 {
-          Text {
-            text: "Move app…"
-            fill: width
-            padding: [12, 14]
-            onTap: {
-              moveMode = "pin"
-              moveKey = a.key
-              moveDragging = false
-              moveLiftStarted = time
-              moveLetter = ""
-              // Initial selection uses the full pin order. moveOtherKeys
-              // excludes a.key, so looking it up there always yields -1.
-              moveTargetIndex = indexOf(pinnedAppKeys, a.key)
-              moveDragX = 0
-              moveDragY = 0
-              expandedPinnedKey = ""
-              folderOpenId = ""
-              pinnedMenuKey = ""; pinnedMenuShortcuts = null
-            }
-          }
-        }
+        // Pinned-app context actions stay intact; Home Move starts via Search.
         Text {
           text: a.folderId == null ? "Unpin app" : "Unpin folder"
           fill: width
@@ -2081,13 +2057,15 @@ face "Omagara" {
           }
         }
       }
-      // Match the control width to its placement: compact below icons.
-      Box {
-        width: actionWidth
-        height: actionHeight
-        offset: [controlsX, controlsY]
-        animate offset: spring(0.83, 300)
-        MoveControls { controlHeight: actionHeight; compact: controlsBelow }
+      // Alphabet move controls remain inline; Home uses bottom buttons.
+      if alphabetMode {
+        Box {
+          width: actionWidth
+          height: actionHeight
+          offset: [controlsX, controlsY]
+          animate offset: spring(0.83, 300)
+          MoveControls { controlHeight: actionHeight; compact: controlsBelow }
+        }
       }
     }
   }
