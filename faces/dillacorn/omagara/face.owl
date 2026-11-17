@@ -1626,12 +1626,7 @@ face "Omagara" {
   }
 
   component HomePinIcon(a, iconSize = 30, showNoticeDot = false) {
-    // One context action affects the complete logical stack, not one pin.
-    let pinIndex = indexOf(pinnedApps.map(p => p.key), a.key)
-    let logicalRow = get(pinnedLogicalRowNumbers, pinIndex, -1)
-    let logicalRowKeys = pinnedApps.filter(p =>
-      logicalRow > 0 && get(pinnedLogicalRowNumbers, indexOf(pinnedApps.map(x => x.key), p.key), -1) == logicalRow).map(p => p.key)
-    let logicalRowRight = get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "alignRight", false)
+    // Hold opens the app menu; Home editing owns row alignment actions.
     let identity = toJson([a.package, a.profile])
     let notificationOwner = first(pinnedApps.filter(p => p.folderId == null && toJson([p.package, p.profile]) == identity))
     let ownedNotices = get(noticeGroups, identity, [])
@@ -1793,34 +1788,6 @@ face "Omagara" {
             pinnedMenuKey = ""
             pinnedMenuShortcuts = null
             menu = ""
-          }
-        }
-        // Right alignment is optional; left remains the default.
-        if len(logicalRowKeys) > 0 {
-          Text {
-            text: logicalRowRight ? "Align row left" : "Align row right"
-            fill: width
-            padding: [12, 14]
-            onTap: {
-              pinnedLayouts = pinnedLayouts.filter(p => !contains(logicalRowKeys, p.key)) +
-                logicalRowKeys.map(k => merge(find(pinnedLayouts, p => p.key == k) ?? {key: k, showLabel: true},
-                  {alignRight: !logicalRowRight}))
-              pinnedMenuKey = ""
-              pinnedMenuShortcuts = null
-            }
-          }
-        }
-        Text {
-          text: all(pinnedAppKeys, k => get(find(pinnedLayouts, p => p.key == k) ?? {}, "alignRight", false)) ? "Shift all pins left" : "Shift all pins right"
-          fill: width
-          padding: [12, 14]
-          onTap: {
-            let nextRight = !all(pinnedAppKeys, k => get(find(pinnedLayouts, p => p.key == k) ?? {}, "alignRight", false))
-            pinnedLayouts = pinnedLayouts.filter(p => !contains(pinnedAppKeys, p.key)) +
-              pinnedAppKeys.map(k => merge(find(pinnedLayouts, p => p.key == k) ?? {key: k, showLabel: true},
-                {alignRight: nextRight}))
-            pinnedMenuKey = ""
-            pinnedMenuShortcuts = null
           }
         }
         Text {
@@ -4098,24 +4065,9 @@ face "Omagara" {
               }
               Text { text: "Most used is the default. Long-press an app in the A–Z list to move it within its letter or reset its automatic position. A small line marks moved apps. Search is unaffected."; font: chosenFont; fontSize: 12; color: secondaryText }
               Text { text: "Pinned apps & folders · " + str(len(pinnedAppKeys)) + " · " + str(pinRowCapacity) + " per row"; color: accent; font: chosenFont; fontSize: 16; padding: [0, 12, 0, 2] }
-              Text { text: "Pins default to the left. In Home edit mode, tap a pin to reveal its Row ←/→ action, or use All ←/→ to move every pin. You can also align a complete stack here or from its hold menu."; font: chosenFont; fontSize: 12; color: secondaryText }
-              if len(pinnedAppKeys) > 0 {
-                Button {
-                  text: all(pinnedAppKeys, k => get(find(pinnedLayouts, p => p.key == k) ?? {}, "alignRight", false)) ? "Shift all pinned rows left" : "Shift all pinned rows right"
-                  onTap: {
-                    let targetRight = !all(pinnedAppKeys, k => get(find(pinnedLayouts, p => p.key == k) ?? {}, "alignRight", false))
-                    pinnedLayouts = pinnedLayouts.filter(p => !contains(pinnedAppKeys, p.key)) +
-                      pinnedAppKeys.map(k => merge(find(pinnedLayouts, p => p.key == k) ?? {key: k, showLabel: true},
-                        {alignRight: targetRight}))
-                  }
-                }
-              }
+              Text { text: "Home row alignment and Shift All are available in Edit Home layout. Settings here manages pins and row grouping."; font: chosenFont; fontSize: 12; color: secondaryText }
               for pinKey in pinnedAppKeys key pinKey {
                 let pinnedEntry = find(pinnedApps, a => a.key == pinKey)
-                let settingsRowId = get(pinnedLogicalRowNumbers, indexOf(pinnedApps.map(a => a.key), pinKey), -1)
-                let settingsRowKeys = pinnedApps.filter(a =>
-                  settingsRowId > 0 && get(pinnedLogicalRowNumbers, indexOf(pinnedApps.map(p => p.key), a.key), -1) == settingsRowId).map(a => a.key)
-                let settingsRowRight = get(find(pinnedLayouts, p => p.key == pinKey) ?? {}, "alignRight", false)
                 Column {
                   fill: width
                   gap: 5
@@ -4129,15 +4081,6 @@ face "Omagara" {
                   Flow {
                     fill: width
                     gap: 6
-                    // Show the alignment button once for each logical row.
-                    if first(settingsRowKeys) == pinKey {
-                      Button {
-                        text: settingsRowRight ? "Align row left" : "Align row right"
-                        onTap: pinnedLayouts = pinnedLayouts.filter(p => !contains(settingsRowKeys, p.key)) +
-                          settingsRowKeys.map(k => merge(find(pinnedLayouts, p => p.key == k) ?? {key: k, showLabel: true},
-                            {alignRight: !settingsRowRight}))
-                      }
-                    }
                     if indexOf(pinnedAppKeys, pinKey) > 0 {
                       Button {
                         text: get(find(pinnedLayouts, p => p.key == pinKey) ?? {}, "newRow", true) == false ? "New row" : "Join previous"
