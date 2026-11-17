@@ -1264,7 +1264,6 @@ face "Omagara" {
         border: 2
         borderColor: accent
         radius: 8
-        ripple: false
         onDrag: {
           let nextX = moveDragX + dx
           let nextY = moveDragY + dy
