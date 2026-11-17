@@ -2352,27 +2352,18 @@ face "Omagara" {
     let minX = -baseX
     let maxX = max(minX, panelWidth - baseX - floatingWidth)
     let minY = -baseY
-    let controlsBelow = false
-    let actionWidth = controlsBelow ? 48 : 72
-    let actionHeight = controlsBelow ? 32 : slotHeight - 4
-    let maxY = max(minY, viewportHeight - baseY - slotHeight - (controlsBelow ? 36 : 0))
+    let maxY = max(minY, viewportHeight - baseY - slotHeight)
     let visualX = clamp(moveDragging ? moveDragX : snapX, minX, maxX)
     let visualY = clamp(moveDragging ? moveDragY : snapY, minY, maxY)
-    let paintedY = clamp(baseY + visualY - hoverLift, 0, max(0, viewportHeight - slotHeight - (controlsBelow ? 36 : 0)))
-    // Center compact actions on the rendered icon, not its containing row.
-    // Keep the strip within the panel near screen edges.
+    let paintedY = clamp(baseY + visualY - hoverLift, 0, max(0, viewportHeight - slotHeight))
+    // Alphabet's confirmation buttons now live beside Search, so its
+    // floating row can use the full width reserved for its own label.
     let appX = baseX + visualX
-    let drawnIconSize = min(iconSize, slotHeight - 8)
-    let iconCenterX = appX + 2 + drawnIconSize / 2
-    let controlsLeft = !controlsBelow && appX + floatingWidth + 72 > panelWidth && appX >= 72
-    let controlsX = controlsBelow ? clamp(iconCenterX - actionWidth / 2, 0, max(0, panelWidth - actionWidth)) : controlsLeft ? appX - 72 : min(panelWidth - 72, appX + floatingWidth - 6)
-    let drawnWidth = !alphabetMode || controlsLeft ? floatingWidth : min(floatingWidth, max(40, controlsX - appX))
-    let controlsY = controlsBelow ? paintedY + slotHeight + 2 : paintedY
     Box {
       width: panelWidth
       height: viewportHeight
       Box {
-        width: drawnWidth
+        width: floatingWidth
         height: slotHeight
         offset: [appX, paintedY]
         animate offset: spring(0.83, 300)
