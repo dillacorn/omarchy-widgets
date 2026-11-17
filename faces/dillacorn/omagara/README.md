@@ -19,7 +19,7 @@ Time format is selected under **Clock** in Omagara settings; OWL does not expose
 ## v1.9 changes
 
 - Default to **Most used**, with Alphabetical still selectable. A one-time upgrade migration switches existing saved sort choices to Most used; later manual selections are preserved.
-- Long-press an A–Z app and choose **Move app…**. The original row lifts with a spring and subtle floating motion. Drag vertically or tap a destination; surrounding apps spring into their projected positions and an outline marks the snap slot. **✓** saves; **× Cancel** discards the preview. Only that letter's order changes; Search remains automatic.
+- Long-press an A–Z app and choose **Move app…**. The original row lifts with a spring and subtle floating motion. Drag vertically or tap a destination; surrounding apps spring into their projected positions and an outline marks the snap slot. Inline **✓** saves; **×** discards the preview. Only that letter's order changes; Search remains automatic.
 - A slim accent line marks moved apps; long-press one to **Reset automatic position**.
 - Replay per-app moves without freezing the other apps' automatic sorting. Hidden, work-profile, and cloned apps retain distinct keys; Search is unaffected.
 - Export, import, and reset manual moves in settings; older v1 backups remain accepted.
