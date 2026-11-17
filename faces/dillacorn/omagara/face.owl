@@ -2122,7 +2122,7 @@ face "Omagara" {
       align: center
       gap: 16 * rowScale
       padding: [4 * rowScale, thumbView ? 8 * rowScale : 12]
-      background: moveMode == "alphabet" && moveLetter == appLetter && moveTargetIndex == appGroupIndex ? alpha(accent, 0.18) : transparent
+      background: transparent
       radius: 7
       onTap: {
         if interactive && moveMode == "alphabet" && !searchView && !folderView {
@@ -2541,8 +2541,21 @@ face "Omagara" {
           if appVelocity != 0 { appGlideStarted = time }
           if appFirst != null { appAnchor = appFirst.id; appAnchorSection = appFirst.section; appAnchorOffset = appOffset - appFirst.top }
         }
-        // Paint the floating selected app last, above surrounding A–Z rows.
-        // Row geometry is unchanged; this is only visual stacking order.
+        // The outlined destination shifts to the exact index ✓ will save.
+        let floatingWindowRow = moveMode == "alphabet" ? find(appWindow, r => r.id == moveKey) : null
+        if floatingWindowRow != null {
+          Box {
+            width: appPanelWidth
+            height: appRowHeight
+            offset: [0, (appPreviewing ? floatingWindowRow.top : floatingWindowRow.top - appOffset) + (moveTargetIndex - moveOriginIndex) * appRowHeight]
+            animate offset: spring(0.80, 230)
+            background: alpha(accent, 0.10)
+            border: 1
+            borderColor: alpha(accent, 0.68)
+            radius: 7
+          }
+        }
+        // Paint selected app last, above neighbors flowing to final slots.
         for row in (moveMode == "alphabet" ? appWindow.filter(r => r.id != moveKey) + appWindow.filter(r => r.id == moveKey) : appWindow) key row.id {
           // Preview rows use their own bounded screen positions; ordinary
           // scrolling still uses continuous document coordinates.
