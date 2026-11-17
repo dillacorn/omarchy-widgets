@@ -136,8 +136,6 @@ face "Omagara" {
   // Continuous same-letter autoscroll while the selected app is HELD near
   // a screen edge. Its clock runs only during an active edge drag.
   state moveEdgeDirection = 0
-  state moveEdgeBaseScroll = 0
-  state moveEdgeStarted = 0
   // Manual quick-launch expansion: never follows play/pause or Bluetooth refreshes.
   state musicAppsExpanded = false
   state compactAlertApps = [] persist
@@ -703,8 +701,8 @@ face "Omagara" {
   let appGliding = browsing && !railHeld && menu == "" && appVelocity != 0
   let appGlideAge = appGliding ? max(0, time - appGlideStarted) : 0
   let appDecay = pow(2.718281828459045, -5 * min(appGlideAge, 1.6))
-  // Time-driven drag scrolling keeps moving even without new touch events.
-  // Both limits are within the selected letter, never the next section.
+  // The previous time-derived value did not reliably advance while a finger
+  // was stationary. An OWL 21 frame handler below now advances actual state.
   let moveEdgeSection = moveMode == "alphabet" ? indexOf(appSections, moveLetter) : -1
   let moveEdgeTop = get(appSectionStarts, moveEdgeSection, 0)
   let moveEdgeHeight = appLabelHeight + len(get(groups, moveLetter, [])) * appRowHeight
@@ -712,17 +710,29 @@ face "Omagara" {
   let moveEdgeMax = clamp(max(moveEdgeMin, moveEdgeTop + moveEdgeHeight - appPanelHeight + appEdgeSpace), moveEdgeMin, appMaxScroll)
   let moveEdgeActive = moveMode == "alphabet" && browsing && moveDragging &&
     moveEdgeDirection != 0 && moveEdgeSection >= 0 && moveEdgeHeight > appPanelHeight - 2 * appEdgeSpace
-  let moveEdgeAge = moveEdgeActive ? max(0, time - moveEdgeStarted) : 0
-  let moveEdgeOffset = moveEdgeActive ?
-    clamp(moveEdgeBaseScroll + moveEdgeDirection * 240 * moveEdgeAge, moveEdgeMin, moveEdgeMax) : appScroll
-  let appOffset = moveEdgeActive ? moveEdgeOffset :
-    clamp(appScroll + (appGliding ? appVelocity * (1 - appDecay) / 5 : 0), 0, appMaxScroll)
-  let moveEdgeDelta = moveEdgeActive ? appOffset - moveEdgeBaseScroll : 0
-  // Continuously updating drop target as the list moves beneath the
-  // stationary finger. This also updates the destination outline immediately.
-  let moveEffectiveTargetIndex = moveEdgeActive && moveOriginIndex >= 0 ?
-    clamp(moveOriginIndex + round((moveDragY + moveEdgeDelta) / appRowHeight), 0, max(0, len(moveKeys) - 1)) :
-    moveTargetIndex
+  let appOffset = clamp(appScroll + (appGliding ? appVelocity * (1 - appDecay) / 5 : 0), 0, appMaxScroll)
+  // Updating moveTargetIndex in the frame also moves the actual snap outline.
+  let moveEffectiveTargetIndex = moveTargetIndex
+  every frame {
+    if moveEdgeActive {
+      let step = moveEdgeDirection * 300 * dt
+      // Directional bounds cannot jump outside the selected letter, even
+      // when the original list was opened from a worm preview.
+      let nextScroll = moveEdgeDirection > 0 ?
+        min(moveEdgeMax, appOffset + step) : max(moveEdgeMin, appOffset + step)
+      let travelled = moveEdgeDirection > 0 ? max(0, nextScroll - appOffset) : min(0, nextScroll - appOffset)
+      if abs(travelled) > 0.001 {
+        // Anchor the floating row under the stationary finger while the
+        // document travels underneath. Use the SAME delta for insertion.
+        let nextDragY = moveDragY + travelled
+        appScroll = appOffset + travelled
+        moveDragY = nextDragY
+        moveTargetIndex = clamp(moveOriginIndex + round(nextDragY / appRowHeight), 0, max(0, len(moveKeys) - 1))
+      } else {
+        moveEdgeDirection = 0
+      }
+    }
+  }
   let movePreviewKeys = moveOriginIndex < 0 ? [] :
     take(moveOtherKeys, moveEffectiveTargetIndex) + [moveKey] + drop(moveOtherKeys, moveEffectiveTargetIndex)
   // Replaying other users' manual moves without the selected app's
@@ -796,7 +806,7 @@ face "Omagara" {
   // its actual glyph position, not a fixed 33%-height focus line. A long
   // group moves up to keep its rows in view. The normal continuous browser
   // and its trailing Settings section are unchanged after finger release.
-  let appPreviewing = railHeld && browsing && activeSide != 0
+  let appPreviewing = railHeld && browsing && activeSide != 0 && moveMode != "alphabet"
   let appPreviewApps = get(groups, letter, [])
   let appPreviewHeight = appLabelHeight + len(appPreviewApps) * appRowHeight
   let appPreviewIndex = max(0, indexOf(alphabet, letter))
@@ -1299,6 +1309,9 @@ face "Omagara" {
         if interactive && layoutEditMode == "alphabet" && moveMode == "" && thumbView && !searchView && !folderView {
           let currentIndex = indexOf(get(groups, appLetter, []).map(x => x.key), a.key)
           if currentIndex >= 0 {
+            let entryScroll = appPreviewing ?
+              clamp(get(appSectionStarts, indexOf(appSections, appLetter), 0) +
+                appLabelHeight + currentIndex * appRowHeight - appPanelHeight * 0.42, 0, appMaxScroll) : appOffset
             moveEdgeDirection = 0
             moveMode = "alphabet"
             moveKey = a.key
@@ -1310,7 +1323,11 @@ face "Omagara" {
             moveDragging = false
             moveLiftStarted = time
             appVelocity = 0
-            appScroll = appOffset
+            appScroll = entryScroll
+            railHeld = false
+            activeSide = 0
+            draggingSide = 0
+            railPull = 0
             appAnchor = ""
             menu = ""
             menuShortcuts = null
@@ -1404,17 +1421,29 @@ face "Omagara" {
               fill: width
               padding: [12, 14]
               onTap: {
+                // Normal hold-menu and Alphabet editor must enter the same
+                // continuous document, never keep a rail-preview geometry.
+                let selectedIndex = indexOf(get(groups, appLetter, []).map(x => x.key), a.key)
+                let entryScroll = appPreviewing ?
+                  clamp(get(appSectionStarts, indexOf(appSections, appLetter), 0) +
+                    appLabelHeight + selectedIndex * appRowHeight - appPanelHeight * 0.42, 0, appMaxScroll) : appOffset
+                moveEdgeDirection = 0
                 moveMode = "alphabet"
                 moveKey = a.key
                 moveSideRight = contains(rightAlignedAppKeys, a.key)
                 moveDragging = false
                 moveLiftStarted = time
                 moveLetter = appLetter
-                moveTargetIndex = indexOf(get(groups, appLetter, []).map(x => x.key), a.key)
+                moveTargetIndex = selectedIndex
                 moveDragX = 0
                 moveDragY = 0
                 appVelocity = 0
-                appScroll = appOffset
+                appScroll = entryScroll
+                appAnchor = ""
+                railHeld = false
+                activeSide = 0
+                draggingSide = 0
+                railPull = 0
                 menu = ""
                 menuShortcuts = null
               }
@@ -2310,7 +2339,7 @@ face "Omagara" {
     let actionHeight = controlsBelow ? 32 : slotHeight - 4
     let maxY = max(minY, viewportHeight - baseY - slotHeight - (controlsBelow ? 36 : 0))
     let visualX = clamp(moveDragging ? moveDragX : snapX, minX, maxX)
-    let visualY = clamp(moveDragging ? moveDragY + (alphabetMode ? moveEdgeDelta : 0) : snapY, minY, maxY)
+    let visualY = clamp(moveDragging ? moveDragY : snapY, minY, maxY)
     let paintedY = clamp(baseY + visualY - hoverLift, 0, max(0, viewportHeight - slotHeight - (controlsBelow ? 36 : 0)))
     // Center compact actions on the rendered icon, not its containing row.
     // Keep the strip within the panel near screen edges.
@@ -2332,15 +2361,10 @@ face "Omagara" {
         scale: cfg.reduceMotion ? 1 : 1 + liftPhase * (0.025 + 0.006 * sin(hoverAge * 4.8))
         animate scale: spring(0.84, 210)
         onDrag: {
-          // Freeze any analytic edge scroll at its current position whenever
-          // the finger moves. Restart the clock only if still near an edge.
+          // This handler records WHERE the finger is. A separate frame
+          // callback advances scrolling while the finger remains still.
           let nextX = (moveDragging ? moveDragX : visualX) + dx
-          let nextY = (moveDragging ? moveDragY + (alphabetMode ? moveEdgeDelta : 0) : visualY) + dy
-          let scrollNow = appOffset
-          if alphabetMode && moveEdgeDirection != 0 {
-            appScroll = scrollNow
-            moveEdgeDirection = 0
-          }
+          let nextY = (moveDragging ? moveDragY : visualY) + dy
           moveDragging = true
           moveDragX = nextX
           moveDragY = nextY
@@ -2351,12 +2375,10 @@ face "Omagara" {
           let edgeMargin = min(72, appPanelHeight / 6)
           let wantEdge = alphabetMode && moveEdgeSection >= 0 &&
             moveEdgeHeight > appPanelHeight - 2 * appEdgeSpace ?
-            pointerY >= appPanelHeight - edgeMargin && scrollNow < moveEdgeMax ? 1 :
-            pointerY <= edgeMargin && scrollNow > moveEdgeMin ? -1 : 0 : 0
-          if wantEdge != 0 {
+            pointerY >= appPanelHeight - edgeMargin && appOffset < moveEdgeMax ? 1 :
+            pointerY <= edgeMargin && appOffset > moveEdgeMin ? -1 : 0 : 0
+          if alphabetMode {
             appVelocity = 0
-            moveEdgeBaseScroll = scrollNow
-            moveEdgeStarted = time
             moveEdgeDirection = wantEdge
           }
           // Hit-test actual icon centers on the hovered row. The old
@@ -2380,16 +2402,9 @@ face "Omagara" {
           }
         }
         onDragEnd: {
-          if alphabetMode && moveEdgeDirection != 0 {
-            // Snapshot first. Mutating moveDragY before reading the live target
-            // could apply the autoscroll distance a second time.
-            let finalTarget = moveEffectiveTargetIndex
-            let finalDragY = moveDragY + moveEdgeDelta
-            appScroll = appOffset
-            moveTargetIndex = finalTarget
-            moveDragY = finalDragY
-            moveEdgeDirection = 0
-          }
+          // Every frame has already committed the latest scroll/target.
+          // Do not apply it again on release.
+          if alphabetMode { moveEdgeDirection = 0 }
           moveDragging = false
         }
         Row {
@@ -3497,7 +3512,7 @@ face "Omagara" {
       }
     }
     if (layoutEditMode == "home" && !browsing && moveMode != "alphabet") ||
-       (layoutEditMode == "alphabet" && moveMode == "" && browsing) {
+       (layoutEditMode == "alphabet" && browsing) {
       Box {
         fill: true
         align: wormHandleOnLeft ? "topStart" : "topEnd"
