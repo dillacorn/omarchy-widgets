@@ -1344,19 +1344,23 @@ face "Omagara" {
           let nextIndex = appLetter == moveLetter ?
             indexOf(movePreviewKeys, a.key) :
             indexOf(get(groups, appLetter, []).map(x => x.key), a.key)
-          let previousAnchor = moveEffectiveTargetIndex == 0 ? get(moveOtherKeys, 0) : get(moveOtherKeys, moveEffectiveTargetIndex - 1)
-          if moveOriginIndex >= 0 && moveEffectiveTargetIndex >= 0 && moveEffectiveTargetIndex < len(moveKeys) &&
-             nextIndex >= 0 && (moveEffectiveTargetIndex == moveOriginIndex || previousAnchor != null) {
+          // Capture the displayed drop before clearing the edge timer.
+          // Re-evaluating the live target after that reset would be stale.
+          let previousTarget = moveEffectiveTargetIndex
+          let previousIsDefault = alphabetAtResetPosition
+          let previousAnchor = previousTarget == 0 ? get(moveOtherKeys, 0) : get(moveOtherKeys, previousTarget - 1)
+          if moveOriginIndex >= 0 && previousTarget >= 0 && previousTarget < len(moveKeys) &&
+             nextIndex >= 0 && (previousTarget == moveOriginIndex || previousAnchor != null) {
             if moveMode == "alphabet" && moveEdgeDirection != 0 {
               appScroll = appOffset
               moveEdgeDirection = 0
             }
-            if alphabetAtResetPosition {
+            if previousIsDefault {
               if any(manualAppMoves, m => m.key == moveKey) {
                 manualAppMoves = manualAppMoves.filter(m => m.key != moveKey)
               }
-            } else if moveEffectiveTargetIndex != moveOriginIndex {
-              manualAppMoves = manualAppMoves + [{letter: moveLetter, key: moveKey, anchor: previousAnchor, after: moveEffectiveTargetIndex > 0}]
+            } else if previousTarget != moveOriginIndex {
+              manualAppMoves = manualAppMoves + [{letter: moveLetter, key: moveKey, anchor: previousAnchor, after: previousTarget > 0}]
             }
             rightAlignedAppKeys = moveSideRight ? unique(rightAlignedAppKeys + [moveKey]) : rightAlignedAppKeys.filter(k => k != moveKey)
             moveKey = a.key
