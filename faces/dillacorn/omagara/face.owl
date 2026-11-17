@@ -1389,7 +1389,7 @@ face "Omagara" {
         if moveMode == "pin" {
           let origin = find(pinSourceSlots, p => p.key == moveKey)
           let target = find(pinSourceSlots, p => p.key == a.key)
-          moveTargetIndex = indexOf(pinnedAppKeys, a.key)
+          moveTargetIndex = indexOf(moveOtherKeys, a.key)
           if origin != null && target != null {
             moveDragX = target.x - origin.x
             moveDragY = target.y - origin.y
@@ -1496,7 +1496,7 @@ face "Omagara" {
               moveDragging = false
               moveLiftStarted = time
               moveLetter = ""
-              moveTargetIndex = indexOf(pinnedAppKeys, a.key)
+              moveTargetIndex = indexOf(moveOtherKeys, a.key)
               moveDragX = 0
               moveDragY = 0
               expandedPinnedKey = ""
@@ -2088,7 +2088,7 @@ face "Omagara" {
                     if moveMode == "pin" {
                       let rowSourceSlot = find(pinSourceSlots, p => p.key == moveKey)
                       let target = find(pinSourceSlots, p => p.key == a.key)
-                      moveTargetIndex = indexOf(pinnedAppKeys, a.key)
+                      moveTargetIndex = indexOf(moveOtherKeys, a.key)
                       if rowSourceSlot != null && target != null {
                         moveDragX = target.x - rowSourceSlot.x
                         moveDragY = target.y - rowSourceSlot.y
