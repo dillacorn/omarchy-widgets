@@ -1118,7 +1118,11 @@ face "Omagara" {
             folderOpenId = ""
             pinnedMenuShortcuts = null
             pinnedMenuKey = a.key
-            pinnedMenuShortcuts = a.folderId != null ? [] : shortcuts(a.key)
+            if a.folderId != null {
+              pinnedMenuShortcuts = []
+            } else {
+              pinnedMenuShortcuts = shortcuts(a.key)
+            }
           }
       }
       if a.folderId != null {
@@ -1784,7 +1788,11 @@ face "Omagara" {
                     if moveMode == "" {
                       pinnedMenuShortcuts = null
                       pinnedMenuKey = a.key
-                      pinnedMenuShortcuts = a.folderId != null ? [] : shortcuts(a.key)
+                      if a.folderId != null {
+              pinnedMenuShortcuts = []
+            } else {
+              pinnedMenuShortcuts = shortcuts(a.key)
+            }
                     }
                   }
                 }
