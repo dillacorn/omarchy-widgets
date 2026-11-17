@@ -2595,11 +2595,11 @@ face "Omagara" {
           background: noticeCardShade
           radius: cfg.roundNotifications ? 12 : 0
           if hasMedia {
-            // One compact row like the original player. The title can wrap
-            // onto a second line while fixed-size controls never shift.
+            // Keep the original compact row at rest. Expanded text and
+            // artwork respond to the same bounded vertical size adjustment.
             Row {
               fill: width
-              height: musicAreaExpanded ? 72 + round(musicAreaSize * 0.65) : 42
+              height: musicAreaExpanded ? 104 + round(musicAreaSize * 0.60) : 42
               gap: musicAreaExpanded ? 8 : 3
               align: center
               if playback.art != null {
