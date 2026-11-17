@@ -714,7 +714,25 @@ face "Omagara" {
       if appFirst != null { appAnchor = appFirst.id; appAnchorSection = appFirst.section; appAnchorOffset = appOffset - appFirst.top }
     }
   }
-  on browsing { if !value { appVelocity = 0; appTracking = false; appElastic = 0; appElasticReturning = false } }
+  // Leaving Alphabet browsing cancels an unfinished app move, exactly
+  // like its × control. Without this, moveMode survives on the Home screen.
+  // Never commit manual order or side changes on an implicit close.
+  on browsing {
+    if !value {
+      appVelocity = 0
+      appTracking = false
+      appElastic = 0
+      appElasticReturning = false
+      if moveMode == "alphabet" {
+        moveMode = ""
+        moveKey = ""
+        moveLetter = ""
+        moveDragX = 0
+        moveDragY = 0
+        moveDragging = false
+      }
+    }
+  }
   // Keep section metadata separate from the window: headings must not use
   // up the engine's 1,000-item app-list allowance.
   let appDocument = map(appSections, (c, i) => {section: c, top: appSectionStarts[i], height: appLabelHeight + len(get(groups, c, [])) * appRowHeight})
