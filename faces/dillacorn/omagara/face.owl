@@ -1383,7 +1383,9 @@ face "Omagara" {
           let destinationPin = nextX >= 42 ? last(destinationItems) : first(destinationItems)
           let destinationIndex = destinationPin == null ? moveOriginIndex : indexOf(pinnedAppKeys, destinationPin.key)
           let differentRow = destinationRow != originRow
-          let pinIndex = abs(nextY) >= 24 ? (differentRow ? destinationIndex : moveOriginIndex) : moveOriginIndex + round(nextX / 60)
+          // Pulling a pin downward out of the last joined row places it
+          // AFTER its siblings, never above the row it was dragged out of.
+          let pinIndex = abs(nextY) >= 24 ? (differentRow ? destinationIndex : nextY > 0 && len(destinationItems) > 1 ? indexOf(pinnedAppKeys, last(destinationItems).key) : moveOriginIndex) : moveOriginIndex + round(nextX / 60)
           let nextIndex = alphabetMode ? moveOriginIndex + round(nextY / appRowHeight) : pinIndex
           moveTargetIndex = clamp(nextIndex, 0, max(0, len(moveKeys) - 1))
         }
