@@ -166,6 +166,7 @@ face "Omagara" {
   state settingsSection = "Home"
   // Layout handles are temporary; their bounded positions persist.
   state layoutEditMode = ""
+  state layoutDraggingZone = ""
   // × restores the entire Home edit session; ✓ commits it.
   state homeEditOriginalPinKeys = []
   state homeEditOriginalPinLayouts = []
@@ -492,6 +493,14 @@ face "Omagara" {
   let headerEventWidth = min(headerShapeMax, 26 + 13 * (cfg.faceFont == "Launcher" ? 0.68 * len(headerEventText) : sum(map(range(len(headerEventText)), i => contains("iltfjI!.,:; '1", sub(headerEventText, i, i + 1)) ? 0.30 : contains("MW@QO", sub(headerEventText, i, i + 1)) ? 0.77 : 0.55))))
   let headerRows = (cfg.clock ? [{w: headerClockWidth, h: headerClockHeight}] : []) + (cfg.date ? [{w: headerDateWidth, h: headerDateHeight}] : []) + (cfg.event && todayEvent != null ? [{w: headerEventWidth, h: headerEventHeight}] : [])
   let headerShapeHeight = compactHeader ? ((cfg.clock || cfg.date ? 44 : 0) + (cfg.event && todayEvent != null ? 22 : 0)) : sum(map(headerRows, r => r.h))
+  // Temporary editor space prevents drag controls from covering Home content.
+  let homeEditorVisible = layoutEditMode == "home" || moveMode == "pin"
+  let headerEditorLane = homeEditorVisible && len(headerRows) > 0 ? 48 : 0
+  // Keep Worm next to its upper letters, but below the header edit lane.
+  let wormEditorTop = clamp(homeEditorVisible ?
+    max(railTop - 46, screenTop + 12 + (len(headerRows) > 0 ? headerPadTop + headerShapeHeight + headerEditorLane + max(0, headerSpacing) : 0) + 8) :
+    railTop - 42,
+    screenTop + 8, max(screenTop + 8, screenTop + availableHeight - 44))
   // Clock/date/event rows disappear from the scroll document when disabled.
   // Search and the gesture cue have their own side preference. Close can
   // follow Search or use either edge independently, with the same rail clearance.
@@ -1722,18 +1731,16 @@ face "Omagara" {
     }
   }
 
-  // Small grab bubbles are attached to the actual layout regions. They are
-  // not fixed to the bottom of the screen or part of the ordinary home UI.
-  // Drag each handle continuously. Reset affects only the selected zone.
+  // Slim drag bars. Reset changes only the corresponding position.
   component LayoutSpacingHandle(zone) {
     Row {
-      width: 152
+      width: zone == "rail" ? 104 : 136
       height: 40
       align: center
       gap: 0
-      background: alpha(surface, 0.94)
+      background: alpha(surface, layoutDraggingZone == zone ? 0.96 : 0.78)
       border: 1
-      borderColor: alpha(accent, 0.70)
+      borderColor: alpha(accent, layoutDraggingZone == zone ? 0.82 : 0.36)
       radius: cfg.roundAppLabels ? 7 : 0
       Box {
         weight: 1
@@ -1741,14 +1748,16 @@ face "Omagara" {
         align: center
         drag: vertical
         onDrag: {
+          layoutDraggingZone = zone
           if zone == "rail" { alphabetRailShift = clamp(alphabetRailShift + dy, -160, 160) }
           if zone == "header" { headerSpacing = clamp(headerSpacing + dy, -48, 80) }
           if zone == "notices" { noticeSpacing = clamp(noticeSpacing + dy, 0, 80) }
         }
+        onDragEnd: layoutDraggingZone = ""
         Text {
           text: zone == "rail" ? "↕ Worm" : zone == "header" ? "↕ Clock gap" : "↕ Alerts gap"
           font: chosenFont
-          fontSize: 12
+          fontSize: 11
           color: primaryText
           align: center
           maxLines: 1
@@ -1763,7 +1772,7 @@ face "Omagara" {
           if zone == "header" { headerSpacing = 0 }
           if zone == "notices" { noticeSpacing = 0 }
         }
-        Text { text: "Reset"; font: chosenFont; fontSize: 11; color: accent; align: center }
+        Text { text: "Reset"; font: chosenFont; fontSize: 10; color: accent; align: center }
       }
     }
   }
@@ -1772,7 +1781,7 @@ face "Omagara" {
   component HomeHeader() {
       Box {
         fill: width
-        height: headerPadTop + headerShapeHeight
+        height: headerPadTop + headerShapeHeight + headerEditorLane + (homeEditorVisible ? max(0, headerSpacing) : 0)
         align: topStart
         // Align this header to the actual media/notification column. Do not move the worm.
         offset: [cfg.headerAlignment == "Content column" ? 0 : -noticePanelShift, 0]
@@ -1904,16 +1913,15 @@ face "Omagara" {
           }
           }
         }
-        // Controls follow the clock's true position inside the scrolling
-        // document. Both disappear outside Home edit / pinned-app moves.
-        if layoutEditMode == "home" || moveMode == "pin" {
+        // An editor-only footer holds Compact and Clock gap below the date.
+        if homeEditorVisible {
           Box {
-            width: 94
-            height: 30
-            offset: [0, max(0, headerPadTop + headerShapeHeight - 8)]
-            background: alpha(surface, 0.94)
+            width: 92
+            height: 36
+            offset: [0, headerPadTop + headerShapeHeight + 6 + max(0, headerSpacing)]
+            background: alpha(surface, 0.78)
             border: 1
-            borderColor: alpha(accent, 0.70)
+            borderColor: alpha(accent, 0.36)
             radius: cfg.roundDate ? 7 : 0
             align: center
             onTap: compactHeader = !compactHeader
@@ -1926,9 +1934,9 @@ face "Omagara" {
             }
           }
           Box {
-            width: 152
+            width: 136
             height: 40
-            offset: [max(0, noticeWidth - 152), max(0, headerPadTop + headerShapeHeight - 8) + max(0, headerSpacing)]
+            offset: [max(0, noticeWidth - 136), headerPadTop + headerShapeHeight + 4 + max(0, headerSpacing)]
             LayoutSpacingHandle { zone: "header" }
           }
         }
@@ -2109,7 +2117,7 @@ face "Omagara" {
       lazy: true
       if len(headerRows) > 0 {
         HomeHeader {}
-        if headerSpacing > 0 { Spacer { width: noticeWidth; height: headerSpacing } }
+        if headerSpacing > 0 && !homeEditorVisible { Spacer { width: noticeWidth; height: headerSpacing } }
       }
       // Native compact player and selected app shortcuts share one surface.
       // A manual chevron controls shortcuts, independent of playback state.
@@ -2226,13 +2234,13 @@ face "Omagara" {
           let origin = find(pinSourceSlots, slot => slot.key == moveKey)
           if destination != null {
             Box {
-              width: destination.width
-              height: 42
-              offset: [destination.x, destination.y]
+              width: max(24, destination.width - 4)
+              height: 38
+              offset: [destination.x + 2, destination.y + 2]
               animate offset: spring(0.80, 220)
-              background: alpha(accent, 0.15)
+              background: alpha(accent, 0.06)
               border: 1
-              borderColor: alpha(accent, 0.80)
+              borderColor: alpha(accent, 0.52)
               radius: cfg.roundAppLabels ? 9 : 0
             }
           }
@@ -2411,22 +2419,22 @@ face "Omagara" {
         }
       }
       }
-      // The alerts clearance handle belongs at the actual pinned/notification
-      // boundary and follows the alert gap while dragging. The 1dp
-      // anchor keeps the lazy row mounted without reserving a 32dp edit lane.
-      if layoutEditMode == "home" || moveMode == "pin" {
+      // The editor clearance includes positive spacing, keeping the bar
+      // outside Notifications and entirely inside its own hit-test region.
+      if homeEditorVisible {
         Box {
           width: noticeWidth
-          height: 1
+          height: 46 + noticeSpacing
           Box {
-            width: 152
+            width: 136
             height: 40
-            offset: [max(0, noticeWidth - 152), noticeSpacing - 20]
+            offset: [max(0, noticeWidth - 136), 4 + noticeSpacing]
             LayoutSpacingHandle { zone: "notices" }
           }
         }
+      } else if noticeSpacing > 0 {
+        Spacer { width: noticeWidth; height: noticeSpacing }
       }
-      if noticeSpacing > 0 { Spacer { width: noticeWidth; height: noticeSpacing } }
       if cfg.notifications {
       if notices == null {
         Text { text: "Loading notifications…"; font: chosenFont; fontSize: 12; color: muted }
@@ -3155,9 +3163,7 @@ face "Omagara" {
         AlphabetRail { side: 1 }
       }
     }
-    // Keep the draggable worm-position handle beside the worm during BOTH
-    // Home and Alphabet moves. Its coordinate follows railTop after every
-    // adjustment, unlike the old bottom-anchored Home controls.
+    // Place the Worm control beside its first letters, not over Clear all.
     if layoutEditMode != "" || moveMode != "" {
       // Active apps still own their own ✓/×; Done cannot discard a draft.
       if layoutEditMode == "alphabet" && moveMode == "" {
@@ -3181,7 +3187,7 @@ face "Omagara" {
       Box {
         fill: true
         align: alphabetSide == -1 ? "topStart" : "topEnd"
-        padding: alphabetSide == -1 ? [screenLeft + 54, railTop + max(8, railStep * 1.25), 0, 0] : [0, railTop + max(8, railStep * 1.25), screenRight + 54, 0]
+        padding: alphabetSide == -1 ? [screenLeft + 42, wormEditorTop, 0, 0] : [0, wormEditorTop, screenRight + 42, 0]
         LayoutSpacingHandle { zone: "rail" }
       }
     }
