@@ -3287,6 +3287,163 @@ face "Omagara" {
     }
   }
 
+  // The rows/preview are shared, so changing the gesture owner cannot
+  // duplicate app content or change the list's geometry.
+  component AlphabetBrowserViewportContent() {
+    Box {
+      fill: true
+        // The outlined destination shifts to the exact index ✓ will save.
+        // Scrolling may virtualize the original row out of appWindow.
+        // Keep its floating preview anchored to the original document row.
+        let floatingWindowRow = moveMode == "alphabet" ?
+          (find(appWindow, r => r.id == moveKey) ??
+            {id: moveKey, top: get(appSectionStarts, indexOf(appSections, moveLetter), 0) +
+              appLabelHeight + moveOriginIndex * appRowHeight, height: appRowHeight}) : null
+        if floatingWindowRow != null {
+          Box {
+            width: appPanelWidth
+            height: appRowHeight
+            offset: [0, (appPreviewing ? floatingWindowRow.top : floatingWindowRow.top - appOffset) + (moveEffectiveTargetIndex - moveOriginIndex) * appRowHeight]
+            animate offset: spring(0.80, 230)
+            background: alpha(accent, 0.10)
+            border: 1
+            borderColor: alpha(accent, 0.68)
+            radius: cfg.roundAppLabels ? 7 : 0
+          }
+        }
+        // Paint selected app last, above neighbors flowing to final slots.
+        for row in (moveMode == "alphabet" ? appWindow.filter(r => r.id != moveKey) : appWindow) key row.id {
+          // Preview rows use their own bounded screen positions; ordinary
+          // scrolling still uses continuous document coordinates.
+          let rowY = appPreviewing ? row.top : row.top - appOffset
+          // Fade by row centre: a partly clipped row must not vanish whole.
+          let rowCentre = rowY + row.height / 2
+          let edge = clamp(min(rowCentre, appPanelHeight - rowCentre) / max(1, appFade), 0, 1)
+          let rowAlpha = edge * edge * (3 - 2 * edge)
+          Box {
+            width: appPanelWidth
+            height: row.height
+            offset: [0, rowY]
+            opacity: rowAlpha
+            // Offscreen buffer rows retain only lightweight keyed boxes:
+            // avoid composing their icon and text subtrees every frame.
+            if rowAlpha > 0.005 {
+              if row.heading {
+                Row {
+                  fill: width
+                  Text {
+                    text: row.section
+                    height: appLabelHeight
+                    font: chosenFont
+                    fontSize: 22 * appScale
+                    color: secondaryText
+                    maxLines: 1
+                    padding: cfg.shadeAppLabels ? [12 * appScale, 4 * appScale] : [0, 0]
+                    background: cfg.shadeAppLabels ? appLabelShade : transparent
+                    radius: cfg.shadeAppLabels && cfg.roundAppLabels ? 15 * appScale : 0
+                  }
+                }
+              } else if row.kind == "folder" {
+                FolderRow { f: row.folder; interactive: rowAlpha > 0.08 && rowY >= 0 && rowY + row.height <= appPanelHeight }
+              } else if row.kind == "menuAction" {
+                Row {
+                  fill: width
+                  height: appRowHeight
+                  align: center
+                  gap: 8 * appScale
+                  padding: [4 * appScale, 8 * appScale]
+                  onTap: {
+                    if rowAlpha > 0.08 && rowY >= 0 && rowY + row.height <= appPanelHeight {
+                      appVelocity = 0
+                      browsing = false
+                      activeSide = 0
+                      railHeld = false
+                      draggingSide = 0
+                      letter = first(liveAlphabet) ?? "A"
+                      appScroll = 0
+                      appAnchor = ""
+                      queryText = ""
+                      menu = ""
+                      if row.id == "omagara:settings" {
+                        resetConfirm = false
+                        screenMode = "settings"
+                        screen()
+                      } else {
+                        launcher("settings")
+                      }
+                    }
+                  }
+                  Box {
+                    size: 32 * appScale
+                    align: center
+                    // Theme-aware settings gear, drawn without font glyphs.
+                    Canvas {
+                      size: 22 * appScale
+                      for i in range(8) {
+                        rotate(i * 45, 11 * appScale, 11 * appScale) {
+                          line(11 * appScale, 2 * appScale, 11 * appScale, 4 * appScale, stroke: secondaryText, width: 2 * appScale, cap: round)
+                        }
+                      }
+                      circle(11 * appScale, 11 * appScale, 6.5 * appScale, stroke: secondaryText, width: 2 * appScale)
+                      circle(11 * appScale, 11 * appScale, 2 * appScale, fill: secondaryText)
+                    }
+                  }
+                  Row {
+                    width: appMenuTextWidth
+                    Text {
+                      text: row.id == "omagara:settings" ? "Omagara settings" : "Omalauncher settings"
+                      font: chosenFont
+                      fontSize: 17 * appScale
+                      color: primaryText
+                      maxLines: 2
+                      padding: cfg.shadeAppLabels ? [14 * appScale, 6 * appScale] : [0, 0]
+                      background: cfg.shadeAppLabels ? appLabelShade : transparent
+                      radius: cfg.shadeAppLabels && cfg.roundAppLabels ? 15 * appScale : 0
+                    }
+                  }
+                }
+              } else {
+                // Other apps slide into their FINAL preview slot, with stable
+                // row keys. The floating selected app is still drawn last.
+                let isSameLetter = moveMode == "alphabet" && row.section == moveLetter
+                let oldIndex = isSameLetter ? indexOf(moveKeys, row.id) : -1
+                let newIndex = isSameLetter ? indexOf(movePreviewKeys, row.id) : -1
+                let shiftY = isSameLetter && row.id != moveKey && oldIndex >= 0 && newIndex >= 0 ? (newIndex - oldIndex) * appRowHeight : 0
+                if isSameLetter {
+                  Box {
+                    width: appPanelWidth
+                    height: row.height
+                    offset: [0, shiftY]
+                    animate offset: spring(0.81, 220)
+                    AppRow { a: row.app; thumbView: true; interactive: rowAlpha > 0.08 && rowY >= 0 && rowY + row.height <= appPanelHeight }
+                  }
+                } else {
+                  AppRow { a: row.app; thumbView: true; interactive: rowAlpha > 0.08 && rowY >= 0 && rowY + row.height <= appPanelHeight }
+                }
+              }
+            }
+          }
+        }
+        // Give the selected app a full-viewport touch region so buttons stay
+        // attached and usable after it leaves its original alphabetical row.
+        if moveMode == "alphabet" && floatingWindowRow != null && moveApp != null {
+          FloatingMoveApp {
+            a: moveApp
+            alphabetMode: true
+            slotWidth: appPanelWidth - 8
+            slotHeight: appRowHeight
+            baseY: appPreviewing ? floatingWindowRow.top : floatingWindowRow.top - appOffset
+            snapX: moveSideRight ? max(0, appPanelWidth - 8 - min(appPanelWidth, max(40, min(appPanelWidth - 80, 205)))) : 0
+            snapY: (moveTargetIndex - moveOriginIndex) * appRowHeight
+            viewportHeight: appPanelHeight
+          }
+        }
+        if len(apps) == 0 {
+          Text { text: installed == null ? "Loading apps…" : "No installed apps"; font: chosenFont; fontSize: 14; color: muted }
+        }
+    }
+  }
+
   // Only one viewport exists at runtime. The editing branch owns free
   // two-axis dragging; ordinary Alphabet browsing retains vertical-only
   // scrolling and leaves native horizontal navigation untouched.
@@ -3574,163 +3731,6 @@ face "Omagara" {
         }
         AlphabetBrowserViewportContent {}
       }
-    }
-  }
-
-  // The rows/preview are shared, so changing the gesture owner cannot
-  // duplicate app content or change the list's geometry.
-  component AlphabetBrowserViewportContent() {
-    Box {
-      fill: true
-        // The outlined destination shifts to the exact index ✓ will save.
-        // Scrolling may virtualize the original row out of appWindow.
-        // Keep its floating preview anchored to the original document row.
-        let floatingWindowRow = moveMode == "alphabet" ?
-          (find(appWindow, r => r.id == moveKey) ??
-            {id: moveKey, top: get(appSectionStarts, indexOf(appSections, moveLetter), 0) +
-              appLabelHeight + moveOriginIndex * appRowHeight, height: appRowHeight}) : null
-        if floatingWindowRow != null {
-          Box {
-            width: appPanelWidth
-            height: appRowHeight
-            offset: [0, (appPreviewing ? floatingWindowRow.top : floatingWindowRow.top - appOffset) + (moveEffectiveTargetIndex - moveOriginIndex) * appRowHeight]
-            animate offset: spring(0.80, 230)
-            background: alpha(accent, 0.10)
-            border: 1
-            borderColor: alpha(accent, 0.68)
-            radius: cfg.roundAppLabels ? 7 : 0
-          }
-        }
-        // Paint selected app last, above neighbors flowing to final slots.
-        for row in (moveMode == "alphabet" ? appWindow.filter(r => r.id != moveKey) : appWindow) key row.id {
-          // Preview rows use their own bounded screen positions; ordinary
-          // scrolling still uses continuous document coordinates.
-          let rowY = appPreviewing ? row.top : row.top - appOffset
-          // Fade by row centre: a partly clipped row must not vanish whole.
-          let rowCentre = rowY + row.height / 2
-          let edge = clamp(min(rowCentre, appPanelHeight - rowCentre) / max(1, appFade), 0, 1)
-          let rowAlpha = edge * edge * (3 - 2 * edge)
-          Box {
-            width: appPanelWidth
-            height: row.height
-            offset: [0, rowY]
-            opacity: rowAlpha
-            // Offscreen buffer rows retain only lightweight keyed boxes:
-            // avoid composing their icon and text subtrees every frame.
-            if rowAlpha > 0.005 {
-              if row.heading {
-                Row {
-                  fill: width
-                  Text {
-                    text: row.section
-                    height: appLabelHeight
-                    font: chosenFont
-                    fontSize: 22 * appScale
-                    color: secondaryText
-                    maxLines: 1
-                    padding: cfg.shadeAppLabels ? [12 * appScale, 4 * appScale] : [0, 0]
-                    background: cfg.shadeAppLabels ? appLabelShade : transparent
-                    radius: cfg.shadeAppLabels && cfg.roundAppLabels ? 15 * appScale : 0
-                  }
-                }
-              } else if row.kind == "folder" {
-                FolderRow { f: row.folder; interactive: rowAlpha > 0.08 && rowY >= 0 && rowY + row.height <= appPanelHeight }
-              } else if row.kind == "menuAction" {
-                Row {
-                  fill: width
-                  height: appRowHeight
-                  align: center
-                  gap: 8 * appScale
-                  padding: [4 * appScale, 8 * appScale]
-                  onTap: {
-                    if rowAlpha > 0.08 && rowY >= 0 && rowY + row.height <= appPanelHeight {
-                      appVelocity = 0
-                      browsing = false
-                      activeSide = 0
-                      railHeld = false
-                      draggingSide = 0
-                      letter = first(liveAlphabet) ?? "A"
-                      appScroll = 0
-                      appAnchor = ""
-                      queryText = ""
-                      menu = ""
-                      if row.id == "omagara:settings" {
-                        resetConfirm = false
-                        screenMode = "settings"
-                        screen()
-                      } else {
-                        launcher("settings")
-                      }
-                    }
-                  }
-                  Box {
-                    size: 32 * appScale
-                    align: center
-                    // Theme-aware settings gear, drawn without font glyphs.
-                    Canvas {
-                      size: 22 * appScale
-                      for i in range(8) {
-                        rotate(i * 45, 11 * appScale, 11 * appScale) {
-                          line(11 * appScale, 2 * appScale, 11 * appScale, 4 * appScale, stroke: secondaryText, width: 2 * appScale, cap: round)
-                        }
-                      }
-                      circle(11 * appScale, 11 * appScale, 6.5 * appScale, stroke: secondaryText, width: 2 * appScale)
-                      circle(11 * appScale, 11 * appScale, 2 * appScale, fill: secondaryText)
-                    }
-                  }
-                  Row {
-                    width: appMenuTextWidth
-                    Text {
-                      text: row.id == "omagara:settings" ? "Omagara settings" : "Omalauncher settings"
-                      font: chosenFont
-                      fontSize: 17 * appScale
-                      color: primaryText
-                      maxLines: 2
-                      padding: cfg.shadeAppLabels ? [14 * appScale, 6 * appScale] : [0, 0]
-                      background: cfg.shadeAppLabels ? appLabelShade : transparent
-                      radius: cfg.shadeAppLabels && cfg.roundAppLabels ? 15 * appScale : 0
-                    }
-                  }
-                }
-              } else {
-                // Other apps slide into their FINAL preview slot, with stable
-                // row keys. The floating selected app is still drawn last.
-                let isSameLetter = moveMode == "alphabet" && row.section == moveLetter
-                let oldIndex = isSameLetter ? indexOf(moveKeys, row.id) : -1
-                let newIndex = isSameLetter ? indexOf(movePreviewKeys, row.id) : -1
-                let shiftY = isSameLetter && row.id != moveKey && oldIndex >= 0 && newIndex >= 0 ? (newIndex - oldIndex) * appRowHeight : 0
-                if isSameLetter {
-                  Box {
-                    width: appPanelWidth
-                    height: row.height
-                    offset: [0, shiftY]
-                    animate offset: spring(0.81, 220)
-                    AppRow { a: row.app; thumbView: true; interactive: rowAlpha > 0.08 && rowY >= 0 && rowY + row.height <= appPanelHeight }
-                  }
-                } else {
-                  AppRow { a: row.app; thumbView: true; interactive: rowAlpha > 0.08 && rowY >= 0 && rowY + row.height <= appPanelHeight }
-                }
-              }
-            }
-          }
-        }
-        // Give the selected app a full-viewport touch region so buttons stay
-        // attached and usable after it leaves its original alphabetical row.
-        if moveMode == "alphabet" && floatingWindowRow != null && moveApp != null {
-          FloatingMoveApp {
-            a: moveApp
-            alphabetMode: true
-            slotWidth: appPanelWidth - 8
-            slotHeight: appRowHeight
-            baseY: appPreviewing ? floatingWindowRow.top : floatingWindowRow.top - appOffset
-            snapX: moveSideRight ? max(0, appPanelWidth - 8 - min(appPanelWidth, max(40, min(appPanelWidth - 80, 205)))) : 0
-            snapY: (moveTargetIndex - moveOriginIndex) * appRowHeight
-            viewportHeight: appPanelHeight
-          }
-        }
-        if len(apps) == 0 {
-          Text { text: installed == null ? "Loading apps…" : "No installed apps"; font: chosenFont; fontSize: 14; color: muted }
-        }
     }
   }
 
