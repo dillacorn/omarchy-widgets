@@ -978,6 +978,8 @@ face "Omagara" {
       onTap: {
         if moveMode == "pin" {
           moveTargetIndex = indexOf(pinnedAppKeys, a.key)
+          moveDragX = 0
+          moveDragY = (moveTargetIndex - moveOriginIndex) * 52
         } else if moveMode == "" {
           androidApp(a.key)
         }
@@ -1394,6 +1396,8 @@ face "Omagara" {
                   onTap: {
                     if moveMode == "pin" {
                       moveTargetIndex = indexOf(pinnedAppKeys, a.key)
+                      moveDragX = 0
+                      moveDragY = (moveTargetIndex - moveOriginIndex) * 52
                     } else if moveMode == "" {
                       androidApp(a.key)
                     }
@@ -1552,12 +1556,21 @@ face "Omagara" {
           text: "✓"
           onTap: {
             if moveOriginIndex >= 0 && moveTargetIndex >= 0 && moveTargetIndex < len(moveKeys) {
-              if moveMode == "pin" && moveTargetIndex != moveOriginIndex {
-                let previousNext = get(pinnedAppKeys, moveOriginIndex + 1)
-                let newNext = get(movePreviewKeys, moveTargetIndex + 1)
-                let breakKeys = unique([moveKey, previousNext, newNext].filter(k => k != null))
-                pinnedLayouts = pinnedLayouts.filter(p => !contains(breakKeys, p.key)) + breakKeys.map(k => merge(find(pinnedLayouts, p => p.key == k) ?? {key: k, showLabel: true}, {newRow: true}))
-                pinnedAppKeys = movePreviewKeys
+              if moveMode == "pin" {
+                let relocated = moveTargetIndex != moveOriginIndex
+                // Horizontal rightward placement joins the preceding icon;
+                // ordinary vertical moves keep separate rows.
+                let joinPrevious = moveDragX >= 42 && moveTargetIndex > 0
+                if relocated || joinPrevious {
+                  let previousNext = get(pinnedAppKeys, moveOriginIndex + 1)
+                  let newNext = get(movePreviewKeys, moveTargetIndex + 1)
+                  let breakKeys = unique([previousNext, newNext].filter(k => k != null && k != moveKey))
+                  let oldLayout = find(pinnedLayouts, p => p.key == moveKey)
+                  pinnedLayouts = pinnedLayouts.filter(p => p.key != moveKey && !contains(breakKeys, p.key)) +
+                    breakKeys.map(k => merge(find(pinnedLayouts, p => p.key == k) ?? {key: k, showLabel: true}, {newRow: true})) +
+                    [merge(oldLayout ?? {key: moveKey, showLabel: true}, {newRow: !joinPrevious})]
+                  pinnedAppKeys = movePreviewKeys
+                }
               } else if moveMode == "alphabet" && moveTargetIndex != moveOriginIndex {
                 let neighbor = moveTargetIndex == 0 ? get(moveOtherKeys, 0) : get(moveOtherKeys, moveTargetIndex - 1)
                 if neighbor != null {
@@ -2287,7 +2300,7 @@ face "Omagara" {
     fill: true
     ripple: false
     onPress: { if appVelocity != 0 { appScroll = appOffset; appVelocity = 0; if appFirst != null { appAnchor = appFirst.id; appAnchorSection = appFirst.section; appAnchorOffset = appOffset - appFirst.top } } }
-    onTap: { appVelocity = 0; browsing = false; activeSide = 0; railHeld = false; draggingSide = 0; letter = first(liveAlphabet) ?? "A"; appScroll = 0; appAnchor = ""; queryText = ""; menu = ""; expandedStack = ""; replyKey = ""; replyDraft = "" }
+    onTap: { if moveMode == "" { appVelocity = 0; browsing = false; activeSide = 0; railHeld = false; draggingSide = 0; letter = first(liveAlphabet) ?? "A"; appScroll = 0; appAnchor = ""; queryText = ""; menu = ""; expandedStack = ""; replyKey = ""; replyDraft = "" } }
     if browsing {
       Box {
         width: appPanelWidth
