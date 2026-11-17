@@ -2297,14 +2297,33 @@ face "Omagara" {
           let nextY = (moveDragging ? moveDragY : visualY) + dy
           moveDragging = true
           moveDragX = nextX
-          moveDragY = nextY
+          // When dragging toward a screen edge, scroll within this letter,
+          // never into another letter. Add the scroll delta to the floating
+          // app's Y offset so the icon continues following the same finger.
+          let sectionIndex = alphabetMode ? indexOf(appSections, moveLetter) : -1
+          let sectionTop = get(appSectionStarts, sectionIndex, 0)
+          let sectionHeight = appLabelHeight + len(get(groups, moveLetter, [])) * appRowHeight
+          let sectionMin = clamp(sectionTop - appEdgeSpace, 0, appMaxScroll)
+          let sectionMax = clamp(max(sectionMin, sectionTop + sectionHeight - appPanelHeight + appEdgeSpace), sectionMin, appMaxScroll)
+          let fingerY = baseY + nextY
+          let scrollEdge = min(80, appPanelHeight / 6)
+          let edgeStep = alphabetMode && sectionIndex >= 0 && sectionHeight > appPanelHeight - 2 * appEdgeSpace ?
+            dy > 0 && fingerY + slotHeight >= appPanelHeight - scrollEdge ? clamp(dy * 1.5, 0, 28) :
+            dy < 0 && fingerY <= scrollEdge ? clamp(dy * 1.5, -28, 0) : 0 : 0
+          let scrollStep = edgeStep > 0 ? min(edgeStep, max(0, sectionMax - appOffset)) :
+            edgeStep < 0 ? max(edgeStep, min(0, sectionMin - appOffset)) : 0
+          if scrollStep != 0 {
+            appScroll = appOffset + scrollStep
+            appVelocity = 0
+          }
+          moveDragY = nextY + scrollStep
           if alphabetMode && rightSideSnap > 24 {
             moveSideRight = nextX > rightSideSnap * (moveSideRight ? 0.38 : 0.62)
           }
           // Hit-test actual icon centers on the hovered row. The old
           // moveOriginIndex + dx/width calculation jumped to wrong slots
           // when source/destination rows had different icon or label widths.
-          let nextIndex = moveOriginIndex + round(nextY / appRowHeight)
+          let nextIndex = moveOriginIndex + round((nextY + (alphabetMode ? scrollStep : 0)) / appRowHeight)
           if !alphabetMode {
             let sourceSlot = find(pinSourceSlots, p => p.key == moveKey)
             let sourceRow = get(pinnedRowNumbers, indexOf(pinnedApps.map(p => p.key), moveKey), 1)
@@ -3203,7 +3222,12 @@ face "Omagara" {
                   }
         }
         // The outlined destination shifts to the exact index ✓ will save.
-        let floatingWindowRow = moveMode == "alphabet" ? find(appWindow, r => r.id == moveKey) : null
+        // Scrolling may virtualize the original row out of appWindow.
+        // Keep its floating preview anchored to the original document row.
+        let floatingWindowRow = moveMode == "alphabet" ?
+          (find(appWindow, r => r.id == moveKey) ??
+            {id: moveKey, top: get(appSectionStarts, indexOf(appSections, moveLetter), 0) +
+              appLabelHeight + moveOriginIndex * appRowHeight, height: appRowHeight}) : null
         if floatingWindowRow != null {
           Box {
             width: appPanelWidth
