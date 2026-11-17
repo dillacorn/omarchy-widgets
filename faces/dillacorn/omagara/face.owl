@@ -128,6 +128,8 @@ face "Omagara" {
   // Floating selected row follows the finger in the original list.
   state moveDragX = 0
   state moveDragY = 0
+  state moveDragging = false
+  state moveLiftStarted = 0
   // Manual quick-launch expansion: never follows play/pause or Bluetooth refreshes.
   state musicAppsExpanded = false
   state compactAlertApps = [] persist
@@ -450,6 +452,71 @@ face "Omagara" {
   let noticeBottom = max(screenTop + 12, (tileHeight ?? 800) - searchBottom - 60)
   // One source of truth: 20dp outer left; 12dp clear of the 44dp right rail.
   let noticeWidth = max(0, availableWidth - 80)
+
+  // Preview and Save MUST use the same projected order and row breaks.
+  let pinDraftActive = moveMode == "pin" && moveOriginIndex >= 0
+  let pinDraftRelocated = pinDraftActive && moveTargetIndex != moveOriginIndex
+  let pinDraftHorizontal = pinDraftActive && abs(moveDragX) >= 42 && abs(moveDragX) * 2 >= abs(moveDragY)
+  let pinDraftOriginVisible = indexOf(pinnedApps.map(p => p.key), moveKey)
+  let pinDraftOriginalTarget = get(moveKeys, moveTargetIndex)
+  let pinDraftTargetVisible = indexOf(pinnedApps.map(p => p.key), pinDraftOriginalTarget)
+  let pinDraftOriginRow = get(pinnedRowNumbers, pinDraftOriginVisible, -1)
+  let pinDraftTargetRow = get(pinnedRowNumbers, pinDraftTargetVisible, -2)
+  let pinDraftSameRow = pinDraftHorizontal && pinDraftRelocated && pinDraftOriginRow > 0 && pinDraftOriginRow == pinDraftTargetRow
+  let pinDraftJoinBefore = pinDraftHorizontal && moveDragX >= 42 && moveTargetIndex > 0
+  let pinDraftJoinAfter = pinDraftHorizontal && moveDragX <= -42 && moveTargetIndex < moveOriginIndex
+  let pinDraftOldLayout = find(pinnedLayouts, p => p.key == moveKey)
+  let pinDraftPreviouslyJoined = get(pinDraftOldLayout ?? {}, "newRow", true) == false
+  let pinDraftChanged = pinDraftSameRow || pinDraftRelocated || pinDraftJoinBefore && !pinDraftPreviouslyJoined || pinDraftJoinAfter
+  let pinDraftPriorNext = get(pinnedAppKeys, moveOriginIndex + 1)
+  let pinDraftFollowingKey = get(movePreviewKeys, moveTargetIndex + 1)
+  let pinDraftFollowingLayout = find(pinnedLayouts, p => p.key == pinDraftFollowingKey)
+  let pinDraftFollowingStartsRow = get(pinDraftFollowingLayout ?? {}, "newRow", true) != false
+  let pinDraftBreakKeys = unique([pinDraftPriorNext, pinDraftFollowingKey].filter(k => k != null && k != moveKey))
+  let pinDraftGroupKeys = get(pinnedRows, pinDraftOriginRow - 1, []).map(a => a.key)
+  let pinDraftGroupFirst = first(movePreviewKeys.filter(k => contains(pinDraftGroupKeys, k)))
+  let pinDraftLayouts = !pinDraftActive || !pinDraftChanged ? pinnedLayouts :
+    pinDraftSameRow ?
+      pinnedLayouts.filter(p => !contains(pinDraftGroupKeys, p.key)) +
+      pinDraftGroupKeys.map(k => merge(find(pinnedLayouts, p => p.key == k) ?? {key: k, showLabel: true}, {newRow: k == pinDraftGroupFirst})) :
+      pinnedLayouts.filter(p => p.key != moveKey && !contains(pinDraftBreakKeys, p.key)) +
+      pinDraftBreakKeys.map(k => merge(find(pinnedLayouts, p => p.key == k) ?? {key: k, showLabel: true}, {newRow: k == pinDraftFollowingKey ? (pinDraftJoinAfter ? false : pinDraftJoinBefore ? pinDraftFollowingStartsRow : true) : true})) +
+      [merge(pinDraftOldLayout ?? {key: moveKey, showLabel: true}, {newRow: pinDraftJoinBefore ? false : pinDraftJoinAfter ? pinDraftFollowingStartsRow : true})]
+  let pinDraftKeys = pinDraftActive && pinDraftChanged ? movePreviewKeys : pinnedAppKeys
+  let pinDraftApps = take(pinDraftKeys.map(k => find(installed ?? [], a => a.key == k)).filter(a => a != null), 8)
+  let pinDraftRowNumbers = map(range(len(pinDraftApps)), i => sum(take(pinDraftApps, i + 1).map((a, j) => j == 0 || get(find(pinDraftLayouts, p => p.key == a.key) ?? {}, "newRow", true) != false ? 1 : 0)))
+  let pinDraftRows = unique(pinDraftRowNumbers).map(r => pinDraftApps.filter(a => get(pinDraftRowNumbers, indexOf(pinDraftApps.map(p => p.key), a.key), 0) == r))
+  // In-place slots use the existing 42dp row + 6dp gap.
+  let pinSourceRowGeometry = pinnedRows.map((row, ri) => {
+    apps: row, rowIndex: ri,
+    iconSize: len(row) > 1 ? max(23, min(36, (noticeWidth - len(row) * 4 - max(0, len(row) - 1) * 6 - 8) / max(1, len(row)))) : 34,
+    namedCount: count(row, a => len(row) == 1 && get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false)
+  })
+  let pinSourceSlotGeometry = pinSourceRowGeometry.map(r => merge(r, {
+    labelWidth: min(152, max(42, (noticeWidth - len(r.apps) * (r.iconSize + 12) - max(0, len(r.apps) - 1) * 6 - 8) / max(1, r.namedCount))),
+    widths: r.apps.map(a => r.iconSize + 4 + (len(r.apps) == 1 && get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false ? 8 + min(152, max(42, (noticeWidth - len(r.apps) * (r.iconSize + 12) - 8) / max(1, r.namedCount))) : 0))
+  }))
+  let pinSourceSlots = flatten(pinSourceSlotGeometry.map(r => r.apps.map((a, i) => {
+    key: a.key, x: sum(take(r.widths, i)) + i * 6, y: r.rowIndex * 48,
+    width: get(r.widths, i, 38), iconSize: r.iconSize, labelWidth: r.labelWidth,
+    showLabel: len(r.apps) == 1 && get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false
+  })))
+  // In-place slots use the existing 42dp row + 6dp gap.
+  let pinTargetRowGeometry = pinDraftRows.map((row, ri) => {
+    apps: row, rowIndex: ri,
+    iconSize: len(row) > 1 ? max(23, min(36, (noticeWidth - len(row) * 4 - max(0, len(row) - 1) * 6 - 8) / max(1, len(row)))) : 34,
+    namedCount: count(row, a => len(row) == 1 && get(find(pinDraftLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false)
+  })
+  let pinTargetSlotGeometry = pinTargetRowGeometry.map(r => merge(r, {
+    labelWidth: min(152, max(42, (noticeWidth - len(r.apps) * (r.iconSize + 12) - max(0, len(r.apps) - 1) * 6 - 8) / max(1, r.namedCount))),
+    widths: r.apps.map(a => r.iconSize + 4 + (len(r.apps) == 1 && get(find(pinDraftLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false ? 8 + min(152, max(42, (noticeWidth - len(r.apps) * (r.iconSize + 12) - 8) / max(1, r.namedCount))) : 0))
+  }))
+  let pinTargetSlots = flatten(pinTargetSlotGeometry.map(r => r.apps.map((a, i) => {
+    key: a.key, x: sum(take(r.widths, i)) + i * 6, y: r.rowIndex * 48,
+    width: get(r.widths, i, 38), iconSize: r.iconSize, labelWidth: r.labelWidth,
+    showLabel: len(r.apps) == 1 && get(find(pinDraftLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false
+  })))
+
   // One native vertical document: no separate pin quota or fixed notification
   // start offset. Collapsing/dismissing a notification closes the gap naturally.
   // Matching 64dp resistance and 240ms rebound at both notification ends.
@@ -1568,35 +1635,9 @@ face "Omagara" {
           onTap: {
             if moveOriginIndex >= 0 && moveTargetIndex >= 0 && moveTargetIndex < len(moveKeys) {
               if moveMode == "pin" {
-                let relocated = moveTargetIndex != moveOriginIndex
-                let horizontalIntent = abs(moveDragX) >= 42 && abs(moveDragX) * 2 >= abs(moveDragY)
-                let originVisibleIndex = indexOf(pinnedApps.map(p => p.key), moveKey)
-                let originalTarget = get(moveKeys, moveTargetIndex)
-                let targetVisibleIndex = indexOf(pinnedApps.map(p => p.key), originalTarget)
-                let originRow = get(pinnedRowNumbers, originVisibleIndex, -1)
-                let targetRow = get(pinnedRowNumbers, targetVisibleIndex, -2)
-                let sameIconRow = horizontalIntent && relocated && originRow > 0 && originRow == targetRow
-                let joinPrevious = horizontalIntent && moveDragX >= 42 && moveTargetIndex > 0
-                let joinNext = horizontalIntent && moveDragX <= -42 && moveTargetIndex < moveOriginIndex
-                let priorLayout = find(pinnedLayouts, p => p.key == moveKey)
-                let alreadyJoined = get(priorLayout ?? {}, "newRow", true) == false
-                if sameIconRow {
-                  // Swapping icons within a horizontal row never splits it.
-                  let rowKeys = get(pinnedRows, originRow - 1, []).map(a => a.key)
-                  let newFirst = first(movePreviewKeys.filter(k => contains(rowKeys, k)))
-                  pinnedLayouts = pinnedLayouts.filter(p => !contains(rowKeys, p.key)) +
-                    rowKeys.map(k => merge(find(pinnedLayouts, p => p.key == k) ?? {key: k, showLabel: true}, {newRow: k == newFirst}))
-                  pinnedAppKeys = movePreviewKeys
-                } else if relocated || joinPrevious && !alreadyJoined || joinNext {
-                  let previousNext = get(pinnedAppKeys, moveOriginIndex + 1)
-                  let newNext = get(movePreviewKeys, moveTargetIndex + 1)
-                  let nextLayout = find(pinnedLayouts, p => p.key == newNext)
-                  let nextStartsRow = get(nextLayout ?? {}, "newRow", true) != false
-                  let breakKeys = unique([previousNext, newNext].filter(k => k != null && k != moveKey))
-                  pinnedLayouts = pinnedLayouts.filter(p => p.key != moveKey && !contains(breakKeys, p.key)) +
-                    breakKeys.map(k => merge(find(pinnedLayouts, p => p.key == k) ?? {key: k, showLabel: true}, {newRow: k == newNext ? (joinNext ? false : joinPrevious ? nextStartsRow : true) : true})) +
-                    [merge(priorLayout ?? {key: moveKey, showLabel: true}, {newRow: joinPrevious ? false : joinNext ? nextStartsRow : true})]
-                  pinnedAppKeys = movePreviewKeys
+                if pinDraftChanged {
+                  pinnedLayouts = pinDraftLayouts
+                  pinnedAppKeys = pinDraftKeys
                 }
               } else if moveMode == "alphabet" && moveTargetIndex != moveOriginIndex {
                 let neighbor = moveTargetIndex == 0 ? get(moveOtherKeys, 0) : get(moveOtherKeys, moveTargetIndex - 1)
