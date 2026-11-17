@@ -1157,7 +1157,7 @@ face "Omagara" {
           }
         }
         Text {
-          text: "Unpin app"
+          text: a.folderId == null ? "Unpin app" : "Unpin folder"
           fill: width
           padding: [12, 14]
           onTap: {
@@ -1197,6 +1197,7 @@ face "Omagara" {
             }
           }
         }
+        if a.folderId == null {
         for shortcut in pinnedMenuShortcuts ?? [] key shortcut.key {
           Text {
             text: shortcut.name
@@ -1213,6 +1214,7 @@ face "Omagara" {
             padding: [12, 14]
             onTap: { pinnedMenuKey = ""; pinnedMenuShortcuts = null; appAction(actionWord, a.key) }
           }
+        }
         }
       }
     }
@@ -2371,6 +2373,54 @@ face "Omagara" {
     }
   }
 
+  // The browser and pinned-home folders open this exact same app list.
+  component FolderPopupContents(f) {
+    Column {
+      fill: width
+      gap: 5
+      padding: [6, 8]
+      Row {
+        fill: width
+        align: center
+        gap: 6
+        FolderIcon { f: f; side: 28 }
+        Text { text: f.name; font: chosenFont; fontSize: 18; color: primaryText; weight: 1; maxLines: 1 }
+        Text {
+          text: "Edit"
+          font: chosenFont
+          fontSize: 13
+          color: accent
+          padding: [8, 8]
+          onTap: {
+            folderOpenId = ""
+            menu = ""
+            folderEditId = f.id
+            folderEditName = f.name
+            folderAppQuery = ""
+            folderDeleteConfirm = false
+            screenMode = "folderEdit"
+            screen()
+          }
+        }
+      }
+      if folderOpenId == f.id {
+        if len(folderApps) == 0 {
+          Text { text: "Empty folder · Edit to add apps"; font: chosenFont; fontSize: 13; color: secondaryText; padding: [6, 8] }
+        } else {
+          Column {
+            fill: width
+            height: min(336, max(54, len(folderApps) * appRowHeight))
+            lazy: true
+            gap: 0
+            for a in folderApps key a.key {
+              AppRow { a: a; thumbView: true; folderView: true }
+            }
+          }
+        }
+      }
+    }
+  }
+
   component FolderRow(f, interactive = true) {
     Row {
       fill: width
@@ -2418,50 +2468,7 @@ face "Omagara" {
         // Limit the floating panel to the app column; keep the worm visible.
         width: min(226, max(160, appPanelWidth - 62))
         gap: 0
-        Column {
-          fill: width
-          gap: 5
-          padding: [6, 8]
-          Row {
-            fill: width
-            align: center
-            gap: 6
-            FolderIcon { f: f; side: 28 }
-            Text { text: f.name; font: chosenFont; fontSize: 18; color: primaryText; weight: 1; maxLines: 1 }
-            Text {
-              text: "Edit"
-              font: chosenFont
-              fontSize: 13
-              color: accent
-              padding: [8, 8]
-              onTap: {
-                folderOpenId = ""
-                menu = ""
-                folderEditId = f.id
-                folderEditName = f.name
-                folderAppQuery = ""
-                folderDeleteConfirm = false
-                screenMode = "folderEdit"
-                screen()
-              }
-            }
-          }
-          if folderOpenId == f.id {
-            if len(folderApps) == 0 {
-              Text { text: "Empty folder · Edit to add apps"; font: chosenFont; fontSize: 13; color: secondaryText; padding: [6, 8] }
-            } else {
-              Column {
-                fill: width
-                height: min(336, max(54, len(folderApps) * appRowHeight))
-                lazy: true
-                gap: 0
-                for a in folderApps key a.key {
-                  AppRow { a: a; thumbView: true; folderView: true }
-                }
-              }
-            }
-          }
-        }
+        FolderPopupContents { f: f }
       }
     }
   }
@@ -3062,6 +3069,18 @@ face "Omagara" {
               }
               if i > 0 { Button { text: "↑"; onTap: customFolders = set(set(customFolders, i - 1, f), i, customFolders[i - 1]) } }
               if i < len(customFolders) - 1 { Button { text: "↓"; onTap: customFolders = set(set(customFolders, i + 1, f), i, customFolders[i + 1]) } }
+              Button {
+                text: contains(pinnedAppKeys, "folder:" + f.id) ? "Unpin" : len(pinnedAppKeys) >= 8 ? "Pin limit (8)" : "Pin"
+                onTap: {
+                  let folderPinKey = "folder:" + f.id
+                  if contains(pinnedAppKeys, folderPinKey) {
+                    pinnedAppKeys = pinnedAppKeys.filter(k => k != folderPinKey)
+                    pinnedLayouts = pinnedLayouts.filter(p => p.key != folderPinKey)
+                  } else if len(pinnedAppKeys) < 8 {
+                    pinnedAppKeys = pinnedAppKeys + [folderPinKey]
+                  }
+                }
+              }
               Button { text: "Edit"; onTap: { folderEditId = f.id; folderEditName = f.name; folderAppQuery = ""; folderDeleteConfirm = false; screenMode = "folderEdit" } }
             }
           }
@@ -3102,6 +3121,18 @@ face "Omagara" {
               }
             }
           }
+          Button {
+            text: contains(pinnedAppKeys, "folder:" + folderEditId) ? "Unpin folder" : len(pinnedAppKeys) >= 8 ? "Pin limit reached (8)" : "Pin folder"
+            onTap: {
+              let folderPinKey = "folder:" + folderEditId
+              if contains(pinnedAppKeys, folderPinKey) {
+                pinnedAppKeys = pinnedAppKeys.filter(k => k != folderPinKey)
+                pinnedLayouts = pinnedLayouts.filter(p => p.key != folderPinKey)
+              } else if len(pinnedAppKeys) < 8 {
+                pinnedAppKeys = pinnedAppKeys + [folderPinKey]
+              }
+            }
+          }
           Text { text: "Add or remove installed apps"; font: chosenFont; fontSize: 14; color: muted }
           Input { text: folderAppQuery; placeholder: "Find apps…"; onChange: folderAppQuery = value }
           Column {
@@ -3123,7 +3154,7 @@ face "Omagara" {
           } else {
             Text { text: "Delete this folder? Its apps remain installed."; font: chosenFont; color: muted }
             Row {
-              Button { text: "Confirm delete"; onTap: { customFolders = customFolders.filter(f => f.id != folderEditId); folderDeleteConfirm = false; folderOpenId = ""; folderEditId = ""; screenMode = "folderList" } }
+              Button { text: "Confirm delete"; onTap: { let removedPinKey = "folder:" + folderEditId; pinnedAppKeys = pinnedAppKeys.filter(k => k != removedPinKey); pinnedLayouts = pinnedLayouts.filter(p => p.key != removedPinKey); customFolders = customFolders.filter(f => f.id != folderEditId); folderDeleteConfirm = false; folderOpenId = ""; folderEditId = ""; screenMode = "folderList" } }
               Button { text: "Cancel"; onTap: folderDeleteConfirm = false }
             }
           }
@@ -3347,16 +3378,16 @@ face "Omagara" {
                 }
               }
               Text { text: "Most used is the default. Long-press an app in the A–Z list to move it within its letter or reset its automatic position. A small line marks moved apps. Search is unaffected."; font: chosenFont; fontSize: 12; color: secondaryText }
-              Text { text: "Pinned apps · " + str(len(pinnedAppKeys)) + "/8"; color: accent; font: chosenFont; fontSize: 16; padding: [0, 12, 0, 2] }
-              Text { text: "Standalone pins show their names; stacked pins hide them automatically. Use Move app… to arrange or stack pins."; font: chosenFont; fontSize: 12; color: secondaryText }
+              Text { text: "Pinned apps & folders · " + str(len(pinnedAppKeys)) + "/8"; color: accent; font: chosenFont; fontSize: 16; padding: [0, 12, 0, 2] }
+              Text { text: "Apps and folders share eight pin slots. Standalone pins show names; stacks hide them. Use Move app… to reorder or stack."; font: chosenFont; fontSize: 12; color: secondaryText }
               for pinKey in pinnedAppKeys key pinKey {
-                let pinnedEntry = find(installed ?? [], a => a.key == pinKey)
+                let pinnedEntry = find(pinnedApps, a => a.key == pinKey)
                 Column {
                   fill: width
                   gap: 5
                   padding: [6, 4]
                   Text {
-                    text: pinnedEntry == null ? pinKey + " (not installed)" : pinnedEntry.name + (pinnedEntry.profile == null ? "" : " · " + pinnedEntry.profile)
+                    text: pinnedEntry == null ? pinKey + " (unavailable)" : pinnedEntry.name + (pinnedEntry.folderId != null ? " · Folder" : pinnedEntry.profile == null ? "" : " · " + pinnedEntry.profile)
                     font: chosenFont
                     fontSize: 14
                     maxLines: 1
@@ -3652,7 +3683,7 @@ face "Omagara" {
               manualAppMoves = imported.manualMoves ?? []
               customFolders = imported.folders ?? []
               folderSerial = imported.folderSerial ?? 0
-              pinnedAppKeys = take(unique(imported.pinnedApps ?? []), 8)
+              pinnedAppKeys = take(unique(imported.pinnedApps ?? []).filter(k => sub(k, 0, 7) != "folder:" || any(imported.folders ?? [], f => "folder:" + f.id == k)), 8)
               pinnedLayouts = (imported.pinLayouts ?? (get(imported.prefs, "compactPins", false) == true ? (imported.pinnedApps ?? []).take(8).map((k, i) => {key: k, showLabel: false, newRow: i == 0}) : [])).filter(p => contains(imported.pinnedApps ?? [], p.key)).take(8)
               expandedPinnedKey = ""
               pinnedNoticeShown = 4
