@@ -1047,7 +1047,7 @@ face "Omagara" {
   // One notification viewport, used by both animated and reduced-motion layouts.
   // The same pinned-app menu is anchored to the icon in both display modes.
   // Shortcuts and native app actions are the same APIs as the A-Z context menu.
-  component HomePinIcon(a, iconSize = 30, showNoticeBadge = false) {
+  component HomePinIcon(a, iconSize = 30, showNoticeDot = false) {
     let identity = toJson([a.package, a.profile])
     let notificationOwner = first(pinnedApps.filter(p => toJson([p.package, p.profile]) == identity))
     let ownedNotices = get(noticeGroups, identity, [])
@@ -1082,7 +1082,7 @@ face "Omagara" {
       }
       // Theme-accent notification dot; no count badge or extra label.
       // The 16dp tap region preserves the existing expand and long-press actions.
-      if showNoticeBadge && hasOwnNotices {
+      if showNoticeDot && hasOwnNotices {
         Box {
           size: 16
           offset: [max(0, iconSize - 13), -2]
@@ -1690,7 +1690,7 @@ face "Omagara" {
               padding: [2, 2]
               background: moveMode == "pin" && moveTargetIndex == indexOf(pinnedAppKeys, a.key) ? alpha(accent, 0.19) : transparent
               radius: 7
-              HomePinIcon { a: a; iconSize: rowIconSize; showNoticeBadge: true }
+              HomePinIcon { a: a; iconSize: rowIconSize; showNoticeDot: true }
               if showPinLabel {
                 Text {
                   text: a.name
