@@ -2091,7 +2091,13 @@ face "Omagara" {
       height: thumbView ? appRowHeight : null
     // The highlighted app itself is draggable in the real alphabet list.
     if moveMode == "alphabet" && moveKey == a.key && thumbView && !searchView && !folderView {
-      FloatingMoveApp { a: a; alphabetMode: true; slotWidth: appPanelWidth - 8; slotHeight: appRowHeight }
+      FloatingMoveApp {
+        a: a
+        alphabetMode: true
+        slotWidth: appPanelWidth - 8
+        slotHeight: appRowHeight
+        snapY: (moveTargetIndex - moveOriginIndex) * appRowHeight
+      }
     } else {
     Row {
       fill: width
@@ -2610,7 +2616,23 @@ face "Omagara" {
                   }
                 }
               } else {
-                AppRow { a: row.app; thumbView: true; interactive: rowAlpha > 0.08 && rowY >= 0 && rowY + row.height <= appPanelHeight }
+                // Other apps slide into their FINAL preview slot, with stable
+                // row keys. The floating selected app is still drawn last.
+                let isSameLetter = moveMode == "alphabet" && row.section == moveLetter
+                let oldIndex = isSameLetter ? indexOf(moveKeys, row.id) : -1
+                let newIndex = isSameLetter ? indexOf(movePreviewKeys, row.id) : -1
+                let shiftY = isSameLetter && row.id != moveKey && oldIndex >= 0 && newIndex >= 0 ? (newIndex - oldIndex) * appRowHeight : 0
+                if isSameLetter {
+                  Box {
+                    width: appPanelWidth
+                    height: row.height
+                    offset: [0, shiftY]
+                    animate offset: spring(0.81, 220)
+                    AppRow { a: row.app; thumbView: true; interactive: rowAlpha > 0.08 && rowY >= 0 && rowY + row.height <= appPanelHeight }
+                  }
+                } else {
+                  AppRow { a: row.app; thumbView: true; interactive: rowAlpha > 0.08 && rowY >= 0 && rowY + row.height <= appPanelHeight }
+                }
               }
             }
           }
