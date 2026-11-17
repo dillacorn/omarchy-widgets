@@ -1068,6 +1068,307 @@ face "Omagara" {
   // One notification viewport, used by both animated and reduced-motion layouts.
   // The same pinned-app menu is anchored to the icon in both display modes.
   // Shortcuts and native app actions are the same APIs as the A-Z context menu.
+  // Dependency order matters: home pins use folder visuals/popups, and the
+  // folder popup reuses AppRow. Define all three before HomePinIcon.
+  component AppRow(a, searchView = false, thumbView = false, interactive = true, folderView = false) {
+    let rowScale = thumbView ? appScale : 1
+    let appLetter = contains(fullAlphabet, upper(sub(trim(a.name), 0, 1))) ? upper(sub(trim(a.name), 0, 1)) : "#"
+    let appGroupKeys = folderView ? folderKeys : get(appKeyGroups, appLetter, [])
+    let appGroupIndex = indexOf(appGroupKeys, a.key)
+    let manuallyMoved = any(manualAppMoves, m => m.key == a.key)
+    // Keep one stable component root through move-mode transitions.
+    Box {
+      fill: width
+      height: thumbView ? appRowHeight : null
+    // The chosen app is rendered separately over the full list viewport.
+    Row {
+      fill: width
+      height: thumbView ? appRowHeight : null
+      align: center
+      gap: 16 * rowScale
+      padding: [4 * rowScale, thumbView ? 8 * rowScale : 12]
+      background: transparent
+      radius: 7
+      onTap: {
+        if interactive && moveMode == "alphabet" && !searchView && !folderView {
+          moveTargetIndex = indexOf(moveKeys, a.key)
+          moveDragX = 0
+          moveDragY = (moveTargetIndex - moveOriginIndex) * appRowHeight
+          moveDragging = false
+        } else if interactive && moveMode == "" {
+        let launchKey = a.key
+        appVelocity = 0; browsing = false
+        activeSide = 0
+        railHeld = false
+        draggingSide = 0
+        letter = first(liveAlphabet) ?? "A"
+        appScroll = 0
+        appAnchor = ""
+        menu = ""
+        queryText = ""
+        if folderView { folderOpenId = "" }
+        if searchView { close() }
+        androidApp(launchKey)
+        }
+      }
+      onLongPress: {
+        if interactive && moveMode == "" {
+        if !folderView {
+          appScroll = appOffset
+          appVelocity = 0
+          if appFirst != null { appAnchor = appFirst.id; appAnchorSection = appFirst.section; appAnchorOffset = appOffset - appFirst.top }
+        }
+        menuShortcuts = null
+        menu = a.key
+        menuShortcuts = shortcuts(a.key)
+        }
+      }
+      Popup {
+        visible: interactive && moveMode == "" && menu == a.key && menuShortcuts != null
+        position: above
+        onDismiss: menu = ""
+        width: 220
+        gap: 0
+        // A move preview lets users select any position, then save or cancel.
+        // Search remains in its normal automatic order.
+        if !searchView && !folderView {
+          if len(get(groups, appLetter, [])) > 1 {
+            Text {
+              text: "Move app…"
+              fill: width
+              padding: [12, 14]
+              onTap: {
+                moveMode = "alphabet"
+                moveKey = a.key
+                moveDragging = false
+                moveLiftStarted = time
+                moveLetter = appLetter
+                moveTargetIndex = indexOf(get(groups, appLetter, []).map(x => x.key), a.key)
+                moveDragX = 0
+                moveDragY = 0
+                appVelocity = 0
+                appScroll = appOffset
+                menu = ""
+                menuShortcuts = null
+              }
+            }
+          }
+          if manuallyMoved {
+            Text {
+              text: "Reset automatic position"
+              fill: width
+              padding: [12, 14]
+              onTap: { menu = ""; appVelocity = 0; manualAppMoves = manualAppMoves.filter(m => m.key != a.key) }
+            }
+          }
+        }
+        if folderView && activeFolder != null {
+          for direction in [-1, 1] {
+            let adjacent = appGroupIndex + direction
+            if adjacent >= 0 && adjacent < len(folderKeys) {
+              Text {
+                text: direction < 0 ? "↑ Move up in folder" : "↓ Move down in folder"
+                fill: width
+                padding: [12, 14]
+                onTap: {
+                  let neighbor = get(folderKeys, adjacent)
+                  let from = indexOf(activeFolder.keys, a.key)
+                  let to = indexOf(activeFolder.keys, neighbor)
+                  if from >= 0 && to >= 0 {
+                    menu = ""
+                    customFolders = customFolders.map(f => f.id == folderOpenId ? merge(f, {keys: set(set(f.keys, from, neighbor), to, a.key)}) : f)
+                  }
+                }
+              }
+            }
+          }
+          Text {
+            text: "Remove from folder"
+            fill: width
+            padding: [12, 14]
+            onTap: { menu = ""; customFolders = customFolders.map(f => f.id == folderOpenId ? merge(f, {keys: f.keys.filter(k => k != a.key)}) : f) }
+          }
+        }
+        Text {
+          text: contains(pinnedAppKeys, a.key) ? "Unpin app" : "Pin app"
+          fill: width
+          padding: [12, 14]
+          onTap: {
+            menu = ""
+            if contains(pinnedAppKeys, a.key) {
+              pinnedAppKeys = pinnedAppKeys.filter(k => k != a.key)
+              pinnedLayouts = pinnedLayouts.filter(p => p.key != a.key)
+              if expandedPinnedKey == a.key { expandedPinnedKey = "" }
+            } else {
+              pinnedAppKeys = pinnedAppKeys + [a.key]
+            }
+          }
+        }
+        Text {
+          text: "Add to folder"
+          fill: width
+          padding: [12, 14]
+          onTap: {
+            menu = ""
+            folderPickAppKey = a.key
+            folderDraft = ""
+            folderPickReturnMode = searchView ? "search" : "face"
+            screenMode = "folderPick"
+            if !searchView { appVelocity = 0; railHeld = false; activeSide = 0; folderOpenId = ""; screen() }
+          }
+        }
+        for shortcut in menuShortcuts ?? [] key shortcut.key {
+          Text { text: shortcut.name; fill: width; padding: [12, 14]; maxLines: 2; onTap: { menu = ""; appVelocity = 0; browsing = false; activeSide = 0; railHeld = false; draggingSide = 0; letter = first(liveAlphabet) ?? "A"; appScroll = 0; appAnchor = ""; queryText = ""; if folderView { folderOpenId = "" }; open(shortcut.key) } }
+        }
+        for actionWord in (find(drawer.apps ?? [], d => d.key == a.key || d.key == "a:" + a.key).actions ?? []) {
+          Text {
+            text: get({pin: "Pin to Omalauncher home", info: "App info", uninstall: "Uninstall", remove: "Remove", edit: "Edit", share: "Share"}, actionWord, actionWord)
+            fill: width
+            padding: [12, 14]
+            onTap: { menu = ""; appVelocity = 0; browsing = false; activeSide = 0; railHeld = false; draggingSide = 0; letter = first(liveAlphabet) ?? "A"; appScroll = 0; appAnchor = ""; queryText = ""; if folderView { folderOpenId = "" }; appAction(actionWord, a.key) }
+          }
+        }
+      }
+      if cfg.icons {
+        Box {
+          size: 36 * rowScale
+          align: center
+          // Keep the original icon; theme overlay is optional and requires
+          // Colored icons in the launcher's Style settings.
+          if a.icon != null && a.icon != "" {
+            Image { src: a.icon; size: 36 * rowScale; label: a.name + (a.profile == null ? "" : " · " + a.profile) }
+            if cfg.iconStyle == "Theme overlay" && cfg.iconOverlayOpacity > 0 && drawer.monochrome != true {
+              Image { src: a.icon; size: 36 * rowScale; tint: alpha(accent, cfg.iconOverlayOpacity / 100); opacity: 1; label: a.name }
+            }
+          } else {
+            // Missing icons still have a label so each app remains recognizable.
+            Text { text: upper(sub(trim(a.name), 0, 2)); font: chosenFont; fontSize: 16 * rowScale; color: primaryText; align: center }
+          }
+        }
+      }
+      Column {
+        weight: 1
+        gap: rowScale
+        // Keep each shade close to its text, never across the full app row.
+        // Native Search retains its own surface; shade the transparent browser.
+        Row {
+          fill: width
+          align: center
+          gap: 6 * rowScale
+          if thumbView && manuallyMoved {
+            Box { width: 2 * rowScale; height: 21 * rowScale; background: accent; radius: 1 }
+          }
+          Text {
+            text: a.name
+            font: chosenFont
+            fontSize: 20 * rowScale
+            color: primaryText
+            maxLines: 1
+            padding: cfg.shadeAppLabels && thumbView ? [16 * rowScale, 6 * rowScale] : [0, 0]
+            background: cfg.shadeAppLabels && thumbView ? appLabelShade : transparent
+            radius: cfg.shadeAppLabels && cfg.roundAppLabels && thumbView ? 16 * rowScale : 0
+          }
+        }
+        if a.profile != null {
+          Row {
+            fill: width
+            Text {
+              text: a.profile
+              font: chosenFont
+              fontSize: 11 * rowScale
+              color: secondaryText
+              maxLines: 1
+              padding: cfg.shadeAppLabels && thumbView ? [14 * rowScale, 5 * rowScale] : [0, 0]
+              background: cfg.shadeAppLabels && thumbView ? appLabelShade : transparent
+              radius: cfg.shadeAppLabels && cfg.roundAppLabels && thumbView ? 11 * rowScale : 0
+            }
+          }
+        }
+      }
+    }
+    }
+  }
+
+  // A real folder silhouette with a 2x2 miniature preview of its installed apps.
+  // The preview uses actual app/profile icons, not package-name guesses.
+  component FolderIcon(f, side = 36) {
+    let previews = take(f.keys.map(k => find(installed ?? [], a => a.key == k)).filter(a => a != null), 4)
+    Box {
+      size: side
+      clip: true
+      Canvas {
+        size: side
+        path([[1, side * 0.23], [1, side - 2], [side - 2, side - 2], [side - 2, side * 0.23], [side * 0.42, side * 0.23], [side * 0.32, side * 0.11], [1, side * 0.11]], closed: true, stroke: secondaryText, width: 1.3)
+      }
+      for a, i in previews key a.key {
+        if a.icon != null && a.icon != "" {
+          Image {
+            src: a.icon
+            size: side * 0.30
+            offset: [side * (0.18 + (i % 2) * 0.38), side * (0.31 + floor(i / 2) * 0.30) - 1]
+            label: a.name
+          }
+        } else {
+          Text {
+            text: upper(sub(trim(a.name), 0, 1))
+            font: chosenFont
+            color: primaryText
+            fontSize: 8 * (side / 36)
+            offset: [side * (0.19 + (i % 2) * 0.38), side * (0.33 + floor(i / 2) * 0.30) - 1]
+          }
+        }
+      }
+    }
+  }
+
+  // The browser and pinned-home folders open this exact same app list.
+  component FolderPopupContents(f) {
+    Column {
+      fill: width
+      gap: 5
+      padding: [6, 8]
+      Row {
+        fill: width
+        align: center
+        gap: 6
+        FolderIcon { f: f; side: 28 }
+        Text { text: f.name; font: chosenFont; fontSize: 18; color: primaryText; weight: 1; maxLines: 1 }
+        Text {
+          text: "Edit"
+          font: chosenFont
+          fontSize: 13
+          color: accent
+          padding: [8, 8]
+          onTap: {
+            folderOpenId = ""
+            menu = ""
+            folderEditId = f.id
+            folderEditName = f.name
+            folderAppQuery = ""
+            folderDeleteConfirm = false
+            screenMode = "folderEdit"
+            screen()
+          }
+        }
+      }
+      if folderOpenId == f.id {
+        if len(folderApps) == 0 {
+          Text { text: "Empty folder · Edit to add apps"; font: chosenFont; fontSize: 13; color: secondaryText; padding: [6, 8] }
+        } else {
+          Column {
+            fill: width
+            height: min(336, max(54, len(folderApps) * appRowHeight))
+            lazy: true
+            gap: 0
+            for a in folderApps key a.key {
+              AppRow { a: a; thumbView: true; folderView: true }
+            }
+          }
+        }
+      }
+    }
+  }
+
   component HomePinIcon(a, iconSize = 30, showNoticeDot = false) {
     let identity = toJson([a.package, a.profile])
     let notificationOwner = first(pinnedApps.filter(p => p.folderId == null && toJson([p.package, p.profile]) == identity))
@@ -2185,305 +2486,6 @@ face "Omagara" {
           Text { text: error == "" ? "= " + answerText : error; font: chosenFont; fontSize: error == "" ? 24 : 13; color: error == "" ? accent : muted; weight: 1 }
           if answer != null {
             Text { text: "Copy"; font: chosenFont; fontSize: 14; color: accent; padding: [12, 10]; onTap: copy(answerText) }
-          }
-        }
-      }
-    }
-  }
-
-  component AppRow(a, searchView = false, thumbView = false, interactive = true, folderView = false) {
-    let rowScale = thumbView ? appScale : 1
-    let appLetter = contains(fullAlphabet, upper(sub(trim(a.name), 0, 1))) ? upper(sub(trim(a.name), 0, 1)) : "#"
-    let appGroupKeys = folderView ? folderKeys : get(appKeyGroups, appLetter, [])
-    let appGroupIndex = indexOf(appGroupKeys, a.key)
-    let manuallyMoved = any(manualAppMoves, m => m.key == a.key)
-    // Keep one stable component root through move-mode transitions.
-    Box {
-      fill: width
-      height: thumbView ? appRowHeight : null
-    // The chosen app is rendered separately over the full list viewport.
-    Row {
-      fill: width
-      height: thumbView ? appRowHeight : null
-      align: center
-      gap: 16 * rowScale
-      padding: [4 * rowScale, thumbView ? 8 * rowScale : 12]
-      background: transparent
-      radius: 7
-      onTap: {
-        if interactive && moveMode == "alphabet" && !searchView && !folderView {
-          moveTargetIndex = indexOf(moveKeys, a.key)
-          moveDragX = 0
-          moveDragY = (moveTargetIndex - moveOriginIndex) * appRowHeight
-          moveDragging = false
-        } else if interactive && moveMode == "" {
-        let launchKey = a.key
-        appVelocity = 0; browsing = false
-        activeSide = 0
-        railHeld = false
-        draggingSide = 0
-        letter = first(liveAlphabet) ?? "A"
-        appScroll = 0
-        appAnchor = ""
-        menu = ""
-        queryText = ""
-        if folderView { folderOpenId = "" }
-        if searchView { close() }
-        androidApp(launchKey)
-        }
-      }
-      onLongPress: {
-        if interactive && moveMode == "" {
-        if !folderView {
-          appScroll = appOffset
-          appVelocity = 0
-          if appFirst != null { appAnchor = appFirst.id; appAnchorSection = appFirst.section; appAnchorOffset = appOffset - appFirst.top }
-        }
-        menuShortcuts = null
-        menu = a.key
-        menuShortcuts = shortcuts(a.key)
-        }
-      }
-      Popup {
-        visible: interactive && moveMode == "" && menu == a.key && menuShortcuts != null
-        position: above
-        onDismiss: menu = ""
-        width: 220
-        gap: 0
-        // A move preview lets users select any position, then save or cancel.
-        // Search remains in its normal automatic order.
-        if !searchView && !folderView {
-          if len(get(groups, appLetter, [])) > 1 {
-            Text {
-              text: "Move app…"
-              fill: width
-              padding: [12, 14]
-              onTap: {
-                moveMode = "alphabet"
-                moveKey = a.key
-                moveDragging = false
-                moveLiftStarted = time
-                moveLetter = appLetter
-                moveTargetIndex = indexOf(get(groups, appLetter, []).map(x => x.key), a.key)
-                moveDragX = 0
-                moveDragY = 0
-                appVelocity = 0
-                appScroll = appOffset
-                menu = ""
-                menuShortcuts = null
-              }
-            }
-          }
-          if manuallyMoved {
-            Text {
-              text: "Reset automatic position"
-              fill: width
-              padding: [12, 14]
-              onTap: { menu = ""; appVelocity = 0; manualAppMoves = manualAppMoves.filter(m => m.key != a.key) }
-            }
-          }
-        }
-        if folderView && activeFolder != null {
-          for direction in [-1, 1] {
-            let adjacent = appGroupIndex + direction
-            if adjacent >= 0 && adjacent < len(folderKeys) {
-              Text {
-                text: direction < 0 ? "↑ Move up in folder" : "↓ Move down in folder"
-                fill: width
-                padding: [12, 14]
-                onTap: {
-                  let neighbor = get(folderKeys, adjacent)
-                  let from = indexOf(activeFolder.keys, a.key)
-                  let to = indexOf(activeFolder.keys, neighbor)
-                  if from >= 0 && to >= 0 {
-                    menu = ""
-                    customFolders = customFolders.map(f => f.id == folderOpenId ? merge(f, {keys: set(set(f.keys, from, neighbor), to, a.key)}) : f)
-                  }
-                }
-              }
-            }
-          }
-          Text {
-            text: "Remove from folder"
-            fill: width
-            padding: [12, 14]
-            onTap: { menu = ""; customFolders = customFolders.map(f => f.id == folderOpenId ? merge(f, {keys: f.keys.filter(k => k != a.key)}) : f) }
-          }
-        }
-        Text {
-          text: contains(pinnedAppKeys, a.key) ? "Unpin app" : "Pin app"
-          fill: width
-          padding: [12, 14]
-          onTap: {
-            menu = ""
-            if contains(pinnedAppKeys, a.key) {
-              pinnedAppKeys = pinnedAppKeys.filter(k => k != a.key)
-              pinnedLayouts = pinnedLayouts.filter(p => p.key != a.key)
-              if expandedPinnedKey == a.key { expandedPinnedKey = "" }
-            } else {
-              pinnedAppKeys = pinnedAppKeys + [a.key]
-            }
-          }
-        }
-        Text {
-          text: "Add to folder"
-          fill: width
-          padding: [12, 14]
-          onTap: {
-            menu = ""
-            folderPickAppKey = a.key
-            folderDraft = ""
-            folderPickReturnMode = searchView ? "search" : "face"
-            screenMode = "folderPick"
-            if !searchView { appVelocity = 0; railHeld = false; activeSide = 0; folderOpenId = ""; screen() }
-          }
-        }
-        for shortcut in menuShortcuts ?? [] key shortcut.key {
-          Text { text: shortcut.name; fill: width; padding: [12, 14]; maxLines: 2; onTap: { menu = ""; appVelocity = 0; browsing = false; activeSide = 0; railHeld = false; draggingSide = 0; letter = first(liveAlphabet) ?? "A"; appScroll = 0; appAnchor = ""; queryText = ""; if folderView { folderOpenId = "" }; open(shortcut.key) } }
-        }
-        for actionWord in (find(drawer.apps ?? [], d => d.key == a.key || d.key == "a:" + a.key).actions ?? []) {
-          Text {
-            text: get({pin: "Pin to Omalauncher home", info: "App info", uninstall: "Uninstall", remove: "Remove", edit: "Edit", share: "Share"}, actionWord, actionWord)
-            fill: width
-            padding: [12, 14]
-            onTap: { menu = ""; appVelocity = 0; browsing = false; activeSide = 0; railHeld = false; draggingSide = 0; letter = first(liveAlphabet) ?? "A"; appScroll = 0; appAnchor = ""; queryText = ""; if folderView { folderOpenId = "" }; appAction(actionWord, a.key) }
-          }
-        }
-      }
-      if cfg.icons {
-        Box {
-          size: 36 * rowScale
-          align: center
-          // Keep the original icon; theme overlay is optional and requires
-          // Colored icons in the launcher's Style settings.
-          if a.icon != null && a.icon != "" {
-            Image { src: a.icon; size: 36 * rowScale; label: a.name + (a.profile == null ? "" : " · " + a.profile) }
-            if cfg.iconStyle == "Theme overlay" && cfg.iconOverlayOpacity > 0 && drawer.monochrome != true {
-              Image { src: a.icon; size: 36 * rowScale; tint: alpha(accent, cfg.iconOverlayOpacity / 100); opacity: 1; label: a.name }
-            }
-          } else {
-            // Missing icons still have a label so each app remains recognizable.
-            Text { text: upper(sub(trim(a.name), 0, 2)); font: chosenFont; fontSize: 16 * rowScale; color: primaryText; align: center }
-          }
-        }
-      }
-      Column {
-        weight: 1
-        gap: rowScale
-        // Keep each shade close to its text, never across the full app row.
-        // Native Search retains its own surface; shade the transparent browser.
-        Row {
-          fill: width
-          align: center
-          gap: 6 * rowScale
-          if thumbView && manuallyMoved {
-            Box { width: 2 * rowScale; height: 21 * rowScale; background: accent; radius: 1 }
-          }
-          Text {
-            text: a.name
-            font: chosenFont
-            fontSize: 20 * rowScale
-            color: primaryText
-            maxLines: 1
-            padding: cfg.shadeAppLabels && thumbView ? [16 * rowScale, 6 * rowScale] : [0, 0]
-            background: cfg.shadeAppLabels && thumbView ? appLabelShade : transparent
-            radius: cfg.shadeAppLabels && cfg.roundAppLabels && thumbView ? 16 * rowScale : 0
-          }
-        }
-        if a.profile != null {
-          Row {
-            fill: width
-            Text {
-              text: a.profile
-              font: chosenFont
-              fontSize: 11 * rowScale
-              color: secondaryText
-              maxLines: 1
-              padding: cfg.shadeAppLabels && thumbView ? [14 * rowScale, 5 * rowScale] : [0, 0]
-              background: cfg.shadeAppLabels && thumbView ? appLabelShade : transparent
-              radius: cfg.shadeAppLabels && cfg.roundAppLabels && thumbView ? 11 * rowScale : 0
-            }
-          }
-        }
-      }
-    }
-    }
-  }
-
-  // A real folder silhouette with a 2x2 miniature preview of its installed apps.
-  // The preview uses actual app/profile icons, not package-name guesses.
-  component FolderIcon(f, side = 36) {
-    let previews = take(f.keys.map(k => find(installed ?? [], a => a.key == k)).filter(a => a != null), 4)
-    Box {
-      size: side
-      clip: true
-      Canvas {
-        size: side
-        path([[1, side * 0.23], [1, side - 2], [side - 2, side - 2], [side - 2, side * 0.23], [side * 0.42, side * 0.23], [side * 0.32, side * 0.11], [1, side * 0.11]], closed: true, stroke: secondaryText, width: 1.3)
-      }
-      for a, i in previews key a.key {
-        if a.icon != null && a.icon != "" {
-          Image {
-            src: a.icon
-            size: side * 0.30
-            offset: [side * (0.18 + (i % 2) * 0.38), side * (0.31 + floor(i / 2) * 0.30) - 1]
-            label: a.name
-          }
-        } else {
-          Text {
-            text: upper(sub(trim(a.name), 0, 1))
-            font: chosenFont
-            color: primaryText
-            fontSize: 8 * (side / 36)
-            offset: [side * (0.19 + (i % 2) * 0.38), side * (0.33 + floor(i / 2) * 0.30) - 1]
-          }
-        }
-      }
-    }
-  }
-
-  // The browser and pinned-home folders open this exact same app list.
-  component FolderPopupContents(f) {
-    Column {
-      fill: width
-      gap: 5
-      padding: [6, 8]
-      Row {
-        fill: width
-        align: center
-        gap: 6
-        FolderIcon { f: f; side: 28 }
-        Text { text: f.name; font: chosenFont; fontSize: 18; color: primaryText; weight: 1; maxLines: 1 }
-        Text {
-          text: "Edit"
-          font: chosenFont
-          fontSize: 13
-          color: accent
-          padding: [8, 8]
-          onTap: {
-            folderOpenId = ""
-            menu = ""
-            folderEditId = f.id
-            folderEditName = f.name
-            folderAppQuery = ""
-            folderDeleteConfirm = false
-            screenMode = "folderEdit"
-            screen()
-          }
-        }
-      }
-      if folderOpenId == f.id {
-        if len(folderApps) == 0 {
-          Text { text: "Empty folder · Edit to add apps"; font: chosenFont; fontSize: 13; color: secondaryText; padding: [6, 8] }
-        } else {
-          Column {
-            fill: width
-            height: min(336, max(54, len(folderApps) * appRowHeight))
-            lazy: true
-            gap: 0
-            for a in folderApps key a.key {
-              AppRow { a: a; thumbView: true; folderView: true }
-            }
           }
         }
       }
