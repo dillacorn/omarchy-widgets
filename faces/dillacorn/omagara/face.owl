@@ -555,7 +555,8 @@ face "Omagara" {
     get(pinnedLogicalRowNumbers, indexOf(pinnedApps.map(p => p.key), k), 0))
   // Joining another logical stack inherits that stack's alignment.
   // Pulling an app into its own row keeps its existing alignment.
-  let pinDraftJoinRight = get(find(pinnedLayouts, p => p.key == get(pinDraftHoverPins, 0, {}).key) ?? {}, "alignRight", false)
+  let pinDraftJoinRight = len(pinDraftHoverPins) > 0 ?
+    get(find(pinnedLayouts, p => p.key == first(pinDraftHoverPins).key) ?? {}, "alignRight", false) : false
   let pinDraftLayouts = !pinDraftChanged ? pinnedLayouts :
     pinnedLayouts.filter(p => !contains(pinDraftKeys, p.key)) +
     pinDraftKeys.map((k, i) => merge(find(pinnedLayouts, p => p.key == k) ?? {key: k, showLabel: true},
