@@ -142,6 +142,9 @@ face "Omagara" {
   state pinDragCandidate = ""
   // Manual quick-launch expansion: never follows play/pause or Bluetooth refreshes.
   state musicAppsExpanded = false
+  // Separate from the shortcut chevron. Compact is the unchanged default.
+  state musicAreaExpanded = false persist
+  state musicAreaSize = 0 persist
   state compactAlertApps = [] persist
   // Package + profile keys affect Omagara presentation only, never Android's shade.
   state hiddenNoticeApps = [] persist
@@ -181,6 +184,8 @@ face "Omagara" {
   state homeEditOriginalNoticeSpacing = 0
   state homeEditOriginalRailShift = 0
   state homeEditOriginalCompactHeader = false
+  state homeEditOriginalMusicAreaExpanded = false
+  state homeEditOriginalMusicAreaSize = 0
   state alphabetRailShift = 0 persist
   state headerSpacing = 0 persist
   state noticeSpacing = 0 persist
@@ -1881,6 +1886,8 @@ face "Omagara" {
               homeEditOriginalNoticeSpacing = noticeSpacing
               homeEditOriginalRailShift = alphabetRailShift
               homeEditOriginalCompactHeader = compactHeader
+               homeEditOriginalMusicAreaExpanded = musicAreaExpanded
+               homeEditOriginalMusicAreaSize = musicAreaSize
             }
             layoutEditMode = "home"
             moveMode = "pin"
@@ -2003,6 +2010,8 @@ face "Omagara" {
         noticeSpacing = homeEditOriginalNoticeSpacing
         alphabetRailShift = homeEditOriginalRailShift
         compactHeader = homeEditOriginalCompactHeader
+        musicAreaExpanded = homeEditOriginalMusicAreaExpanded
+        musicAreaSize = homeEditOriginalMusicAreaSize
         moveMode = ""
         moveKey = ""
         moveLetter = ""
@@ -2061,10 +2070,14 @@ face "Omagara" {
           if zone == "rail" { alphabetRailShift = clamp(alphabetRailShift + dy, -160, 160) }
           if zone == "header" { headerSpacing = clamp(headerSpacing + dy, -48, 80) }
           if zone == "notices" { noticeSpacing = clamp(noticeSpacing + dy, 0, 80) }
+          if zone == "music" {
+            musicAreaExpanded = true
+            musicAreaSize = clamp(musicAreaSize + dy, 0, 80)
+          }
         }
         onDragEnd: layoutDraggingZone = ""
         Text {
-          text: zone == "rail" ? "↕ Worm" : zone == "header" ? "↕ Clock gap" : "↕ Alerts gap"
+          text: zone == "rail" ? "↕ Worm" : zone == "header" ? "↕ Clock gap" : zone == "music" ? "↕ Music size" : "↕ Alerts gap"
           font: chosenFont
           fontSize: 11
           color: primaryText
@@ -2080,6 +2093,7 @@ face "Omagara" {
           if zone == "rail" { alphabetRailShift = 0 }
           if zone == "header" { headerSpacing = 0 }
           if zone == "notices" { noticeSpacing = 0 }
+          if zone == "music" { musicAreaSize = 0 }
         }
         Text { text: "Reset"; font: chosenFont; fontSize: 10; color: accent; align: center }
       }
@@ -3977,6 +3991,8 @@ face "Omagara" {
             homeEditOriginalNoticeSpacing = noticeSpacing
             homeEditOriginalRailShift = alphabetRailShift
             homeEditOriginalCompactHeader = compactHeader
+               homeEditOriginalMusicAreaExpanded = musicAreaExpanded
+               homeEditOriginalMusicAreaSize = musicAreaSize
             layoutEditMode = "home"
             moveMode = ""; moveKey = ""; moveLetter = ""
             moveDragX = 0; moveDragY = 0; moveDragging = false
@@ -4417,6 +4433,8 @@ face "Omagara" {
                   homeEditOriginalNoticeSpacing = noticeSpacing
                   homeEditOriginalRailShift = alphabetRailShift
                   homeEditOriginalCompactHeader = compactHeader
+               homeEditOriginalMusicAreaExpanded = musicAreaExpanded
+               homeEditOriginalMusicAreaSize = musicAreaSize
                   layoutEditMode = "home"; moveMode = ""; browsing = false; activeSide = 0; railHeld = false; close()
                 }
               }
