@@ -1928,7 +1928,7 @@ face "Omagara" {
           Box {
             width: 152
             height: 40
-            offset: [max(0, noticeWidth - 152), max(0, headerPadTop + headerShapeHeight - 8)]
+            offset: [max(0, noticeWidth - 152), max(0, headerPadTop + headerShapeHeight - 8) + max(0, headerSpacing)]
             LayoutSpacingHandle { zone: "header" }
           }
         }
@@ -2412,7 +2412,7 @@ face "Omagara" {
       }
       }
       // The alerts clearance handle belongs at the actual pinned/notification
-      // boundary, so it follows the home document when it scrolls. The 1dp
+      // boundary and follows the alert gap while dragging. The 1dp
       // anchor keeps the lazy row mounted without reserving a 32dp edit lane.
       if layoutEditMode == "home" || moveMode == "pin" {
         Box {
@@ -2421,7 +2421,7 @@ face "Omagara" {
           Box {
             width: 152
             height: 40
-            offset: [max(0, noticeWidth - 152), -20]
+            offset: [max(0, noticeWidth - 152), noticeSpacing - 20]
             LayoutSpacingHandle { zone: "notices" }
           }
         }
