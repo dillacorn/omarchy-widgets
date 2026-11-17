@@ -19,7 +19,7 @@ Time format is selected under **Clock** in Omagara settings; OWL does not expose
 ## v1.9 changes
 
 - Default to **Most used**, with Alphabetical still selectable. A one-time upgrade migration switches existing saved sort choices to Most used; later manual selections are preserved.
-- Long-press an A–Z app and select **Move app…**. The actual app row floats over the visible browser; drag it vertically or tap another row to choose a position, then press **✓** to save or **× Cancel**. Other letters and Search are unchanged.
+- Long-press an A–Z app and choose **Move app…**. The original row lifts with a spring and subtle floating motion. Drag vertically or tap a destination; surrounding apps spring into their projected positions and an outline marks the snap slot. **✓** saves; **× Cancel** discards the preview. Only that letter's order changes; Search remains automatic.
 - A slim accent line marks moved apps; long-press one to **Reset automatic position**.
 - Replay per-app moves without freezing the other apps' automatic sorting. Hidden, work-profile, and cloned apps retain distinct keys; Search is unaffected.
 - Export, import, and reset manual moves in settings; older v1 backups remain accepted.
@@ -27,7 +27,7 @@ Time format is selected under **Clock** in Omagara settings; OWL does not expose
 - Named folder rows follow the last A–Z app section, before Settings, with a folder silhouette and a centered 2×2 preview of installed app icons. Tap a folder to open a floating, scrollable popup with normal app actions; hold the row to edit it.
 - A single folder shortcut above the worm's Settings cog jumps to the folder section. The worm keeps its original overall height regardless of folder count, and the cog stays at the bottom.
 - Fix worm hit testing between the last letter, folder shortcut and settings cog so the letter no longer reactivates at the boundary.
-- Optionally pin up to eight apps. Pins start named on separate rows. Long-press an icon or use Apps settings to hide its label or join the neighboring icon; joined rows are automatically icon-only. **Move app…** lifts that pin in place on the home screen: drag in the actual layout, tap a destination as needed, then ✓ to save or × to cancel. Moving vertically starts a separate row; a deliberate rightward drag can join the preceding icon. The full native app menu, folder assignment and notification-badge long-press remain available.
+- Optionally pin up to eight apps, named by default. Individually hide labels or join neighboring pins into icon-only horizontal rows. **Move app…** previews a magnetized grid in the actual home layout: the lifted icon floats while neighbors shift aside, an outlined slot shows the drop location, and release snaps there. Dragging downward can split a grouped row; deliberate horizontal drags join/reorder icons. Only ✓ persists the projected order and row breaks. Native shortcuts, folder assignment and notification-badge long-press remain available.
 - Home is one vertically lazy-scrolling document: clock, date, calendar event, media, flexible pinned rows and native notification cards move together, while the alphabet worm and Search remain fixed. Clearing an alert reflows the rest upward. The old notification-start setting is retired from the UI but remains accepted in older settings backups.
 - Folders persist in settings backups without removing their apps from the normal app list or Search.
 
