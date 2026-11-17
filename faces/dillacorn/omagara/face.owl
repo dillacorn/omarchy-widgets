@@ -1570,18 +1570,33 @@ face "Omagara" {
             if moveOriginIndex >= 0 && moveTargetIndex >= 0 && moveTargetIndex < len(moveKeys) {
               if moveMode == "pin" {
                 let relocated = moveTargetIndex != moveOriginIndex
-                // Horizontal rightward placement joins the preceding icon;
-                // ordinary vertical moves keep separate rows.
-                let joinPrevious = moveDragX >= 42 && abs(moveDragX) * 2 >= abs(moveDragY) && moveTargetIndex > 0
-                let alreadyJoined = get(find(pinnedLayouts, p => p.key == moveKey) ?? {}, "newRow", true) == false
-                if relocated || joinPrevious && !alreadyJoined {
+                let horizontalIntent = abs(moveDragX) >= 42 && abs(moveDragX) * 2 >= abs(moveDragY)
+                let originVisibleIndex = indexOf(pinnedApps.map(p => p.key), moveKey)
+                let originalTarget = get(moveKeys, moveTargetIndex)
+                let targetVisibleIndex = indexOf(pinnedApps.map(p => p.key), originalTarget)
+                let originRow = get(pinnedRowNumbers, originVisibleIndex, -1)
+                let targetRow = get(pinnedRowNumbers, targetVisibleIndex, -2)
+                let sameIconRow = horizontalIntent && relocated && originRow > 0 && originRow == targetRow
+                let joinPrevious = horizontalIntent && moveDragX >= 42 && moveTargetIndex > 0
+                let joinNext = horizontalIntent && moveDragX <= -42 && moveTargetIndex < len(moveKeys) - 1
+                let priorLayout = find(pinnedLayouts, p => p.key == moveKey)
+                let alreadyJoined = get(priorLayout ?? {}, "newRow", true) == false
+                if sameIconRow {
+                  // Swapping icons within a horizontal row never splits it.
+                  let rowKeys = get(pinnedRows, originRow - 1, []).map(a => a.key)
+                  let newFirst = first(movePreviewKeys.filter(k => contains(rowKeys, k)))
+                  pinnedLayouts = pinnedLayouts.filter(p => !contains(rowKeys, p.key)) +
+                    rowKeys.map(k => merge(find(pinnedLayouts, p => p.key == k) ?? {key: k, showLabel: true}, {newRow: k == newFirst}))
+                  pinnedAppKeys = movePreviewKeys
+                } else if relocated || joinPrevious && !alreadyJoined || joinNext {
                   let previousNext = get(pinnedAppKeys, moveOriginIndex + 1)
                   let newNext = get(movePreviewKeys, moveTargetIndex + 1)
+                  let nextLayout = find(pinnedLayouts, p => p.key == newNext)
+                  let nextStartsRow = get(nextLayout ?? {}, "newRow", true) != false
                   let breakKeys = unique([previousNext, newNext].filter(k => k != null && k != moveKey))
-                  let oldLayout = find(pinnedLayouts, p => p.key == moveKey)
                   pinnedLayouts = pinnedLayouts.filter(p => p.key != moveKey && !contains(breakKeys, p.key)) +
-                    breakKeys.map(k => merge(find(pinnedLayouts, p => p.key == k) ?? {key: k, showLabel: true}, {newRow: true})) +
-                    [merge(oldLayout ?? {key: moveKey, showLabel: true}, {newRow: !joinPrevious})]
+                    breakKeys.map(k => merge(find(pinnedLayouts, p => p.key == k) ?? {key: k, showLabel: true}, {newRow: k == newNext ? (joinNext ? false : joinPrevious ? nextStartsRow : true) : true})) +
+                    [merge(priorLayout ?? {key: moveKey, showLabel: true}, {newRow: joinPrevious ? false : joinNext ? nextStartsRow : true})]
                   pinnedAppKeys = movePreviewKeys
                 }
               } else if moveMode == "alphabet" && moveTargetIndex != moveOriginIndex {
