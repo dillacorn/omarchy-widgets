@@ -2249,75 +2249,89 @@ face "Omagara" {
   }
 
   // Minimal actions are part of the moving row, not a fixed screen overlay.
-  component MoveControls(controlHeight = 44, compact = false) {
-    Row {
-      width: compact ? 48 : 72
-      height: controlHeight
-      gap: 0
+  // Alphabet move actions share Search's 48dp style and footer.
+  component AlphabetMoveCancelButton() {
+    Box {
+      size: 48
+
       align: center
-      Box {
-        width: compact ? 24 : 36
-        height: controlHeight
-        align: center
-        background: alpha(#111827, 0.94)
-        border: 1
-        borderColor: alpha(#FAFAFA, 0.30)
-        radius: cfg.roundAppLabels ? 6 : 0
-        onTap: {
-          if moveMode == "alphabet" && moveEdgeDirection != 0 { appScroll = appOffset }
-          moveEdgeDirection = 0
-          moveMode = ""
-          moveKey = ""
-          moveLetter = ""
-          moveDragX = 0
-          moveDragY = 0
-          moveDragging = false
-        }
-        Text { text: "×"; font: chosenFont; fontSize: compact ? 19 : 24; color: #FAFAFA; align: center }
+      background: alpha(surface, cfg.shadeButtonOpacity / 100)
+      border: cfg.bubbleBorder ? 1 : 0
+      borderColor: border
+      radius: cfg.roundSearch ? 24 : 0
+      onTap: {
+        if moveMode == "alphabet" && moveEdgeDirection != 0 { appScroll = appOffset }
+        moveEdgeDirection = 0
+        moveMode = ""
+        moveKey = ""
+        moveLetter = ""
+        moveDragX = 0
+        moveDragY = 0
+        moveDragging = false
       }
-      Box {
-        width: compact ? 24 : 36
-        height: controlHeight
-        align: center
-        background: alpha(#111827, 0.94)
-        border: 1
-        borderColor: alpha(#FAFAFA, 0.30)
-        radius: cfg.roundAppLabels ? 6 : 0
-        onTap: {
-          if moveMode == "alphabet" && moveEdgeDirection != 0 { appScroll = appOffset }
-          if moveOriginIndex >= 0 && moveEffectiveTargetIndex >= 0 && moveEffectiveTargetIndex < len(moveKeys) {
-            if moveMode == "pin" {
-              if pinDraftChanged {
-                pinnedLayouts = pinDraftLayouts
-                pinnedAppKeys = pinDraftKeys
-              }
-            } else if moveMode == "alphabet" {
-              if alphabetAtResetPosition {
-                // No effective override remains. Remove history and its line.
-                if any(manualAppMoves, m => m.key == moveKey) {
-                  manualAppMoves = manualAppMoves.filter(m => m.key != moveKey)
-                }
-              } else if moveEffectiveTargetIndex != moveOriginIndex {
-                let neighbor = moveEffectiveTargetIndex == 0 ? get(moveOtherKeys, 0) : get(moveOtherKeys, moveEffectiveTargetIndex - 1)
-                if neighbor != null {
-                  manualAppMoves = manualAppMoves + [{letter: moveLetter, key: moveKey, anchor: neighbor, after: moveEffectiveTargetIndex > 0}]
-                  appVelocity = 0
-                  appScroll = appOffset
-                  appAnchor = ""
-                }
-              }
-              rightAlignedAppKeys = moveSideRight ? unique(rightAlignedAppKeys + [moveKey]) : rightAlignedAppKeys.filter(k => k != moveKey)
+      Text { text: "×"; font: chosenFont; fontSize: 25; color: primaryText; align: center }
+    }
+  }
+
+  component AlphabetMoveSaveButton() {
+    Box {
+      size: 48
+
+      align: center
+      background: alpha(surface, cfg.shadeButtonOpacity / 100)
+      border: cfg.bubbleBorder ? 1 : 0
+      borderColor: border
+      radius: cfg.roundSearch ? 24 : 0
+      onTap: {
+        if moveMode == "alphabet" && moveEdgeDirection != 0 { appScroll = appOffset }
+        if moveOriginIndex >= 0 && moveEffectiveTargetIndex >= 0 && moveEffectiveTargetIndex < len(moveKeys) {
+          if moveMode == "pin" {
+            if pinDraftChanged {
+              pinnedLayouts = pinDraftLayouts
+              pinnedAppKeys = pinDraftKeys
             }
+          } else if moveMode == "alphabet" {
+            if alphabetAtResetPosition {
+              // No effective override remains. Remove history and its line.
+              if any(manualAppMoves, m => m.key == moveKey) {
+                manualAppMoves = manualAppMoves.filter(m => m.key != moveKey)
+              }
+            } else if moveEffectiveTargetIndex != moveOriginIndex {
+              let neighbor = moveEffectiveTargetIndex == 0 ? get(moveOtherKeys, 0) : get(moveOtherKeys, moveEffectiveTargetIndex - 1)
+              if neighbor != null {
+                manualAppMoves = manualAppMoves + [{letter: moveLetter, key: moveKey, anchor: neighbor, after: moveEffectiveTargetIndex > 0}]
+                appVelocity = 0
+                appScroll = appOffset
+                appAnchor = ""
+              }
+            }
+            rightAlignedAppKeys = moveSideRight ? unique(rightAlignedAppKeys + [moveKey]) : rightAlignedAppKeys.filter(k => k != moveKey)
           }
-          moveEdgeDirection = 0
-          moveMode = ""
-          moveKey = ""
-          moveLetter = ""
-          moveDragX = 0
-          moveDragY = 0
-          moveDragging = false
         }
-        Text { text: "✓"; font: chosenFont; fontSize: compact ? 18 : 22; color: #FAFAFA; align: center }
+        moveEdgeDirection = 0
+        moveMode = ""
+        moveKey = ""
+        moveLetter = ""
+        moveDragX = 0
+        moveDragY = 0
+        moveDragging = false
+      }
+      Text { text: "✓"; font: chosenFont; fontSize: 25; color: primaryText; align: center }
+    }
+  }
+
+  component MoveControls() {
+    Row {
+      width: 104
+      height: 48
+      gap: 8
+      align: center
+      if alphabetSide == -1 {
+        AlphabetMoveSaveButton {}
+        AlphabetMoveCancelButton {}
+      } else {
+        AlphabetMoveCancelButton {}
+        AlphabetMoveSaveButton {}
       }
     }
   }
@@ -2431,16 +2445,7 @@ face "Omagara" {
           }
         }
       }
-      // Alphabet move controls remain inline; Home uses bottom buttons.
-      if alphabetMode {
-        Box {
-          width: actionWidth
-          height: actionHeight
-          offset: [controlsX, controlsY]
-          animate offset: spring(0.83, 300)
-          MoveControls { controlHeight: actionHeight; compact: controlsBelow }
-        }
-      }
+      // Save/cancel for Alphabet movement is docked beside Search.
     }
   }
 
@@ -3576,7 +3581,7 @@ face "Omagara" {
       align: closeSide == -1 ? "bottomStart" : "bottomEnd"
       // Same edge: X stacks above Search. Opposite edges: align their bottoms.
       padding: closeSide == -1 ? [controlLeft, 0, 0, searchBottom + (closeSide == controlSide ? 64 : 0)] : [0, 0, controlRight, searchBottom + (closeSide == controlSide ? 64 : 0)]
-      visible: browsing && activeSide == 0
+      visible: browsing && activeSide == 0 && moveMode != "alphabet"
       Box {
         size: 48
         radius: cfg.roundClose ? 24 : 0
@@ -3588,7 +3593,17 @@ face "Omagara" {
         Text { text: "×"; font: chosenFont; fontSize: 26; color: primaryText; align: center }
       }
     }
-    if layoutEditMode == "home" && !browsing {
+    if browsing && moveMode == "alphabet" {
+      // The search-area actions apply to the currently moving Alphabet app.
+      Box {
+        fill: true
+        align: controlSide == -1 ? "bottomStart" : "bottomEnd"
+        padding: controlSide == -1 ?
+          [controlLeft - (alphabetSide == 1 ? 56 : 0), 0, 0, searchBottom] :
+          [0, 0, controlRight - (alphabetSide == -1 ? 56 : 0), searchBottom]
+        MoveControls {}
+      }
+    } else if layoutEditMode == "home" && !browsing {
       // ✓ replaces Search exactly. × is to its left with right-side worm,
       // and to its right with left-side worm. The cog still sits over Search.
       Box {
