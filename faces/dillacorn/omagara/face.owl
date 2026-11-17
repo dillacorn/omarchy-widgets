@@ -1100,6 +1100,8 @@ face "Omagara" {
             onTap: {
               moveMode = "pin"
               moveKey = a.key
+              moveDragging = false
+              moveLiftStarted = time
               moveLetter = ""
               moveTargetIndex = indexOf(pinnedAppKeys, a.key)
               moveDragX = 0
@@ -1311,63 +1313,74 @@ face "Omagara" {
       }
   }
 
-  // The selected application floats over its ORIGINAL home/A-Z position.
-  // Its neighboring rows remain visible. No separate reorder screen.
-  component FloatingMoveApp(a, alphabetMode = false, slotWidth = 180, slotHeight = 48) {
-    let floatingWidth = alphabetMode ? min(slotWidth - 10, 230) : min(noticeWidth, max(142, slotWidth + 48))
+  // This node stays in the real home/A-Z layout while moving. Its shadow,
+  // spring and subtle levitation communicate that it has been lifted. The
+  // finger tracks continuous motion; releasing snaps to a projected grid slot.
+  component FloatingMoveApp(a, alphabetMode = false, slotWidth = 180, slotHeight = 48, snapX = 0, snapY = 0, showText = true) {
+    let floatingWidth = alphabetMode ? min(slotWidth - 10, 230) : showText ? min(noticeWidth, max(142, slotWidth + 32)) : max(42, slotWidth)
+    let hoverAge = moveMode != "" && !cfg.reduceMotion ? max(0, time - moveLiftStarted) : 0
+    let hoverLift = cfg.reduceMotion ? 0 : 2 + 1.6 * sin(hoverAge * 4.8)
+    let liveX = moveDragging ? moveDragX : snapX
+    let liveY = moveDragging ? moveDragY : snapY
+    let visualX = alphabetMode ? clamp(liveX, -9, 9) : clamp(liveX, -noticeWidth / 2, noticeWidth / 2)
+    let visualY = clamp(liveY, -moveOriginIndex * (alphabetMode ? appRowHeight : 48), max(0, len(moveKeys) - moveOriginIndex - 1) * (alphabetMode ? appRowHeight : 48))
     Box {
       width: slotWidth
       height: slotHeight
-      radius: 7
-      border: 1
-      borderColor: alpha(accent, 0.55)
-      background: alpha(accent, 0.07)
       Box {
         width: floatingWidth
         height: slotHeight
-        offset: [moveDragX, moveDragY]
-        scale: 1.07
-        background: alpha(surface, 0.94)
+        offset: [visualX + 4, visualY + 6]
+        animate offset: spring(0.78, 210)
+        background: alpha(background, 0.28)
+        radius: 10
+      }
+      Box {
+        width: floatingWidth
+        height: slotHeight
+        offset: [visualX, visualY - hoverLift]
+        animate offset: spring(0.79, 250)
+        scale: cfg.reduceMotion ? 1.045 : 1.075 + 0.014 * sin(hoverAge * 4.8)
+        animate scale: spring(0.80, 200)
+        background: alpha(surface, 0.79)
         border: 2
         borderColor: accent
-        radius: 8
+        radius: 9
         onDrag: {
+          moveDragging = true
           let nextX = moveDragX + dx
           let nextY = moveDragY + dy
           moveDragX = nextX
           moveDragY = nextY
-          // A-Z rows share one height. Pinned rows may contain several icons,
-          // so map vertical travel by the REAL grouped rows, not key count.
+          // The grid is discrete. Only valid app slots can be selected.
           let displayIndex = indexOf(pinnedApps.map(p => p.key), moveKey)
           let originRow = get(pinnedRowNumbers, displayIndex, 1)
           let destinationRow = clamp(originRow + round(nextY / 48), 1, max(1, len(pinnedRows)))
           let destinationItems = get(pinnedRows, destinationRow - 1, [])
           let destinationPin = nextX >= 42 ? last(destinationItems) : first(destinationItems)
           let destinationIndex = destinationPin == null ? moveOriginIndex : indexOf(pinnedAppKeys, destinationPin.key)
-          let directPinIndex = abs(nextY) >= 24 ? destinationIndex : moveOriginIndex + round(nextX / 60)
-          let nextIndex = alphabetMode ? moveOriginIndex + round(nextY / appRowHeight) : directPinIndex
+          let pinIndex = abs(nextY) >= 24 ? destinationIndex : moveOriginIndex + round(nextX / 60)
+          let nextIndex = alphabetMode ? moveOriginIndex + round(nextY / appRowHeight) : pinIndex
           moveTargetIndex = clamp(nextIndex, 0, max(0, len(moveKeys) - 1))
         }
+        onDragEnd: moveDragging = false
         Row {
           fill: width
           height: slotHeight
           align: center
-          padding: [4, 8]
-          gap: 9
+          padding: [4, 7]
+          gap: 8
           if a.icon != null && a.icon != "" {
             Image { src: a.icon; size: min(34, slotHeight - 8); label: a.name }
           } else {
-            Text { text: upper(sub(trim(a.name), 0, 1)); font: chosenFont; fontSize: 19; color: primaryText; width: 34; align: center }
+            Text { text: upper(sub(trim(a.name), 0, 1)); font: chosenFont; fontSize: 18; color: primaryText; width: 34; align: center }
           }
-          Text {
-            text: a.name
-            font: chosenFont
-            fontSize: 15
-            color: primaryText
-            maxLines: 1
-            weight: 1
+          if alphabetMode || showText {
+            Text { text: a.name; font: chosenFont; fontSize: 15; color: primaryText; maxLines: 1; weight: 1 }
           }
-          Text { text: "⠿"; font: chosenFont; fontSize: 22; color: accent }
+          if alphabetMode || showText && floatingWidth > 92 {
+            Text { text: "⠿"; font: chosenFont; fontSize: 20; color: accent }
+          }
         }
       }
     }
@@ -1628,6 +1641,7 @@ face "Omagara" {
             moveLetter = ""
             moveDragX = 0
             moveDragY = 0
+            moveDragging = false
           }
         }
         Button {
@@ -1654,6 +1668,7 @@ face "Omagara" {
             moveLetter = ""
             moveDragX = 0
             moveDragY = 0
+            moveDragging = false
           }
         }
       }
@@ -2061,6 +2076,8 @@ face "Omagara" {
               onTap: {
                 moveMode = "alphabet"
                 moveKey = a.key
+                moveDragging = false
+                moveLiftStarted = time
                 moveLetter = appLetter
                 moveTargetIndex = indexOf(get(groups, appLetter, []).map(x => x.key), a.key)
                 moveDragX = 0
