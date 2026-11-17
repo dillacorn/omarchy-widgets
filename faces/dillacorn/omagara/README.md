@@ -20,7 +20,7 @@ Time format, **Abbreviate weekday and month**, and **Show battery percentage bes
 
 - **Date & battery:** Independent optional weekday/month abbreviation and native battery percentage in the date header; both default OFF. Old settings backups without either toggle still import.
 - **Layout editor:** Home and Alphabet settings launch touch editing; arrow-grab handles adjust header/app, app/notification, and worm vertical spacing. ✓ Done exits; reset buttons restore default spacing.
-- **Header:** A small button beside the clock switches between full-size and one-line clock/date layouts. Clock settings also controls compact mode.
+- **Header:** **Clock settings → Compact clock & date** switches between the full-size and one-line clock/date layouts. No toggle appears beside the clock.
 - **A–Z placement:** Move an app horizontally to keep its icon on the right; left remains the default. Side choices persist per app, independent of Search, home pins, and vertical ordering. Holding a second app commits the current move and switches to it.
 
 - Default to **Most used**, with Alphabetical still selectable. A one-time upgrade migration switches existing saved sort choices to Most used; later manual selections are preserved.
