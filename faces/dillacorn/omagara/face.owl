@@ -1602,7 +1602,37 @@ face "Omagara" {
         position: below
         width: 220
         gap: 0
-        // Pinned-app context actions stay intact; Home Move starts via Search.
+        // Home pins keep Move in their hold menu, even outside Home edit mode.
+        // Capture the session baseline so the global × cancels everything.
+        Text {
+          text: a.folderId == null ? "Move app…" : "Move folder…"
+          fill: width
+          padding: [12, 14]
+          onTap: {
+            if layoutEditMode != "home" {
+              homeEditOriginalPinKeys = pinnedAppKeys
+              homeEditOriginalPinLayouts = pinnedLayouts
+              homeEditOriginalHeaderSpacing = headerSpacing
+              homeEditOriginalNoticeSpacing = noticeSpacing
+              homeEditOriginalRailShift = alphabetRailShift
+              homeEditOriginalCompactHeader = compactHeader
+            }
+            layoutEditMode = "home"
+            moveMode = "pin"
+            moveKey = a.key
+            moveLetter = ""
+            moveTargetIndex = indexOf(pinnedAppKeys, a.key)
+            moveDragX = 0
+            moveDragY = 0
+            moveDragging = false
+            moveLiftStarted = time
+            expandedPinnedKey = ""
+            folderOpenId = ""
+            pinnedMenuKey = ""
+            pinnedMenuShortcuts = null
+            menu = ""
+          }
+        }
         Text {
           text: a.folderId == null ? "Unpin app" : "Unpin folder"
           fill: width
@@ -1694,30 +1724,20 @@ face "Omagara" {
 
   // Small grab bubbles are attached to the actual layout regions. They are
   // not fixed to the bottom of the screen or part of the ordinary home UI.
+  // Drag each handle continuously. Reset affects only the selected zone.
   component LayoutSpacingHandle(zone) {
     Row {
-      width: zone == "rail" ? 112 : 140
-      height: 32
+      width: 152
+      height: 40
       align: center
-      gap: 3
+      gap: 0
       background: alpha(surface, 0.94)
       border: 1
       borderColor: alpha(accent, 0.70)
       radius: cfg.roundAppLabels ? 7 : 0
       Box {
-        width: 32
-        height: 32
-        align: center
-        onTap: {
-          if zone == "rail" { alphabetRailShift = clamp(alphabetRailShift - 8, -160, 160) }
-          if zone == "header" { headerSpacing = clamp(headerSpacing - 8, -48, 80) }
-          if zone == "notices" { noticeSpacing = clamp(noticeSpacing - 8, 0, 80) }
-        }
-        Text { text: "↑"; font: chosenFont; fontSize: 18; color: accent; align: center }
-      }
-      Box {
         weight: 1
-        height: 32
+        height: 40
         align: center
         drag: vertical
         onDrag: {
@@ -1728,22 +1748,22 @@ face "Omagara" {
         Text {
           text: zone == "rail" ? "↕ Worm" : zone == "header" ? "↕ Clock gap" : "↕ Alerts gap"
           font: chosenFont
-          fontSize: 11
+          fontSize: 12
           color: primaryText
           align: center
           maxLines: 1
         }
       }
       Box {
-        width: 32
-        height: 32
+        width: 44
+        height: 40
         align: center
         onTap: {
-          if zone == "rail" { alphabetRailShift = clamp(alphabetRailShift + 8, -160, 160) }
-          if zone == "header" { headerSpacing = clamp(headerSpacing + 8, -48, 80) }
-          if zone == "notices" { noticeSpacing = clamp(noticeSpacing + 8, 0, 80) }
+          if zone == "rail" { alphabetRailShift = 0 }
+          if zone == "header" { headerSpacing = 0 }
+          if zone == "notices" { noticeSpacing = 0 }
         }
-        Text { text: "↓"; font: chosenFont; fontSize: 18; color: accent; align: center }
+        Text { text: "Reset"; font: chosenFont; fontSize: 11; color: accent; align: center }
       }
     }
   }
@@ -1906,9 +1926,9 @@ face "Omagara" {
             }
           }
           Box {
-            width: 140
-            height: 32
-            offset: [max(0, noticeWidth - 140), max(0, headerPadTop + headerShapeHeight - 8)]
+            width: 152
+            height: 40
+            offset: [max(0, noticeWidth - 152), max(0, headerPadTop + headerShapeHeight - 8)]
             LayoutSpacingHandle { zone: "header" }
           }
         }
@@ -2399,9 +2419,9 @@ face "Omagara" {
           width: noticeWidth
           height: 1
           Box {
-            width: 140
-            height: 32
-            offset: [max(0, noticeWidth - 140), -16]
+            width: 152
+            height: 40
+            offset: [max(0, noticeWidth - 152), -20]
             LayoutSpacingHandle { zone: "notices" }
           }
         }
@@ -3135,7 +3155,7 @@ face "Omagara" {
         AlphabetRail { side: 1 }
       }
     }
-    // Keep the worm-height handle immediately beside the worm during BOTH
+    // Keep the draggable worm-position handle beside the worm during BOTH
     // Home and Alphabet moves. Its coordinate follows railTop after every
     // adjustment, unlike the old bottom-anchored Home controls.
     if layoutEditMode != "" || moveMode != "" {
@@ -3758,8 +3778,13 @@ face "Omagara" {
                   layoutEditMode = "home"; moveMode = ""; browsing = false; activeSide = 0; railHeld = false; close()
                 }
               }
-              Text { text: "Use the clock and alert ↑/↓ handles beside their sections, and the worm handle beside the letters. Drag the center of a handle for precise spacing. Tap Done to finish."; font: chosenFont; fontSize: 12; color: secondaryText }
-              Button { text: "Reset Home spacing"; onTap: { headerSpacing = 0; noticeSpacing = 0 } }
+              Text { text: "Drag a ↕ bar directly to adjust its position smoothly. Each bar has its own Reset button. Tap ✓ to save or × to cancel Home edits."; font: chosenFont; fontSize: 12; color: secondaryText }
+              Flow {
+                fill: width
+                gap: 8
+                Button { text: "Reset clock gap"; onTap: headerSpacing = 0 }
+                Button { text: "Reset alerts gap"; onTap: noticeSpacing = 0 }
+              }
               Text { text: "Default home"; color: accent; font: chosenFont; fontSize: 18; padding: [0, 8, 0, 4] }
               Text { text: "Choose which Omalauncher page opens when you press Home."; font: chosenFont; fontSize: 14 }
               Flow {
@@ -3962,8 +3987,8 @@ face "Omagara" {
                 text: "Edit Alphabet layout"
                 onTap: { layoutEditMode = "alphabet"; moveMode = ""; appVelocity = 0; appAnchor = ""; appScroll = 0; browsing = true; activeSide = 0; railHeld = false; close() }
               }
-              Text { text: "The ↕ Worm handle sits beside the letters in Home and Alphabet move mode. Tap ↑/↓ or drag its center. Tap an app to select it for moving."; font: chosenFont; fontSize: 12; color: secondaryText }
-              Button { text: "Reset worm height"; onTap: alphabetRailShift = 0 }
+              Text { text: "Drag the ↕ Worm bar to position the alphabet smoothly. Its Reset button restores only the worm position. Tap an app to select it for moving."; font: chosenFont; fontSize: 12; color: secondaryText }
+              Button { text: "Reset worm position"; onTap: alphabetRailShift = 0 }
               Text { text: "Alphabet navigation"; color: accent; font: chosenFont; fontSize: 18; padding: [0, 8, 0, 4] }
               Text { text: "Alphabet position"; font: chosenFont; fontSize: 15 }
               Flow {
