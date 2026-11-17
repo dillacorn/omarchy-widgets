@@ -3232,11 +3232,7 @@ face "Omagara" {
         Text { text: "×"; font: chosenFont; fontSize: 26; color: primaryText; align: center }
       }
     }
-    Box {
-      fill: true
-      align: controlSide == -1 ? "bottomStart" : "bottomEnd"
-      padding: controlSide == -1 ? [controlLeft, 0, 0, searchBottom] : [0, 0, controlRight, searchBottom]
-      if layoutEditMode == "home" && !browsing {
+    if layoutEditMode == "home" && !browsing {
       // ✓ replaces Search at its original spot. × is to its left.
       Box {
         fill: true
@@ -3263,7 +3259,19 @@ face "Omagara" {
             borderColor: border
             background: alpha(surface, cfg.shadeButtonOpacity / 100)
             align: center
-            onTap: { if moveMode == "pin" && moveOriginIndex >= 0 && moveTargetIndex >= 0 && moveTargetIndex < len(moveKeys) && pinDraftChanged { pinnedLayouts = pinDraftLayouts; pinnedAppKeys = pinDraftKeys }; moveMode = ""; moveKey = ""; moveLetter = ""; moveDragX = 0; moveDragY = 0; moveDragging = false; layoutEditMode = "" }
+            onTap: {
+              if moveMode == "pin" && moveOriginIndex >= 0 && moveTargetIndex >= 0 && moveTargetIndex < len(moveKeys) && pinDraftChanged {
+                pinnedLayouts = pinDraftLayouts
+                pinnedAppKeys = pinDraftKeys
+              }
+              moveMode = ""
+              moveKey = ""
+              moveLetter = ""
+              moveDragX = 0
+              moveDragY = 0
+              moveDragging = false
+              layoutEditMode = ""
+            }
             Text { text: "✓"; font: chosenFont; fontSize: 25; color: primaryText; align: center }
           }
         }
@@ -3285,7 +3293,11 @@ face "Omagara" {
           }
       }
     } else {
-    Box {
+      Box {
+        fill: true
+        align: controlSide == -1 ? "bottomStart" : "bottomEnd"
+        padding: controlSide == -1 ? [controlLeft, 0, 0, searchBottom] : [0, 0, controlRight, searchBottom]
+        Box {
         size: 48
         // Lower-letter magnification crosses this area; restore on release.
         visible: activeSide == 0
@@ -3326,7 +3338,7 @@ face "Omagara" {
     // Passive L-shaped swipe cue: the elbow runs beside Search, then turns
     // inward toward the six-dot grip. Mirror it with Search and close position.
     // The cue has no touch handlers; Omalauncher owns the native home swipe.
-    if cfg.showSwipeCue && !browsing && activeSide == 0 {
+    if cfg.showSwipeCue && !browsing && activeSide == 0 && layoutEditMode != "home" {
       let cueLeft = controlSide == -1
       let cueElbowX = cueLeft ? 54 : 72
       let cueDotX = cueLeft ? 90 : 32
