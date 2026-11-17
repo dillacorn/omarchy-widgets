@@ -608,7 +608,7 @@ face "Omagara" {
     width: get(r.widths, i, 38), iconSize: r.iconSize, labelWidth: r.labelWidth,
     showLabel: len(r.apps) == 1,
     iconAfterText: len(r.apps) == 1 &&
-      !get(find(pinnedLayouts, p => p.key == first(r.apps).key) ?? {}, "alignRight", false)
+      get(find(pinnedLayouts, p => p.key == first(r.apps).key) ?? {}, "alignRight", false)
   })))
   // In-place slots use the existing 42dp row + 6dp gap.
   let pinTargetRowGeometry = pinDraftRows.map((row, ri) => {
@@ -629,7 +629,7 @@ face "Omagara" {
     width: get(r.widths, i, 38), iconSize: r.iconSize, labelWidth: r.labelWidth,
     showLabel: len(r.apps) == 1,
     iconAfterText: len(r.apps) == 1 &&
-      !get(find(pinDraftLayouts, p => p.key == first(r.apps).key) ?? {}, "alignRight", false)
+      get(find(pinDraftLayouts, p => p.key == first(r.apps).key) ?? {}, "alignRight", false)
   })))
 
   // One native vertical document: no separate pin quota or fixed notification
@@ -2549,11 +2549,11 @@ face "Omagara" {
               padding: [2, 2]
               background: moveMode == "pin" && moveTargetIndex == indexOf(pinnedAppKeys, a.key) ? alpha(accent, 0.19) : transparent
               radius: cfg.roundAppLabels ? 7 : 0
-              if showPinLabel && !rowRight {
+              if showPinLabel && rowRight {
                 HomePinRowText { a: a; labelWidth: rowLabelWidth; iconAfterText: true }
               }
               HomePinIcon { a: a; iconSize: rowIconSize; showNoticeDot: true }
-              if showPinLabel && rowRight {
+              if showPinLabel && !rowRight {
                 HomePinRowText { a: a; labelWidth: rowLabelWidth }
               }
             }
