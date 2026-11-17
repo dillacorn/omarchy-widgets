@@ -1717,7 +1717,7 @@ face "Omagara" {
         align: center
         onTap: {
           if zone == "rail" { alphabetRailShift = clamp(alphabetRailShift - 8, -160, 160) }
-          if zone == "header" { headerSpacing = clamp(headerSpacing - 8, -20, 80) }
+          if zone == "header" { headerSpacing = clamp(headerSpacing - 8, -48, 80) }
           if zone == "notices" { noticeSpacing = clamp(noticeSpacing - 8, 0, 80) }
         }
         Text { text: "↑"; font: chosenFont; fontSize: 18; color: accent; align: center }
@@ -1729,7 +1729,7 @@ face "Omagara" {
         drag: vertical
         onDrag: {
           if zone == "rail" { alphabetRailShift = clamp(alphabetRailShift + dy, -160, 160) }
-          if zone == "header" { headerSpacing = clamp(headerSpacing + dy, -20, 80) }
+          if zone == "header" { headerSpacing = clamp(headerSpacing + dy, -48, 80) }
           if zone == "notices" { noticeSpacing = clamp(noticeSpacing + dy, 0, 80) }
         }
         Text {
@@ -1747,7 +1747,7 @@ face "Omagara" {
         align: center
         onTap: {
           if zone == "rail" { alphabetRailShift = clamp(alphabetRailShift + 8, -160, 160) }
-          if zone == "header" { headerSpacing = clamp(headerSpacing + 8, -20, 80) }
+          if zone == "header" { headerSpacing = clamp(headerSpacing + 8, -48, 80) }
           if zone == "notices" { noticeSpacing = clamp(noticeSpacing + 8, 0, 80) }
         }
         Text { text: "↓"; font: chosenFont; fontSize: 18; color: accent; align: center }
@@ -3159,9 +3159,7 @@ face "Omagara" {
       Box {
         fill: true
         align: alphabetSide == -1 ? "topStart" : "topEnd"
-        padding: alphabetSide == -1
-          ? [screenLeft + 54, railTop + max(8, railStep * 1.25), 0, 0]
-          : [0, railTop + max(8, railStep * 1.25), screenRight + 54, 0]
+        padding: alphabetSide == -1 ? [screenLeft + 54, railTop + max(8, railStep * 1.25), 0, 0] : [0, railTop + max(8, railStep * 1.25), screenRight + 54, 0]
         LayoutSpacingHandle { zone: "rail" }
       }
     }
@@ -3670,7 +3668,7 @@ face "Omagara" {
                 text: "Edit Home layout"
                 onTap: { layoutEditMode = "home"; moveMode = ""; browsing = false; activeSide = 0; railHeld = false; close() }
               }
-              Text { text: "Drag the up/down handles to adjust header and notification clearance. Tap Done to leave edit mode."; font: chosenFont; fontSize: 12; color: secondaryText }
+              Text { text: "Use the clock and alert ↑/↓ handles beside their sections, and the worm handle beside the letters. Drag the center of a handle for precise spacing. Tap Done to finish."; font: chosenFont; fontSize: 12; color: secondaryText }
               Button { text: "Reset Home spacing"; onTap: { headerSpacing = 0; noticeSpacing = 0 } }
               Text { text: "Default home"; color: accent; font: chosenFont; fontSize: 18; padding: [0, 8, 0, 4] }
               Text { text: "Choose which Omalauncher page opens when you press Home."; font: chosenFont; fontSize: 14 }
@@ -3874,7 +3872,7 @@ face "Omagara" {
                 text: "Edit Alphabet layout"
                 onTap: { layoutEditMode = "alphabet"; moveMode = ""; appVelocity = 0; appAnchor = ""; appScroll = 0; browsing = true; activeSide = 0; railHeld = false; close() }
               }
-              Text { text: "Drag the worm handle to shift the alphabet up or down. Tap an app in edit mode to move it."; font: chosenFont; fontSize: 12; color: secondaryText }
+              Text { text: "The ↕ Worm handle sits beside the letters in Home and Alphabet move mode. Tap ↑/↓ or drag its center. Tap an app to select it for moving."; font: chosenFont; fontSize: 12; color: secondaryText }
               Button { text: "Reset worm height"; onTap: alphabetRailShift = 0 }
               Text { text: "Alphabet navigation"; color: accent; font: chosenFont; fontSize: 18; padding: [0, 8, 0, 4] }
               Text { text: "Alphabet position"; font: chosenFont; fontSize: 15 }
@@ -4098,7 +4096,7 @@ face "Omagara" {
               manualAppMoves = imported.manualMoves ?? []
                rightAlignedAppKeys = unique(imported.rightAlignedApps ?? [])
                alphabetRailShift = clamp(num(get(imported.layout ?? {}, "rail", 0)), -160, 160)
-               headerSpacing = clamp(num(get(imported.layout ?? {}, "header", 0)), -20, 80)
+               headerSpacing = clamp(num(get(imported.layout ?? {}, "header", 0)), -48, 80)
                noticeSpacing = clamp(num(get(imported.layout ?? {}, "notices", 0)), 0, 80)
                compactHeader = get(imported.layout ?? {}, "compact", false) == true
               customFolders = imported.folders ?? []
