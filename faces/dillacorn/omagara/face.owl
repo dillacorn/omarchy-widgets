@@ -1462,7 +1462,7 @@ face "Omagara" {
           }
         }
       }
-      // Same horizontal line as the app, with an independent hit area.
+      // Beside labeled apps; below icon-only pins, with a separate hit area.
       Box {
         width: 72
         height: actionHeight
