@@ -1955,6 +1955,10 @@ face "Omagara" {
     let appGroupKeys = folderView ? folderKeys : get(appKeyGroups, appLetter, [])
     let appGroupIndex = indexOf(appGroupKeys, a.key)
     let manuallyMoved = any(manualAppMoves, m => m.key == a.key)
+    // Keep one stable component root through move-mode transitions.
+    Box {
+      fill: width
+      height: thumbView ? appRowHeight : null
     // The highlighted app itself is draggable in the real alphabet list.
     if moveMode == "alphabet" && moveKey == a.key && thumbView && !searchView && !folderView {
       FloatingMoveApp { a: a; alphabetMode: true; slotWidth: appPanelWidth - 8; slotHeight: appRowHeight }
@@ -2160,6 +2164,7 @@ face "Omagara" {
           }
         }
       }
+    }
     }
     }
   }
