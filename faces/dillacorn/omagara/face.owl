@@ -1157,35 +1157,6 @@ face "Omagara" {
             pinnedMenuKey = ""; pinnedMenuShortcuts = null
           }
         }
-        if indexOf(pinnedAppKeys, a.key) > 0 {
-          Text {
-            text: get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "newRow", true) == false ? "Start new row" : "Join previous (icons)"
-            fill: width
-            padding: [12, 14]
-            onTap: {
-              let current = find(pinnedLayouts, p => p.key == a.key)
-              let currentNewRow = get(current ?? {}, "newRow", true) != false
-              let updated = merge(current ?? {key: a.key, showLabel: true}, {newRow: !currentNewRow})
-              pinnedLayouts = pinnedLayouts.filter(p => p.key != a.key) + [updated]
-              pinnedMenuKey = ""; pinnedMenuShortcuts = null
-            }
-          }
-        }
-        if indexOf(pinnedAppKeys, a.key) >= 0 && indexOf(pinnedAppKeys, a.key) < len(pinnedAppKeys) - 1 {
-          let nextKey = get(pinnedAppKeys, indexOf(pinnedAppKeys, a.key) + 1)
-          if get(find(pinnedLayouts, p => p.key == nextKey) ?? {}, "newRow", true) != false {
-            Text {
-              text: "Join next (icons)"
-              fill: width
-              padding: [12, 14]
-              onTap: {
-                let nextLayout = find(pinnedLayouts, p => p.key == nextKey)
-                pinnedLayouts = pinnedLayouts.filter(p => p.key != nextKey) + [merge(nextLayout ?? {key: nextKey, showLabel: true}, {newRow: false})]
-                pinnedMenuKey = ""; pinnedMenuShortcuts = null
-              }
-            }
-          }
-        }
         Text {
           text: "Add to folder"
           fill: width
