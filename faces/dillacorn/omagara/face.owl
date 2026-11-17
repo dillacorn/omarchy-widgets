@@ -3956,7 +3956,10 @@ face "Omagara" {
         }
       }
     }
-    if layoutEditMode == "alphabet" && browsing {
+    // If the entire clock/date/event header is disabled, preserve the Home
+    // worm editor as an edge control rather than losing its drag handle.
+    if (layoutEditMode == "alphabet" && browsing) ||
+       (layoutEditMode == "home" && !browsing && len(headerRows) == 0) {
       Box {
         fill: true
         align: wormHandleOnLeft ? "topStart" : "topEnd"
