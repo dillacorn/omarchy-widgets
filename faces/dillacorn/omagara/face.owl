@@ -1498,11 +1498,21 @@ face "Omagara" {
         radius: 8
         ripple: false
         onDrag: {
-          moveDragX = moveDragX + dx
-          moveDragY = moveDragY + dy
-          // A-Z stays within its letter; pins can also move sideways.
-          let shift = alphabetMode ? round(moveDragY / appRowHeight) : abs(moveDragY) >= 24 ? round(moveDragY / 52) : round(moveDragX / 60)
-          moveTargetIndex = clamp(moveOriginIndex + shift, 0, max(0, len(moveKeys) - 1))
+          let nextX = moveDragX + dx
+          let nextY = moveDragY + dy
+          moveDragX = nextX
+          moveDragY = nextY
+          // A-Z rows share one height. Pinned rows may contain several icons,
+          // so map vertical travel by the REAL grouped rows, not key count.
+          let displayIndex = indexOf(pinnedApps.map(p => p.key), moveKey)
+          let originRow = get(pinnedRowNumbers, displayIndex, 1)
+          let destinationRow = clamp(originRow + round(nextY / 48), 1, max(1, len(pinnedRows)))
+          let destinationItems = get(pinnedRows, destinationRow - 1, [])
+          let destinationPin = nextX >= 42 ? last(destinationItems) : first(destinationItems)
+          let destinationIndex = destinationPin == null ? moveOriginIndex : indexOf(pinnedAppKeys, destinationPin.key)
+          let directPinIndex = abs(nextY) >= 24 ? destinationIndex : moveOriginIndex + round(nextX / 60)
+          let nextIndex = alphabetMode ? moveOriginIndex + round(nextY / appRowHeight) : directPinIndex
+          moveTargetIndex = clamp(nextIndex, 0, max(0, len(moveKeys) - 1))
         }
         Row {
           fill: width
