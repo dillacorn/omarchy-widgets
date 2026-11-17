@@ -571,6 +571,14 @@ face "Omagara" {
     {numbers: [], row: 0, used: 0})
   let pinDraftRowNumbers = pinDraftRowPlan.numbers
   let pinDraftRows = unique(pinDraftRowNumbers).map(r => pinDraftApps.filter(a => get(pinDraftRowNumbers, indexOf(pinDraftApps.map(p => p.key), a.key), 0) == r))
+  // Row actions target the same projected logical stack that Save will use.
+  // "Shift all" sends a mixed layout right, then left once every pin is right.
+  let pinSelectedGroupId = get(pinDraftGroupIds, indexOf(pinDraftKeys, moveKey), -2)
+  let pinSelectedGroupKeys = moveMode == "pin" ?
+    pinDraftKeys.filter(k => get(pinDraftGroupIds, indexOf(pinDraftKeys, k), -3) == pinSelectedGroupId) : []
+  let pinSelectedGroupRight = get(find(pinDraftLayouts, p => p.key == moveKey) ?? {}, "alignRight", false)
+  let pinAllRight = len(pinDraftKeys) > 0 &&
+    all(pinDraftKeys, k => get(find(pinDraftLayouts, p => p.key == k) ?? {}, "alignRight", false))
   // The Home editor uses global ×/✓ and never reserves an extra pin row.
   let pinDraftControlBelow = false
   // In-place slots use the existing 42dp row + 6dp gap.
@@ -1678,6 +1686,19 @@ face "Omagara" {
           }
         }
         Text {
+          text: all(pinnedAppKeys, k => get(find(pinnedLayouts, p => p.key == k) ?? {}, "alignRight", false)) ? "Shift all pins left" : "Shift all pins right"
+          fill: width
+          padding: [12, 14]
+          onTap: {
+            let nextRight = !all(pinnedAppKeys, k => get(find(pinnedLayouts, p => p.key == k) ?? {}, "alignRight", false))
+            pinnedLayouts = pinnedLayouts.filter(p => !contains(pinnedAppKeys, p.key)) +
+              pinnedAppKeys.map(k => merge(find(pinnedLayouts, p => p.key == k) ?? {key: k, showLabel: true},
+                {alignRight: nextRight}))
+            pinnedMenuKey = ""
+            pinnedMenuShortcuts = null
+          }
+        }
+        Text {
           text: a.folderId == null ? "Unpin app" : "Unpin folder"
           fill: width
           padding: [12, 14]
@@ -2508,6 +2529,72 @@ face "Omagara" {
           }
         }
       }
+      }
+      // Always expose an alignment action in Home editing. Select a pin
+      // to shift only its logical row; Shift all works without a selection.
+      // This editor-only lane sits below pins, clear of the Worm grab handle.
+      if layoutEditMode == "home" && len(pinnedAppKeys) > 0 {
+        Row {
+          fill: width
+          height: 40
+          align: center
+          gap: 8
+          if moveMode == "pin" && len(pinSelectedGroupKeys) > 0 {
+            Box {
+              width: 116
+              height: 36
+              align: center
+              background: alpha(surface, 0.85)
+              border: 1
+              borderColor: alpha(accent, 0.62)
+              radius: cfg.roundAppLabels ? 7 : 0
+              onTap: {
+                let selectedKeys = pinSelectedGroupKeys
+                let targetRight = !pinSelectedGroupRight
+                let pendingLayouts = pinDraftLayouts
+                pinnedAppKeys = pinDraftKeys
+                pinnedLayouts = pendingLayouts.filter(p => !contains(selectedKeys, p.key)) +
+                  selectedKeys.map(k => merge(find(pendingLayouts, p => p.key == k) ?? {key: k, showLabel: true},
+                    {alignRight: targetRight}))
+                moveMode = ""
+                moveKey = ""
+                moveLetter = ""
+                moveDragX = 0
+                moveDragY = 0
+                moveDragging = false
+              }
+              Text { text: pinSelectedGroupRight ? "← Row" : "Row →"; font: chosenFont; fontSize: 13; color: primaryText; align: center }
+            }
+          } else {
+            Text { text: "Tap a pin to shift its row"; font: chosenFont; fontSize: 11; color: secondaryText; maxLines: 1 }
+          }
+          Spacer { weight: 1 }
+          Box {
+            width: 106
+            height: 36
+            align: center
+            background: alpha(surface, 0.85)
+            border: 1
+            borderColor: alpha(accent, 0.62)
+            radius: cfg.roundAppLabels ? 7 : 0
+            onTap: {
+              let targetRight = !pinAllRight
+              let pendingKeys = pinDraftKeys
+              let pendingLayouts = pinDraftLayouts
+              pinnedAppKeys = pendingKeys
+              pinnedLayouts = pendingLayouts.filter(p => !contains(pendingKeys, p.key)) +
+                pendingKeys.map(k => merge(find(pendingLayouts, p => p.key == k) ?? {key: k, showLabel: true},
+                  {alignRight: targetRight}))
+              moveMode = ""
+              moveKey = ""
+              moveLetter = ""
+              moveDragX = 0
+              moveDragY = 0
+              moveDragging = false
+            }
+            Text { text: pinAllRight ? "← All" : "All →"; font: chosenFont; fontSize: 13; color: primaryText; align: center }
+          }
+        }
       }
       // The editor clearance includes positive spacing, keeping the bar
       // outside Notifications and entirely inside its own hit-test region.
@@ -3974,7 +4061,18 @@ face "Omagara" {
               }
               Text { text: "Most used is the default. Long-press an app in the A–Z list to move it within its letter or reset its automatic position. A small line marks moved apps. Search is unaffected."; font: chosenFont; fontSize: 12; color: secondaryText }
               Text { text: "Pinned apps & folders · " + str(len(pinnedAppKeys)) + " · " + str(pinRowCapacity) + " per row"; color: accent; font: chosenFont; fontSize: 16; padding: [0, 12, 0, 2] }
-              Text { text: "Pins default to the left. Hold a Home icon or use Align row right/left here to shift an entire stack or a standalone pin without changing its order. Automatic wraps inherit the stack alignment."; font: chosenFont; fontSize: 12; color: secondaryText }
+              Text { text: "Pins default to the left. In Home edit mode, tap a pin to reveal its Row ←/→ action, or use All ←/→ to move every pin. You can also align a complete stack here or from its hold menu."; font: chosenFont; fontSize: 12; color: secondaryText }
+              if len(pinnedAppKeys) > 0 {
+                Button {
+                  text: all(pinnedAppKeys, k => get(find(pinnedLayouts, p => p.key == k) ?? {}, "alignRight", false)) ? "Shift all pinned rows left" : "Shift all pinned rows right"
+                  onTap: {
+                    let targetRight = !all(pinnedAppKeys, k => get(find(pinnedLayouts, p => p.key == k) ?? {}, "alignRight", false))
+                    pinnedLayouts = pinnedLayouts.filter(p => !contains(pinnedAppKeys, p.key)) +
+                      pinnedAppKeys.map(k => merge(find(pinnedLayouts, p => p.key == k) ?? {key: k, showLabel: true},
+                        {alignRight: targetRight}))
+                  }
+                }
+              }
               for pinKey in pinnedAppKeys key pinKey {
                 let pinnedEntry = find(pinnedApps, a => a.key == pinKey)
                 let settingsRowId = get(pinnedLogicalRowNumbers, indexOf(pinnedApps.map(a => a.key), pinKey), -1)
