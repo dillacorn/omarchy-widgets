@@ -584,7 +584,7 @@ face "Omagara" {
     widths: r.apps.map(a => r.iconSize + 4 + (len(r.apps) == 1 ? 8 + min(152, max(42, (noticeWidth - len(r.apps) * (r.iconSize + 12) - 8) / max(1, r.namedCount))) : 0))
   }))
   let pinTargetSlots = flatten(pinTargetSlotGeometry.map(r => r.apps.map((a, i) => {
-    key: a.key, x: sum(take(r.widths, i)) + i * 6, y: r.rowIndex * 48 + (pinDraftControlBelow && r.rowIndex >= pinDraftMoveRow ? 36 : 0),
+    key: a.key, x: sum(take(r.widths, i)) + i * 6, y: r.rowIndex * 48,
     width: get(r.widths, i, 38), iconSize: r.iconSize, labelWidth: r.labelWidth,
     showLabel: len(r.apps) == 1
   })))
