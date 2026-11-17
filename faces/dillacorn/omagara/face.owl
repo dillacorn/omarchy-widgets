@@ -3490,8 +3490,9 @@ face "Omagara" {
         AlphabetRail { side: 1 }
       }
     }
-    // Only explicit layout editing exposes the Worm adjustment handle.
-    // An alphabet app move must never summon it, even if browsing closes.
+    // Only explicit layout editing exposes the Worm position handle.
+    // In Alphabet layout editing it stays available during app movement,
+    // but the letter-navigation rail remains locked until ✓ or ×.
     if layoutEditMode == "alphabet" && moveMode == "" && browsing {
       // Active app moves keep their own controls; Done cannot discard a draft.
       Box {
