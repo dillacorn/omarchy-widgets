@@ -2587,6 +2587,9 @@ face "Omagara" {
       if hasMedia || showMusicApps {
         Column {
           fill: width
+          gap: 2
+        Column {
+          fill: width
           gap: 3
           padding: [8, 4]
           background: noticeCardShade
@@ -2596,21 +2599,40 @@ face "Omagara" {
             // onto a second line while fixed-size controls never shift.
             Row {
               fill: width
-              gap: 3
+              height: musicAreaExpanded ? 72 + round(musicAreaSize * 0.65) : 42
+              gap: musicAreaExpanded ? 8 : 3
               align: center
               if playback.art != null {
-                Image { src: playback.art; size: 32; label: "Now playing artwork" }
+                Image { src: playback.art; size: musicAreaExpanded ? 48 + round(musicAreaSize * 0.35) : 32; label: "Now playing artwork" }
               }
               Column {
                 weight: 1
-                gap: 1
+                gap: musicAreaExpanded ? 4 : 1
                 onTap: media("open")
-                Text { text: playback.title; font: chosenFont; fontSize: 13; maxLines: 2; color: primaryText }
-                Text { text: playback.artist ?? playback.app ?? ""; font: chosenFont; fontSize: 11; maxLines: 1; color: secondaryText }
+                if musicAreaExpanded {
+                  Text { text: "Now playing"; font: chosenFont; fontSize: 11; maxLines: 1; color: accent }
+                }
+                Text {
+                  text: playback.title
+                  font: chosenFont
+                  fontSize: musicAreaExpanded ? 16 + floor(musicAreaSize / 40) : 13
+                  maxLines: 2
+                  color: primaryText
+                }
+                Text {
+                  text: playback.artist ?? playback.app ?? ""
+                  font: chosenFont
+                  fontSize: musicAreaExpanded ? 13 : 11
+                  maxLines: musicAreaExpanded ? 2 : 1
+                  color: secondaryText
+                }
+                if musicAreaExpanded && audioConnected {
+                  Text { text: audio.output.name ?? audio.output.type ?? "Connected"; font: chosenFont; fontSize: 11; maxLines: 1; color: secondaryText }
+                }
               }
               Box {
                 width: 30
-                height: 36
+                height: musicAreaExpanded ? 48 : 36
                 align: center
                 onTap: media("previous")
                 Canvas {
@@ -2621,7 +2643,7 @@ face "Omagara" {
               }
               Box {
                 width: 32
-                height: 36
+                height: musicAreaExpanded ? 48 : 36
                 align: center
                 onTap: media("toggle")
                 Canvas {
@@ -2638,7 +2660,7 @@ face "Omagara" {
               }
               Box {
                 width: 30
-                height: 36
+                height: musicAreaExpanded ? 48 : 36
                 align: center
                 onTap: media("next")
                 Canvas {
@@ -2661,11 +2683,22 @@ face "Omagara" {
             // With Bluetooth connected but no media session, shortcuts remain launchable.
             Row {
               fill: width
+              height: musicAreaExpanded ? 72 + round(musicAreaSize * 0.65) : 40
               align: center
-              Text { text: "Music · " + (audio.output.name ?? audio.output.type ?? "Connected"); font: chosenFont; fontSize: 12; color: secondaryText; weight: 1; maxLines: 1 }
+              if musicAreaExpanded {
+                Column {
+                  weight: 1
+                  gap: 4
+                  Text { text: "Music"; font: chosenFont; fontSize: 18 + floor(musicAreaSize / 40); color: primaryText; maxLines: 1 }
+                  Text { text: audio.output.name ?? audio.output.type ?? "Connected"; font: chosenFont; fontSize: 15 + floor(musicAreaSize / 40); color: accent; maxLines: 2 }
+                  Text { text: "Audio output · " + (audio.output.type ?? "Connected"); font: chosenFont; fontSize: 11; color: secondaryText; maxLines: 1 }
+                }
+              } else {
+                Text { text: "Music · " + (audio.output.name ?? audio.output.type ?? "Connected"); font: chosenFont; fontSize: 12; color: secondaryText; weight: 1; maxLines: 1 }
+              }
               Box {
                 width: 36
-                height: 40
+                height: musicAreaExpanded ? 48 : 40
                 align: center
                 onTap: musicAppsExpanded = !musicAppsExpanded
                 Text { text: musicAppsExpanded ? "▴" : "▾"; font: chosenFont; fontSize: 19; color: accent; align: center }
@@ -2680,6 +2713,30 @@ face "Omagara" {
               for a in selectedMusicApps key a.key {
                 Button { text: a.name; onTap: androidApp(a.key) }
               }
+            }
+          }
+        }
+          if layoutEditMode == "home" {
+            // The editor lane has real document height. Pins/notifications
+            // flow below it instead of being obscured by overlay handles.
+            Row {
+              fill: width
+              height: 46
+              gap: 8
+              align: center
+              Box {
+                width: 100
+                height: 40
+                align: center
+                background: alpha(surface, 0.78)
+                border: 1
+                borderColor: alpha(accent, 0.36)
+                radius: cfg.roundAppLabels ? 7 : 0
+                onTap: musicAreaExpanded = !musicAreaExpanded
+                Text { text: musicAreaExpanded ? "Compact" : "Expand"; font: chosenFont; fontSize: 12; color: primaryText; align: center }
+              }
+              Spacer { weight: 1 }
+              LayoutSpacingHandle { zone: "music" }
             }
           }
         }
