@@ -1079,12 +1079,31 @@ face "Omagara" {
         }
       }
       onLongPress: {
-        if moveMode == "" {
-          folderOpenId = ""
-          pinnedMenuShortcuts = null
-          pinnedMenuKey = a.key
-          pinnedMenuShortcuts = a.folderId != null ? [] : shortcuts(a.key)
-        }
+          // Save current preview before selecting the held pin.
+          if moveMode == "pin" && a.key != moveKey && contains(pinDraftKeys, a.key) {
+            let nextPinIndex = indexOf(pinDraftKeys, a.key)
+            if moveOriginIndex >= 0 && moveTargetIndex >= 0 && moveTargetIndex < len(moveKeys) && nextPinIndex >= 0 {
+              if pinDraftChanged {
+                pinnedLayouts = pinDraftLayouts
+                pinnedAppKeys = pinDraftKeys
+              }
+              moveKey = a.key
+              moveTargetIndex = nextPinIndex
+              moveDragX = 0
+              moveDragY = 0
+              moveDragging = false
+              moveLiftStarted = time
+              expandedPinnedKey = ""
+              folderOpenId = ""
+              pinnedMenuKey = ""
+              pinnedMenuShortcuts = null
+            }
+          } else if moveMode == "" {
+            folderOpenId = ""
+            pinnedMenuShortcuts = null
+            pinnedMenuKey = a.key
+            pinnedMenuShortcuts = a.folderId != null ? [] : shortcuts(a.key)
+          }
       }
       if a.folderId != null {
         FolderIcon { f: find(customFolders, f => f.id == a.folderId); side: iconSize }
@@ -1650,6 +1669,29 @@ face "Omagara" {
                         }
                         moveDragging = false
                       }
+                      onLongPress: {
+          // Save current preview before selecting the held pin.
+          if moveMode == "pin" && a.key != moveKey && contains(pinDraftKeys, a.key) {
+            let nextPinIndex = indexOf(pinDraftKeys, a.key)
+            if moveOriginIndex >= 0 && moveTargetIndex >= 0 && moveTargetIndex < len(moveKeys) && nextPinIndex >= 0 {
+              if pinDraftChanged {
+                pinnedLayouts = pinDraftLayouts
+                pinnedAppKeys = pinDraftKeys
+              }
+              moveKey = a.key
+              moveTargetIndex = nextPinIndex
+              moveDragX = 0
+              moveDragY = 0
+              moveDragging = false
+              moveLiftStarted = time
+              expandedPinnedKey = ""
+              folderOpenId = ""
+              pinnedMenuKey = ""
+              pinnedMenuShortcuts = null
+            }
+          } else if moveMode == "" {
+                          }
+                      }
                     }
                   }
                 }
@@ -1723,7 +1765,7 @@ face "Omagara" {
                     if moveMode == "" {
                       pinnedMenuShortcuts = null
                       pinnedMenuKey = a.key
-                      pinnedMenuShortcuts = shortcuts(a.key)
+                      pinnedMenuShortcuts = a.folderId != null ? [] : shortcuts(a.key)
                     }
                   }
                 }
