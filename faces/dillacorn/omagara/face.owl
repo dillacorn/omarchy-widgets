@@ -3081,33 +3081,36 @@ face "Omagara" {
         AlphabetRail { side: 1 }
       }
     }
-    // Edit handles paint over the face instead of participating in the lazy
-    // document, so completing an edit never changes the actual row positions.
-    if layoutEditMode != "" && moveMode == "" {
-      Box {
-        fill: true
-        align: topStart
-        padding: [screenLeft + 44, screenTop + 8, 0, 0]
+    // Edit handles are overlays, not rows in the scroll document. The worm
+    // handle must remain available when Move app… selects a floating app.
+    if layoutEditMode != "" || moveMode != "" {
+      // An active app move owns ✓/×; Done must not silently discard its draft.
+      if layoutEditMode != "" && moveMode == "" {
         Box {
-          width: 94
-          height: 34
-          radius: cfg.roundAppLabels ? 8 : 0
-          background: alpha(surface, 0.94)
-          border: 1
-          borderColor: alpha(accent, 0.64)
-          align: center
-          onTap: layoutEditMode = ""
-          Text { text: "✓ Done"; font: chosenFont; fontSize: 14; color: primaryText; align: center }
+          fill: true
+          align: topStart
+          padding: [screenLeft + 44, screenTop + 8, 0, 0]
+          Box {
+            width: 94
+            height: 34
+            radius: cfg.roundAppLabels ? 8 : 0
+            background: alpha(surface, 0.94)
+            border: 1
+            borderColor: alpha(accent, 0.64)
+            align: center
+            onTap: layoutEditMode = ""
+            Text { text: "✓ Done"; font: chosenFont; fontSize: 14; color: primaryText; align: center }
+          }
         }
       }
-      if layoutEditMode == "alphabet" {
+      if layoutEditMode == "alphabet" || moveMode == "alphabet" {
         Box {
           fill: true
           align: alphabetSide == -1 ? "topStart" : "topEnd"
           padding: alphabetSide == -1 ? [screenLeft + 54, railTop + min(170, railPaintHeight / 2), 0, 0] : [0, railTop + min(170, railPaintHeight / 2), screenRight + 54, 0]
           LayoutSpacingHandle { zone: "rail" }
         }
-      } else if layoutEditMode == "home" {
+      } else if layoutEditMode == "home" || moveMode == "pin" {
         Box {
           fill: true
           align: bottomStart
@@ -3115,8 +3118,28 @@ face "Omagara" {
           Column {
             width: noticeWidth
             gap: 6
-            LayoutSpacingHandle { zone: "header" }
-            LayoutSpacingHandle { zone: "notices" }
+            if layoutEditMode == "home" {
+              LayoutSpacingHandle { zone: "header" }
+              LayoutSpacingHandle { zone: "notices" }
+            }
+            // Visible only while editing; never on the normal home face.
+            Box {
+              width: 136
+              height: 32
+              radius: cfg.roundDate ? 7 : 0
+              background: alpha(surface, 0.90)
+              border: 1
+              borderColor: alpha(accent, 0.58)
+              align: center
+              onTap: compactHeader = !compactHeader
+              Text {
+                text: compactHeader ? "Expand header" : "Compact header"
+                font: chosenFont
+                fontSize: 12
+                color: primaryText
+                align: center
+              }
+            }
           }
         }
       }
