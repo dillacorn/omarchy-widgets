@@ -1699,6 +1699,62 @@ face "Omagara" {
     }
   }
 
+  // Small grab bubbles are attached to the actual layout regions. They are
+  // not fixed to the bottom of the screen or part of the ordinary home UI.
+  component LayoutSpacingHandle(zone) {
+    Row {
+      width: zone == "rail" ? 112 : 140
+      height: 32
+      align: center
+      gap: 3
+      background: alpha(surface, 0.94)
+      border: 1
+      borderColor: alpha(accent, 0.70)
+      radius: cfg.roundAppLabels ? 7 : 0
+      Box {
+        width: 32
+        height: 32
+        align: center
+        onTap: {
+          if zone == "rail" { alphabetRailShift = clamp(alphabetRailShift - 8, -160, 160) }
+          if zone == "header" { headerSpacing = clamp(headerSpacing - 8, -20, 80) }
+          if zone == "notices" { noticeSpacing = clamp(noticeSpacing - 8, 0, 80) }
+        }
+        Text { text: "↑"; font: chosenFont; fontSize: 18; color: accent; align: center }
+      }
+      Box {
+        weight: 1
+        height: 32
+        align: center
+        drag: vertical
+        onDrag: {
+          if zone == "rail" { alphabetRailShift = clamp(alphabetRailShift + dy, -160, 160) }
+          if zone == "header" { headerSpacing = clamp(headerSpacing + dy, -20, 80) }
+          if zone == "notices" { noticeSpacing = clamp(noticeSpacing + dy, 0, 80) }
+        }
+        Text {
+          text: zone == "rail" ? "↕ Worm" : zone == "header" ? "↕ Clock gap" : "↕ Alerts gap"
+          font: chosenFont
+          fontSize: 11
+          color: primaryText
+          align: center
+          maxLines: 1
+        }
+      }
+      Box {
+        width: 32
+        height: 32
+        align: center
+        onTap: {
+          if zone == "rail" { alphabetRailShift = clamp(alphabetRailShift + 8, -160, 160) }
+          if zone == "header" { headerSpacing = clamp(headerSpacing + 8, -20, 80) }
+          if zone == "notices" { noticeSpacing = clamp(noticeSpacing + 8, 0, 80) }
+        }
+        Text { text: "↓"; font: chosenFont; fontSize: 18; color: accent; align: center }
+      }
+    }
+  }
+
   // The clock, date and event are content in the same home scroll document.
   component HomeHeader() {
       Box {
@@ -1833,6 +1889,34 @@ face "Omagara" {
               }
             }
           }
+          }
+        }
+        // Controls follow the clock's true position inside the scrolling
+        // document. Both disappear outside Home edit / pinned-app moves.
+        if layoutEditMode == "home" || moveMode == "pin" {
+          Box {
+            width: 94
+            height: 30
+            offset: [0, max(0, headerPadTop + headerShapeHeight - 8)]
+            background: alpha(surface, 0.94)
+            border: 1
+            borderColor: alpha(accent, 0.70)
+            radius: cfg.roundDate ? 7 : 0
+            align: center
+            onTap: compactHeader = !compactHeader
+            Text {
+              text: compactHeader ? "Expand" : "Compact"
+              font: chosenFont
+              fontSize: 12
+              color: primaryText
+              align: center
+            }
+          }
+          Box {
+            width: 140
+            height: 32
+            offset: [max(0, noticeWidth - 140), max(0, headerPadTop + headerShapeHeight - 8)]
+            LayoutSpacingHandle { zone: "header" }
           }
         }
       }
@@ -1997,60 +2081,6 @@ face "Omagara" {
         offset: [controlsX, controlsY]
         animate offset: spring(0.83, 300)
         MoveControls { controlHeight: actionHeight; compact: controlsBelow }
-      }
-    }
-  }
-
-  // Edit-only grab handles, kept inside the relevant scroll/rail surface.
-  // Each axis is bounded so screen edges and touch regions stay usable.
-  component LayoutSpacingHandle(zone) {
-    Row {
-      width: zone == "rail" ? 112 : noticeWidth
-      height: 32
-      align: center
-      gap: 3
-      background: alpha(surface, 0.90)
-      radius: cfg.roundAppLabels ? 7 : 0
-      Box {
-        width: 32
-        height: 32
-        align: center
-        onTap: {
-          if zone == "rail" { alphabetRailShift = clamp(alphabetRailShift - 8, -160, 160) }
-          if zone == "header" { headerSpacing = clamp(headerSpacing - 8, -20, 80) }
-          if zone == "notices" { noticeSpacing = clamp(noticeSpacing - 8, 0, 80) }
-        }
-        Text { text: "↑"; font: chosenFont; fontSize: 18; color: accent; align: center }
-      }
-      Box {
-        weight: 1
-        height: 32
-        align: center
-        drag: vertical
-        onDrag: {
-          if zone == "rail" { alphabetRailShift = clamp(alphabetRailShift + dy, -160, 160) }
-          if zone == "header" { headerSpacing = clamp(headerSpacing + dy, -20, 80) }
-          if zone == "notices" { noticeSpacing = clamp(noticeSpacing + dy, 0, 80) }
-        }
-        Text {
-          text: zone == "rail" ? "↕ Worm" : zone == "header" ? "↕ Header / apps" : "↕ Apps / alerts"
-          font: chosenFont
-          fontSize: 11
-          color: primaryText
-          align: center
-          maxLines: 1
-        }
-      }
-      Box {
-        width: 32
-        height: 32
-        align: center
-        onTap: {
-          if zone == "rail" { alphabetRailShift = clamp(alphabetRailShift + 8, -160, 160) }
-          if zone == "header" { headerSpacing = clamp(headerSpacing + 8, -20, 80) }
-          if zone == "notices" { noticeSpacing = clamp(noticeSpacing + 8, 0, 80) }
-        }
-        Text { text: "↓"; font: chosenFont; fontSize: 18; color: accent; align: center }
       }
     }
   }
@@ -2358,6 +2388,21 @@ face "Omagara" {
           }
         }
       }
+      }
+      // The alerts clearance handle belongs at the actual pinned/notification
+      // boundary, so it follows the home document when it scrolls. The 1dp
+      // anchor keeps the lazy row mounted without reserving a 32dp edit lane.
+      if layoutEditMode == "home" || moveMode == "pin" {
+        Box {
+          width: noticeWidth
+          height: 1
+          Box {
+            width: 140
+            height: 32
+            offset: [max(0, noticeWidth - 140), -16]
+            LayoutSpacingHandle { zone: "notices" }
+          }
+        }
       }
       if noticeSpacing > 0 { Spacer { width: noticeWidth; height: noticeSpacing } }
       if cfg.notifications {
@@ -3088,10 +3133,11 @@ face "Omagara" {
         AlphabetRail { side: 1 }
       }
     }
-    // Edit handles are overlays, not rows in the scroll document. The worm
-    // handle must remain available when Move app… selects a floating app.
+    // Keep the worm-height handle immediately beside the worm during BOTH
+    // Home and Alphabet moves. Its coordinate follows railTop after every
+    // adjustment, unlike the old bottom-anchored Home controls.
     if layoutEditMode != "" || moveMode != "" {
-      // An active app move owns ✓/×; Done must not silently discard its draft.
+      // Active apps still own their own ✓/×; Done cannot discard a draft.
       if layoutEditMode != "" && moveMode == "" {
         Box {
           fill: true
@@ -3110,45 +3156,13 @@ face "Omagara" {
           }
         }
       }
-      if layoutEditMode == "alphabet" || moveMode == "alphabet" {
-        Box {
-          fill: true
-          align: alphabetSide == -1 ? "topStart" : "topEnd"
-          padding: alphabetSide == -1 ? [screenLeft + 54, railTop + min(170, railPaintHeight / 2), 0, 0] : [0, railTop + min(170, railPaintHeight / 2), screenRight + 54, 0]
-          LayoutSpacingHandle { zone: "rail" }
-        }
-      } else if layoutEditMode == "home" || moveMode == "pin" {
-        Box {
-          fill: true
-          align: bottomStart
-          padding: [screenLeft + 44, 0, 0, searchBottom + 110]
-          Column {
-            width: noticeWidth
-            gap: 6
-            if layoutEditMode == "home" {
-              LayoutSpacingHandle { zone: "header" }
-              LayoutSpacingHandle { zone: "notices" }
-            }
-            // Visible only while editing; never on the normal home face.
-            Box {
-              width: 136
-              height: 32
-              radius: cfg.roundDate ? 7 : 0
-              background: alpha(surface, 0.90)
-              border: 1
-              borderColor: alpha(accent, 0.58)
-              align: center
-              onTap: compactHeader = !compactHeader
-              Text {
-                text: compactHeader ? "Expand header" : "Compact header"
-                font: chosenFont
-                fontSize: 12
-                color: primaryText
-                align: center
-              }
-            }
-          }
-        }
+      Box {
+        fill: true
+        align: alphabetSide == -1 ? "topStart" : "topEnd"
+        padding: alphabetSide == -1
+          ? [screenLeft + 54, railTop + max(8, railStep * 1.25), 0, 0]
+          : [0, railTop + max(8, railStep * 1.25), screenRight + 54, 0]
+        LayoutSpacingHandle { zone: "rail" }
       }
     }
     // Letter-height gear centered in the worm's shaded tail, below the
