@@ -496,7 +496,7 @@ face "Omagara" {
   // In-place slots use the existing 42dp row + 6dp gap.
   let pinSourceRowGeometry = pinnedRows.map((row, ri) => {
     apps: row, rowIndex: ri,
-    iconSize: len(row) > 1 ? max(23, min(36, (noticeWidth - len(row) * 4 - max(0, len(row) - 1) * 6 - 8) / max(1, len(row)))) : 34,
+    iconSize: len(row) > 1 ? max(12, min(36, (noticeWidth - len(row) * 4 - max(0, len(row) - 1) * 6 - 8) / max(1, len(row)))) : 34,
     namedCount: count(row, a => len(row) == 1 && get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false)
   })
   let pinSourceSlotGeometry = pinSourceRowGeometry.map(r => merge(r, {
@@ -511,7 +511,7 @@ face "Omagara" {
   // In-place slots use the existing 42dp row + 6dp gap.
   let pinTargetRowGeometry = pinDraftRows.map((row, ri) => {
     apps: row, rowIndex: ri,
-    iconSize: len(row) > 1 ? max(23, min(36, (noticeWidth - len(row) * 4 - max(0, len(row) - 1) * 6 - 8) / max(1, len(row)))) : 34,
+    iconSize: len(row) > 1 ? max(12, min(36, (noticeWidth - len(row) * 4 - max(0, len(row) - 1) * 6 - 8) / max(1, len(row)))) : 34,
     namedCount: count(row, a => len(row) == 1 && get(find(pinDraftLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false)
   })
   let pinTargetSlotGeometry = pinTargetRowGeometry.map(r => merge(r, {
@@ -1610,7 +1610,7 @@ face "Omagara" {
       for rowPins in pinnedRows key toJson(rowPins.map(a => a.key)) {
         let rowJoined = len(rowPins) > 1
         let rowNamedCount = count(rowPins, a => !rowJoined && get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false)
-        let rowIconSize = rowJoined ? max(23, min(36, (noticeWidth - len(rowPins) * 4 - max(0, len(rowPins) - 1) * 6 - 8) / max(1, len(rowPins)))) : 34
+        let rowIconSize = rowJoined ? max(12, min(36, (noticeWidth - len(rowPins) * 4 - max(0, len(rowPins) - 1) * 6 - 8) / max(1, len(rowPins)))) : 34
         let rowLabelWidth = min(152, max(42, (noticeWidth - len(rowPins) * (rowIconSize + 12) - max(0, len(rowPins) - 1) * 6 - 8) / max(1, rowNamedCount)))
         Flow {
           fill: width
