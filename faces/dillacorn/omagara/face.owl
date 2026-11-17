@@ -456,15 +456,20 @@ face "Omagara" {
   // Preview and Save MUST use the same projected order and row breaks.
   let pinDraftActive = moveMode == "pin" && moveOriginIndex >= 0
   let pinDraftRelocated = pinDraftActive && moveTargetIndex != moveOriginIndex
-  let pinDraftHorizontal = pinDraftActive && abs(moveDragX) >= 42 && abs(moveDragX) * 2 >= abs(moveDragY)
   let pinDraftOriginVisible = indexOf(pinnedApps.map(p => p.key), moveKey)
   let pinDraftOriginalTarget = get(moveKeys, moveTargetIndex)
   let pinDraftTargetVisible = indexOf(pinnedApps.map(p => p.key), pinDraftOriginalTarget)
   let pinDraftOriginRow = get(pinnedRowNumbers, pinDraftOriginVisible, -1)
   let pinDraftTargetRow = get(pinnedRowNumbers, pinDraftTargetVisible, -2)
+  // Icon-only move actions use an extra temporary lane below the selected icon.
+  // Source and destination slots share the same row pitch during editing.
+  let pinControlBelow = pinDraftActive && (len(get(pinnedRows, pinDraftOriginRow - 1, [])) > 1 || get(find(pinnedLayouts, p => p.key == moveKey) ?? {}, "showLabel", true) == false)
+  let pinPreviewStep = pinControlBelow ? 88 : 48
+  let pinDragThreshold = pinControlBelow ? 22 : 42
+  let pinDraftHorizontal = pinDraftActive && abs(moveDragX) >= pinDragThreshold && abs(moveDragX) * 2 >= abs(moveDragY)
   let pinDraftSameRow = pinDraftHorizontal && pinDraftRelocated && pinDraftOriginRow > 0 && pinDraftOriginRow == pinDraftTargetRow
-  let pinDraftJoinBefore = pinDraftHorizontal && moveDragX >= 42 && moveTargetIndex > 0
-  let pinDraftJoinAfter = pinDraftHorizontal && moveDragX <= -42 && moveTargetIndex < moveOriginIndex
+  let pinDraftJoinBefore = pinDraftHorizontal && moveDragX >= pinDragThreshold && moveTargetIndex > 0
+  let pinDraftJoinAfter = pinDraftHorizontal && moveDragX <= -pinDragThreshold && moveTargetIndex < moveOriginIndex
   let pinDraftOldLayout = find(pinnedLayouts, p => p.key == moveKey)
   let pinDraftPreviouslyJoined = get(pinDraftOldLayout ?? {}, "newRow", true) == false
   // Pulling a member DOWN out of a horizontal row creates a visible row,
@@ -504,7 +509,7 @@ face "Omagara" {
     widths: r.apps.map(a => r.iconSize + 4 + (len(r.apps) == 1 && get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false ? 8 + min(152, max(42, (noticeWidth - len(r.apps) * (r.iconSize + 12) - 8) / max(1, r.namedCount))) : 0))
   }))
   let pinSourceSlots = flatten(pinSourceSlotGeometry.map(r => r.apps.map((a, i) => {
-    key: a.key, x: sum(take(r.widths, i)) + i * 6, y: r.rowIndex * 48,
+    key: a.key, x: sum(take(r.widths, i)) + i * 6, y: r.rowIndex * pinPreviewStep,
     width: get(r.widths, i, 38), iconSize: r.iconSize, labelWidth: r.labelWidth,
     showLabel: len(r.apps) == 1 && get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false
   })))
@@ -519,7 +524,7 @@ face "Omagara" {
     widths: r.apps.map(a => r.iconSize + 4 + (len(r.apps) == 1 && get(find(pinDraftLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false ? 8 + min(152, max(42, (noticeWidth - len(r.apps) * (r.iconSize + 12) - 8) / max(1, r.namedCount))) : 0))
   }))
   let pinTargetSlots = flatten(pinTargetSlotGeometry.map(r => r.apps.map((a, i) => {
-    key: a.key, x: sum(take(r.widths, i)) + i * 6, y: r.rowIndex * 48,
+    key: a.key, x: sum(take(r.widths, i)) + i * 6, y: r.rowIndex * pinPreviewStep,
     width: get(r.widths, i, 38), iconSize: r.iconSize, labelWidth: r.labelWidth,
     showLabel: len(r.apps) == 1 && get(find(pinDraftLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false
   })))
@@ -1398,16 +1403,19 @@ face "Omagara" {
     let minX = -baseX
     let maxX = max(minX, panelWidth - baseX - floatingWidth)
     let minY = -baseY
-    let maxY = max(minY, viewportHeight - baseY - slotHeight)
+    let controlsBelow = !alphabetMode && !showText
+    let actionHeight = controlsBelow ? 32 : slotHeight - 4
+    let maxY = max(minY, viewportHeight - baseY - slotHeight - (controlsBelow ? 36 : 0))
     let visualX = clamp(moveDragging ? moveDragX : snapX, minX, maxX)
     let visualY = clamp(moveDragging ? moveDragY : snapY, minY, maxY)
-    let paintedY = clamp(baseY + visualY - hoverLift, 0, max(0, viewportHeight - slotHeight))
-    // Keep the icon under its original finger position. Shift only the tiny
-    // action strip left when there is no room to its right.
+    let paintedY = clamp(baseY + visualY - hoverLift, 0, max(0, viewportHeight - slotHeight - (controlsBelow ? 36 : 0)))
+    // Keep the icon free to travel edge-to-edge. Icon-only actions sit
+    // underneath, centered when possible, and never cover neighboring pins.
     let appX = baseX + visualX
-    let controlsLeft = appX + floatingWidth + 72 > panelWidth && appX >= 72
-    let controlsX = controlsLeft ? appX - 72 : min(panelWidth - 72, appX + floatingWidth)
-    let drawnWidth = controlsLeft ? floatingWidth : min(floatingWidth, max(40, controlsX - appX))
+    let controlsLeft = !controlsBelow && appX + floatingWidth + 72 > panelWidth && appX >= 72
+    let controlsX = controlsBelow ? clamp(appX + (iconSize - 72) / 2, 0, max(0, panelWidth - 72)) : controlsLeft ? appX - 72 : min(panelWidth - 72, appX + floatingWidth)
+    let drawnWidth = controlsBelow || controlsLeft ? floatingWidth : min(floatingWidth, max(40, controlsX - appX))
+    let controlsY = controlsBelow ? paintedY + slotHeight + 2 : paintedY
     Box {
       width: panelWidth
       height: viewportHeight
@@ -1427,12 +1435,13 @@ face "Omagara" {
           moveDragY = nextY
           let displayIndex = indexOf(pinnedApps.map(p => p.key), moveKey)
           let sourceRow = get(pinnedRowNumbers, displayIndex, 1)
-          let targetRow = clamp(sourceRow + round(nextY / 48), 1, max(1, len(pinnedRows)))
+          let targetRow = clamp(sourceRow + round(nextY / pinPreviewStep), 1, max(1, len(pinnedRows)))
           let targetRowPins = get(pinnedRows, targetRow - 1, [])
           let targetPin = nextX >= 42 ? last(targetRowPins) : first(targetRowPins)
           let targetPinIndex = targetPin == null ? moveOriginIndex : indexOf(pinnedAppKeys, targetPin.key)
           let differentRow = targetRow != sourceRow
-          let pinIndex = abs(nextY) >= 24 ? (differentRow ? targetPinIndex : nextY > 0 && len(targetRowPins) > 1 ? indexOf(pinnedAppKeys, last(targetRowPins).key) : moveOriginIndex) : moveOriginIndex + round(nextX / 60)
+          let pinPitch = max(24, get(find(pinSourceSlots, p => p.key == moveKey) ?? {}, "width", 38) + 6)
+          let pinIndex = abs(nextY) >= 24 ? (differentRow ? targetPinIndex : nextY > 0 && len(targetRowPins) > 1 ? indexOf(pinnedAppKeys, last(targetRowPins).key) : moveOriginIndex) : moveOriginIndex + round(nextX / pinPitch)
           let nextIndex = alphabetMode ? moveOriginIndex + round(nextY / appRowHeight) : pinIndex
           moveTargetIndex = clamp(nextIndex, 0, max(0, len(moveKeys) - 1))
         }
@@ -1456,10 +1465,10 @@ face "Omagara" {
       // Same horizontal line as the app, with an independent hit area.
       Box {
         width: 72
-        height: slotHeight
-        offset: [controlsX, paintedY]
+        height: actionHeight
+        offset: [controlsX, controlsY]
         animate offset: spring(0.83, 300)
-        MoveControls { controlHeight: slotHeight - 4 }
+        MoveControls { controlHeight: actionHeight }
       }
     }
   }
@@ -1584,7 +1593,7 @@ face "Omagara" {
       if moveMode == "pin" {
         Box {
           width: noticeWidth
-          height: max(48 * len(pinnedRows), 48 * len(pinDraftRows))
+          height: pinPreviewStep * max(len(pinnedRows), len(pinDraftRows))
           let destination = find(pinTargetSlots, slot => slot.key == moveKey)
           let origin = find(pinSourceSlots, slot => slot.key == moveKey)
           if destination != null {
@@ -1653,7 +1662,7 @@ face "Omagara" {
               snapX: destination.x - origin.x
               snapY: destination.y - origin.y
               showText: origin.showLabel
-              viewportHeight: max(48 * len(pinnedRows), 48 * len(pinDraftRows))
+              viewportHeight: pinPreviewStep * max(len(pinnedRows), len(pinDraftRows))
             }
           }
         }
