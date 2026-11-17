@@ -133,6 +133,11 @@ face "Omagara" {
   state moveSideRight = false
   state moveDragging = false
   state moveLiftStarted = 0
+  // Continuous same-letter autoscroll while the selected app is HELD near
+  // a screen edge. Its clock runs only during an active edge drag.
+  state moveEdgeDirection = 0
+  state moveEdgeBaseScroll = 0
+  state moveEdgeStarted = 0
   // Manual quick-launch expansion: never follows play/pause or Bluetooth refreshes.
   state musicAppsExpanded = false
   state compactAlertApps = [] persist
@@ -376,18 +381,6 @@ face "Omagara" {
   let moveKeys = moveMode == "pin" ? pinnedAppKeys : moveMode == "alphabet" ? get(groups, moveLetter, []).map(a => a.key) : []
   let moveOriginIndex = indexOf(moveKeys, moveKey)
   let moveOtherKeys = moveKeys.filter(k => k != moveKey)
-  let movePreviewKeys = moveOriginIndex < 0 ? [] : take(moveOtherKeys, moveTargetIndex) + [moveKey] + drop(moveOtherKeys, moveTargetIndex)
-  // Replaying other users' manual moves without the selected app's
-  // overrides reveals where that app belongs when its marker is reset.
-  let alphabetResetKeys = moveMode == "alphabet" ?
-    reduce(manualAppMoves.filter(m => m.letter == moveLetter && m.key != moveKey), (rows, m) =>
-      m.key == m.anchor || indexOf(rows.map(a => a.key), m.key) < 0 || indexOf(rows.map(a => a.key), m.anchor) < 0
-        ? rows
-        : take(rows.filter(a => a.key != m.key), indexOf(rows.filter(a => a.key != m.key).map(a => a.key), m.anchor) + (m.after ? 1 : 0))
-          + [find(rows, a => a.key == m.key)]
-          + drop(rows.filter(a => a.key != m.key), indexOf(rows.filter(a => a.key != m.key).map(a => a.key), m.anchor) + (m.after ? 1 : 0)),
-      get(automaticGroups, moveLetter, [])).filter(a => !contains(hiddenAppKeys, a.key)).map(a => a.key) : []
-  let alphabetAtResetPosition = moveMode == "alphabet" && toJson(movePreviewKeys) == toJson(alphabetResetKeys)
   let moveApp = moveMode == "pin" ? find(pinnedApps, a => a.key == moveKey) : find(installed ?? [], a => a.key == moveKey)
   // Freeze mapping and geometry for the entire touch, even if apps update.
   let liveAlphabet = cfg.hideEmpty ? fullAlphabet.filter(c => len(get(groups, c, [])) > 0) : fullAlphabet
@@ -710,7 +703,39 @@ face "Omagara" {
   let appGliding = browsing && !railHeld && menu == "" && appVelocity != 0
   let appGlideAge = appGliding ? max(0, time - appGlideStarted) : 0
   let appDecay = pow(2.718281828459045, -5 * min(appGlideAge, 1.6))
-  let appOffset = clamp(appScroll + (appGliding ? appVelocity * (1 - appDecay) / 5 : 0), 0, appMaxScroll)
+  // Time-driven drag scrolling keeps moving even without new touch events.
+  // Both limits are within the selected letter, never the next section.
+  let moveEdgeSection = moveMode == "alphabet" ? indexOf(appSections, moveLetter) : -1
+  let moveEdgeTop = get(appSectionStarts, moveEdgeSection, 0)
+  let moveEdgeHeight = appLabelHeight + len(get(groups, moveLetter, [])) * appRowHeight
+  let moveEdgeMin = clamp(moveEdgeTop - appEdgeSpace, 0, appMaxScroll)
+  let moveEdgeMax = clamp(max(moveEdgeMin, moveEdgeTop + moveEdgeHeight - appPanelHeight + appEdgeSpace), moveEdgeMin, appMaxScroll)
+  let moveEdgeActive = moveMode == "alphabet" && browsing && moveDragging &&
+    moveEdgeDirection != 0 && moveEdgeSection >= 0 && moveEdgeHeight > appPanelHeight - 2 * appEdgeSpace
+  let moveEdgeAge = moveEdgeActive ? max(0, time - moveEdgeStarted) : 0
+  let moveEdgeOffset = moveEdgeActive ?
+    clamp(moveEdgeBaseScroll + moveEdgeDirection * 240 * moveEdgeAge, moveEdgeMin, moveEdgeMax) : appScroll
+  let appOffset = moveEdgeActive ? moveEdgeOffset :
+    clamp(appScroll + (appGliding ? appVelocity * (1 - appDecay) / 5 : 0), 0, appMaxScroll)
+  let moveEdgeDelta = moveEdgeActive ? appOffset - moveEdgeBaseScroll : 0
+  // Continuously updating drop target as the list moves beneath the
+  // stationary finger. This also updates the destination outline immediately.
+  let moveEffectiveTargetIndex = moveEdgeActive && moveOriginIndex >= 0 ?
+    clamp(moveOriginIndex + round((moveDragY + moveEdgeDelta) / appRowHeight), 0, max(0, len(moveKeys) - 1)) :
+    moveTargetIndex
+  let movePreviewKeys = moveOriginIndex < 0 ? [] :
+    take(moveOtherKeys, moveEffectiveTargetIndex) + [moveKey] + drop(moveOtherKeys, moveEffectiveTargetIndex)
+  // Replaying other users' manual moves without the selected app's
+  // overrides reveals where that app belongs when its marker is reset.
+  let alphabetResetKeys = moveMode == "alphabet" ?
+    reduce(manualAppMoves.filter(m => m.letter == moveLetter && m.key != moveKey), (rows, m) =>
+      m.key == m.anchor || indexOf(rows.map(a => a.key), m.key) < 0 || indexOf(rows.map(a => a.key), m.anchor) < 0
+        ? rows
+        : take(rows.filter(a => a.key != m.key), indexOf(rows.filter(a => a.key != m.key).map(a => a.key), m.anchor) + (m.after ? 1 : 0))
+          + [find(rows, a => a.key == m.key)]
+          + drop(rows.filter(a => a.key != m.key), indexOf(rows.filter(a => a.key != m.key).map(a => a.key), m.anchor) + (m.after ? 1 : 0)),
+      get(automaticGroups, moveLetter, [])).filter(a => !contains(hiddenAppKeys, a.key)).map(a => a.key) : []
+  let alphabetAtResetPosition = moveMode == "alphabet" && toJson(movePreviewKeys) == toJson(alphabetResetKeys)
   let appGlideDone = appGliding && (appGlideAge >= 1.6 || abs(appVelocity) * appDecay <= 30 || appVelocity < 0 && appOffset <= 0 || appVelocity > 0 && appOffset >= appMaxScroll)
   on appGlideDone {
     if value {
@@ -735,6 +760,7 @@ face "Omagara" {
       appElastic = 0
       appElasticReturning = false
       if moveMode == "alphabet" {
+        moveEdgeDirection = 0
         moveMode = ""
         moveKey = ""
         moveLetter = ""
@@ -1273,6 +1299,7 @@ face "Omagara" {
         if interactive && layoutEditMode == "alphabet" && moveMode == "" && thumbView && !searchView && !folderView {
           let currentIndex = indexOf(get(groups, appLetter, []).map(x => x.key), a.key)
           if currentIndex >= 0 {
+            moveEdgeDirection = 0
             moveMode = "alphabet"
             moveKey = a.key
             moveLetter = appLetter
@@ -2199,6 +2226,8 @@ face "Omagara" {
         borderColor: alpha(#FAFAFA, 0.30)
         radius: cfg.roundAppLabels ? 6 : 0
         onTap: {
+          if moveMode == "alphabet" && moveEdgeDirection != 0 { appScroll = appOffset }
+          moveEdgeDirection = 0
           moveMode = ""
           moveKey = ""
           moveLetter = ""
@@ -2217,7 +2246,8 @@ face "Omagara" {
         borderColor: alpha(#FAFAFA, 0.30)
         radius: cfg.roundAppLabels ? 6 : 0
         onTap: {
-          if moveOriginIndex >= 0 && moveTargetIndex >= 0 && moveTargetIndex < len(moveKeys) {
+          if moveMode == "alphabet" && moveEdgeDirection != 0 { appScroll = appOffset }
+          if moveOriginIndex >= 0 && moveEffectiveTargetIndex >= 0 && moveEffectiveTargetIndex < len(moveKeys) {
             if moveMode == "pin" {
               if pinDraftChanged {
                 pinnedLayouts = pinDraftLayouts
@@ -2229,10 +2259,10 @@ face "Omagara" {
                 if any(manualAppMoves, m => m.key == moveKey) {
                   manualAppMoves = manualAppMoves.filter(m => m.key != moveKey)
                 }
-              } else if moveTargetIndex != moveOriginIndex {
-                let neighbor = moveTargetIndex == 0 ? get(moveOtherKeys, 0) : get(moveOtherKeys, moveTargetIndex - 1)
+              } else if moveEffectiveTargetIndex != moveOriginIndex {
+                let neighbor = moveEffectiveTargetIndex == 0 ? get(moveOtherKeys, 0) : get(moveOtherKeys, moveEffectiveTargetIndex - 1)
                 if neighbor != null {
-                  manualAppMoves = manualAppMoves + [{letter: moveLetter, key: moveKey, anchor: neighbor, after: moveTargetIndex > 0}]
+                  manualAppMoves = manualAppMoves + [{letter: moveLetter, key: moveKey, anchor: neighbor, after: moveEffectiveTargetIndex > 0}]
                   appVelocity = 0
                   appScroll = appOffset
                   appAnchor = ""
@@ -2241,6 +2271,7 @@ face "Omagara" {
               rightAlignedAppKeys = moveSideRight ? unique(rightAlignedAppKeys + [moveKey]) : rightAlignedAppKeys.filter(k => k != moveKey)
             }
           }
+          moveEdgeDirection = 0
           moveMode = ""
           moveKey = ""
           moveLetter = ""
@@ -2270,7 +2301,7 @@ face "Omagara" {
     let actionHeight = controlsBelow ? 32 : slotHeight - 4
     let maxY = max(minY, viewportHeight - baseY - slotHeight - (controlsBelow ? 36 : 0))
     let visualX = clamp(moveDragging ? moveDragX : snapX, minX, maxX)
-    let visualY = clamp(moveDragging ? moveDragY : snapY, minY, maxY)
+    let visualY = clamp(moveDragging ? moveDragY + (alphabetMode ? moveEdgeDelta : 0) : snapY, minY, maxY)
     let paintedY = clamp(baseY + visualY - hoverLift, 0, max(0, viewportHeight - slotHeight - (controlsBelow ? 36 : 0)))
     // Center compact actions on the rendered icon, not its containing row.
     // Keep the strip within the panel near screen edges.
@@ -2292,38 +2323,37 @@ face "Omagara" {
         scale: cfg.reduceMotion ? 1 : 1 + liftPhase * (0.025 + 0.006 * sin(hoverAge * 4.8))
         animate scale: spring(0.84, 210)
         onDrag: {
-          // Start another drag from the displayed snap, not the old finger delta.
+          // Freeze any analytic edge scroll at its current position whenever
+          // the finger moves. Restart the clock only if still near an edge.
           let nextX = (moveDragging ? moveDragX : visualX) + dx
-          let nextY = (moveDragging ? moveDragY : visualY) + dy
+          let nextY = (moveDragging ? moveDragY + (alphabetMode ? moveEdgeDelta : 0) : visualY) + dy
+          let scrollNow = appOffset
+          if alphabetMode && moveEdgeDirection != 0 {
+            appScroll = scrollNow
+            moveEdgeDirection = 0
+          }
           moveDragging = true
           moveDragX = nextX
-          // When dragging toward a screen edge, scroll within this letter,
-          // never into another letter. Add the scroll delta to the floating
-          // app's Y offset so the icon continues following the same finger.
-          let sectionIndex = alphabetMode ? indexOf(appSections, moveLetter) : -1
-          let sectionTop = get(appSectionStarts, sectionIndex, 0)
-          let sectionHeight = appLabelHeight + len(get(groups, moveLetter, [])) * appRowHeight
-          let sectionMin = clamp(sectionTop - appEdgeSpace, 0, appMaxScroll)
-          let sectionMax = clamp(max(sectionMin, sectionTop + sectionHeight - appPanelHeight + appEdgeSpace), sectionMin, appMaxScroll)
-          let fingerY = baseY + nextY
-          let scrollEdge = min(80, appPanelHeight / 6)
-          let edgeStep = alphabetMode && sectionIndex >= 0 && sectionHeight > appPanelHeight - 2 * appEdgeSpace ?
-            dy > 0 && fingerY + slotHeight >= appPanelHeight - scrollEdge ? clamp(dy * 1.5, 0, 28) :
-            dy < 0 && fingerY <= scrollEdge ? clamp(dy * 1.5, -28, 0) : 0 : 0
-          let scrollStep = edgeStep > 0 ? min(edgeStep, max(0, sectionMax - appOffset)) :
-            edgeStep < 0 ? max(edgeStep, min(0, sectionMin - appOffset)) : 0
-          if scrollStep != 0 {
-            appScroll = appOffset + scrollStep
-            appVelocity = 0
-          }
-          moveDragY = nextY + scrollStep
+          moveDragY = nextY
           if alphabetMode && rightSideSnap > 24 {
             moveSideRight = nextX > rightSideSnap * (moveSideRight ? 0.38 : 0.62)
+          }
+          let pointerY = baseY + nextY + slotHeight / 2
+          let edgeMargin = min(72, appPanelHeight / 6)
+          let wantEdge = alphabetMode && moveEdgeSection >= 0 &&
+            moveEdgeHeight > appPanelHeight - 2 * appEdgeSpace ?
+            pointerY >= appPanelHeight - edgeMargin && scrollNow < moveEdgeMax ? 1 :
+            pointerY <= edgeMargin && scrollNow > moveEdgeMin ? -1 : 0 : 0
+          if wantEdge != 0 {
+            appVelocity = 0
+            moveEdgeBaseScroll = scrollNow
+            moveEdgeStarted = time
+            moveEdgeDirection = wantEdge
           }
           // Hit-test actual icon centers on the hovered row. The old
           // moveOriginIndex + dx/width calculation jumped to wrong slots
           // when source/destination rows had different icon or label widths.
-          let nextIndex = moveOriginIndex + round((nextY + (alphabetMode ? scrollStep : 0)) / appRowHeight)
+          let nextIndex = moveOriginIndex + round(nextY / appRowHeight)
           if !alphabetMode {
             let sourceSlot = find(pinSourceSlots, p => p.key == moveKey)
             let sourceRow = get(pinnedRowNumbers, indexOf(pinnedApps.map(p => p.key), moveKey), 1)
@@ -2340,7 +2370,15 @@ face "Omagara" {
             moveTargetIndex = clamp(nextIndex, 0, max(0, len(moveKeys) - 1))
           }
         }
-        onDragEnd: moveDragging = false
+        onDragEnd: {
+          if alphabetMode && moveEdgeDirection != 0 {
+            appScroll = appOffset
+            moveDragY = moveDragY + moveEdgeDelta
+            moveTargetIndex = moveEffectiveTargetIndex
+            moveEdgeDirection = 0
+          }
+          moveDragging = false
+        }
         Row {
           fill: width
           height: slotHeight
@@ -3232,7 +3270,7 @@ face "Omagara" {
           Box {
             width: appPanelWidth
             height: appRowHeight
-            offset: [0, (appPreviewing ? floatingWindowRow.top : floatingWindowRow.top - appOffset) + (moveTargetIndex - moveOriginIndex) * appRowHeight]
+            offset: [0, (appPreviewing ? floatingWindowRow.top : floatingWindowRow.top - appOffset) + (moveEffectiveTargetIndex - moveOriginIndex) * appRowHeight]
             animate offset: spring(0.80, 230)
             background: alpha(accent, 0.10)
             border: 1
