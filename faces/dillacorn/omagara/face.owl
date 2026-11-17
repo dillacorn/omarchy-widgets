@@ -1044,9 +1044,14 @@ face "Omagara" {
       size: iconSize
       onTap: {
         if moveMode == "pin" {
+          let origin = find(pinSourceSlots, p => p.key == moveKey)
+          let target = find(pinSourceSlots, p => p.key == a.key)
           moveTargetIndex = indexOf(pinnedAppKeys, a.key)
-          moveDragX = 0
-          moveDragY = (moveTargetIndex - moveOriginIndex) * 52
+          if origin != null && target != null {
+            moveDragX = target.x - origin.x
+            moveDragY = target.y - origin.y
+          }
+          moveDragging = false
         } else if moveMode == "" {
           androidApp(a.key)
         }
@@ -1322,8 +1327,9 @@ face "Omagara" {
     let hoverLift = cfg.reduceMotion ? 0 : 2 + 1.6 * sin(hoverAge * 4.8)
     let liveX = moveDragging ? moveDragX : snapX
     let liveY = moveDragging ? moveDragY : snapY
-    let visualX = alphabetMode ? clamp(liveX, -9, 9) : clamp(liveX, -noticeWidth / 2, noticeWidth / 2)
-    let visualY = clamp(liveY, -moveOriginIndex * (alphabetMode ? appRowHeight : 48), max(0, len(moveKeys) - moveOriginIndex - 1) * (alphabetMode ? appRowHeight : 48))
+    // A gentle magnetic pull makes drag travel grid-guided, not freehand.
+    let visualX = alphabetMode ? clamp(liveX, -9, 9) : clamp(moveDragging ? lerp(liveX, snapX, 0.18) : liveX, -noticeWidth / 2, noticeWidth / 2)
+    let visualY = clamp(moveDragging ? lerp(liveY, snapY, 0.18) : liveY, -moveOriginIndex * (alphabetMode ? appRowHeight : 48), max(0, len(moveKeys) - moveOriginIndex - 1) * (alphabetMode ? appRowHeight : 48))
     Box {
       width: slotWidth
       height: slotHeight
@@ -1548,7 +1554,13 @@ face "Omagara" {
                       background: cfg.shadeAppLabels ? appLabelShade : transparent
                       radius: cfg.shadeAppLabels && cfg.roundAppLabels ? 8 : 0
                       onTap: {
+                        let origin = find(pinSourceSlots, p => p.key == moveKey)
+                        let target = find(pinSourceSlots, p => p.key == a.key)
                         moveTargetIndex = indexOf(pinnedAppKeys, a.key)
+                        if origin != null && target != null {
+                          moveDragX = target.x - origin.x
+                          moveDragY = target.y - origin.y
+                        }
                         moveDragging = false
                       }
                     }
@@ -1611,9 +1623,14 @@ face "Omagara" {
                   radius: cfg.shadeAppLabels && cfg.roundAppLabels ? 8 : 0
                   onTap: {
                     if moveMode == "pin" {
+                      let origin = find(pinSourceSlots, p => p.key == moveKey)
+                      let target = find(pinSourceSlots, p => p.key == a.key)
                       moveTargetIndex = indexOf(pinnedAppKeys, a.key)
-                      moveDragX = 0
-                      moveDragY = (moveTargetIndex - moveOriginIndex) * 52
+                      if origin != null && target != null {
+                        moveDragX = target.x - origin.x
+                        moveDragY = target.y - origin.y
+                      }
+                      moveDragging = false
                     } else if moveMode == "" {
                       androidApp(a.key)
                     }
@@ -2112,6 +2129,7 @@ face "Omagara" {
           moveTargetIndex = indexOf(moveKeys, a.key)
           moveDragX = 0
           moveDragY = (moveTargetIndex - moveOriginIndex) * appRowHeight
+          moveDragging = false
         } else if interactive && moveMode == "" {
         let launchKey = a.key
         appVelocity = 0; browsing = false
