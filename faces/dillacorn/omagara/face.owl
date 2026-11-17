@@ -164,6 +164,12 @@ face "Omagara" {
   state customShadeEntry = ""
   state importStatus = ""
   state settingsSection = "Home"
+  // Layout handles are temporary; their bounded positions persist.
+  state layoutEditMode = ""
+  state alphabetRailShift = 0 persist
+  state headerSpacing = 0 persist
+  state noticeSpacing = 0 persist
+  state compactHeader = false persist
   // Manual holiday previews are temporary; returning to Auto restores the local-date rule.
   state holidayPreview = "Auto"
   state holidayAnimPlaying = false
@@ -389,7 +395,8 @@ face "Omagara" {
   let railStep = len(folderStops) == 0 ? railBaseStep : min(railBaseStep * (len(alphabet) + 1) / max(1, len(alphabet) + len(folderStops) + 1), availableHeight * 0.70 / max(1, len(alphabet) + len(folderStops) + 1))
   let railHeight = railStep * max(1, len(alphabet))
   let railPaintHeight = railHeight + railStep * (len(folderStops) + 1)
-  let railTop = len(folderStops) == 0 ? screenTop + availableHeight * 0.31 - (len(alphabet) > 1 ? railStep / 2 : 0) : clamp(screenTop + availableHeight * 0.31 - (len(alphabet) > 1 ? railBaseStep / 2 : 0), screenTop + 8, max(screenTop + 8, screenTop + availableHeight - railPaintHeight - 8))
+  let railNaturalTop = len(folderStops) == 0 ? screenTop + availableHeight * 0.31 - (len(alphabet) > 1 ? railStep / 2 : 0) : clamp(screenTop + availableHeight * 0.31 - (len(alphabet) > 1 ? railBaseStep / 2 : 0), screenTop + 8, max(screenTop + 8, screenTop + availableHeight - railPaintHeight - 8))
+  let railTop = alphabetRailShift == 0 ? railNaturalTop : clamp(railNaturalTop + alphabetRailShift, screenTop + 8, max(screenTop + 8, screenTop + availableHeight - railPaintHeight - 8))
   // While held, let the first/last glyph reach the usable screen edge.
   // The fixed touch rail does not move; only its displayed letters do.
   let railUpperReach = max(0, railTop + railStep / 2 - screenTop - 10)
@@ -463,7 +470,7 @@ face "Omagara" {
   let headerClockHeight = compact ? 47 : 63
   let headerDateHeight = 27
   let headerEventHeight = 24
-  let headerPadTop = compact ? 0 : 20
+  let headerPadTop = max(0, (compactHeader ? 4 : compact ? 0 : 20) + min(0, headerSpacing))
   let headerShapeMax = max(100, availableWidth - 60)
   let headerClockWidth = min(headerShapeMax, 16 + headerClockFont * (cfg.faceFont == "Launcher" ? 0.68 * len(headerClockText) : sum(map(range(len(headerClockText)), i => contains(":., ", sub(headerClockText, i, i + 1)) ? 0.27 : 0.64))))
   let headerDateWidth = min(headerShapeMax, 28 + 16 * (cfg.faceFont == "Launcher" ? 0.68 * len(headerDateText) : sum(map(range(len(headerDateText)), i => contains("iltfjI!.,:; '1", sub(headerDateText, i, i + 1)) ? 0.30 : contains("MW@QO", sub(headerDateText, i, i + 1)) ? 0.77 : 0.55))))
@@ -1902,6 +1909,60 @@ face "Omagara" {
     }
   }
 
+  // Edit-only grab handles, kept inside the relevant scroll/rail surface.
+  // Each axis is bounded so screen edges and touch regions stay usable.
+  component LayoutSpacingHandle(zone) {
+    Row {
+      width: zone == "rail" ? 112 : noticeWidth
+      height: 32
+      align: center
+      gap: 3
+      background: alpha(surface, 0.90)
+      radius: cfg.roundAppLabels ? 7 : 0
+      Box {
+        width: 32
+        height: 32
+        align: center
+        onTap: {
+          if zone == "rail" { alphabetRailShift = clamp(alphabetRailShift - 8, -160, 160) }
+          if zone == "header" { headerSpacing = clamp(headerSpacing - 8, -20, 80) }
+          if zone == "notices" { noticeSpacing = clamp(noticeSpacing - 8, 0, 80) }
+        }
+        Text { text: "↑"; font: chosenFont; fontSize: 18; color: accent; align: center }
+      }
+      Box {
+        weight: 1
+        height: 32
+        align: center
+        drag: vertical
+        onDrag: {
+          if zone == "rail" { alphabetRailShift = clamp(alphabetRailShift + dy, -160, 160) }
+          if zone == "header" { headerSpacing = clamp(headerSpacing + dy, -20, 80) }
+          if zone == "notices" { noticeSpacing = clamp(noticeSpacing + dy, 0, 80) }
+        }
+        Text {
+          text: zone == "rail" ? "↕ Worm" : zone == "header" ? "↕ Header / apps" : "↕ Apps / alerts"
+          font: chosenFont
+          fontSize: 11
+          color: primaryText
+          align: center
+          maxLines: 1
+        }
+      }
+      Box {
+        width: 32
+        height: 32
+        align: center
+        onTap: {
+          if zone == "rail" { alphabetRailShift = clamp(alphabetRailShift + 8, -160, 160) }
+          if zone == "header" { headerSpacing = clamp(headerSpacing + 8, -20, 80) }
+          if zone == "notices" { noticeSpacing = clamp(noticeSpacing + 8, 0, 80) }
+        }
+        Text { text: "↓"; font: chosenFont; fontSize: 18; color: accent; align: center }
+      }
+    }
+  }
+
   component NotificationPanel() {
     Column {
       width: noticeWidth
@@ -1911,6 +1972,8 @@ face "Omagara" {
       lazy: true
       if len(headerRows) > 0 {
         HomeHeader {}
+        if layoutEditMode == "home" { LayoutSpacingHandle { zone: "header" } }
+        if headerSpacing > 0 { Spacer { width: noticeWidth; height: headerSpacing } }
       }
       // Native compact player and selected app shortcuts share one surface.
       // A manual chevron controls shortcuts, independent of playback state.
@@ -2189,6 +2252,8 @@ face "Omagara" {
         }
       }
       }
+      if layoutEditMode == "home" { LayoutSpacingHandle { zone: "notices" } }
+      if noticeSpacing > 0 { Spacer { width: noticeWidth; height: noticeSpacing } }
       if cfg.notifications {
       if notices == null {
         Text { text: "Loading notifications…"; font: chosenFont; fontSize: 12; color: muted }
@@ -2661,7 +2726,7 @@ face "Omagara" {
     fill: true
     ripple: false
     onPress: { if appVelocity != 0 { appScroll = appOffset; appVelocity = 0; if appFirst != null { appAnchor = appFirst.id; appAnchorSection = appFirst.section; appAnchorOffset = appOffset - appFirst.top } } }
-    onTap: { if moveMode == "" { appVelocity = 0; browsing = false; activeSide = 0; railHeld = false; draggingSide = 0; letter = first(liveAlphabet) ?? "A"; appScroll = 0; appAnchor = ""; queryText = ""; menu = ""; expandedStack = ""; replyKey = ""; replyDraft = "" } }
+    onTap: { if moveMode == "" && layoutEditMode != "alphabet" { appVelocity = 0; browsing = false; activeSide = 0; railHeld = false; draggingSide = 0; letter = first(liveAlphabet) ?? "A"; appScroll = 0; appAnchor = ""; queryText = ""; menu = ""; expandedStack = ""; replyKey = ""; replyDraft = "" } }
     if browsing {
       Box {
         width: appPanelWidth
@@ -2915,6 +2980,33 @@ face "Omagara" {
         align: topEnd
         padding: [0, railTop, screenRight + 4, 0]
         AlphabetRail { side: 1 }
+      }
+    }
+    // Temporary layout-editor handles never appear during normal use.
+    if layoutEditMode != "" && moveMode == "" {
+      Box {
+        fill: true
+        align: topStart
+        padding: [screenLeft + 44, screenTop + 8, 0, 0]
+        Box {
+          width: 94
+          height: 34
+          radius: cfg.roundAppLabels ? 8 : 0
+          background: alpha(surface, 0.94)
+          border: 1
+          borderColor: alpha(accent, 0.64)
+          align: center
+          onTap: layoutEditMode = ""
+          Text { text: "✓ Done"; font: chosenFont; fontSize: 14; color: primaryText; align: center }
+        }
+      }
+      if layoutEditMode == "alphabet" {
+        Box {
+          fill: true
+          align: alphabetSide == -1 ? "topStart" : "topEnd"
+          padding: alphabetSide == -1 ? [screenLeft + 54, railTop + min(170, railPaintHeight / 2), 0, 0] : [0, railTop + min(170, railPaintHeight / 2), screenRight + 54, 0]
+          LayoutSpacingHandle { zone: "rail" }
+        }
       }
     }
     // Letter-height gear centered in the worm's shaded tail, below the
@@ -3417,6 +3509,12 @@ face "Omagara" {
             scroll: true
             gap: 8
             if shownSection == "Home" {
+              Text { text: "Edit layout"; color: accent; font: chosenFont; fontSize: 18; padding: [0, 8, 0, 4] }
+              Button {
+                text: "Edit Home layout"
+                onTap: { layoutEditMode = "home"; moveMode = ""; browsing = false; activeSide = 0; railHeld = false; close() }
+              }
+              Text { text: "Drag the up/down handles to adjust header and notification clearance. Tap Done to leave edit mode."; font: chosenFont; fontSize: 12; color: secondaryText }
               Text { text: "Default home"; color: accent; font: chosenFont; fontSize: 18; padding: [0, 8, 0, 4] }
               Text { text: "Choose which Omalauncher page opens when you press Home."; font: chosenFont; fontSize: 14 }
               Flow {
@@ -3613,6 +3711,12 @@ face "Omagara" {
               Text { text: "Showing up to 40 apps. Search by name or package for more."; font: chosenFont; fontSize: 12; color: secondaryText }
               Text { text: "Contact search is unavailable in Omalauncher OWL."; font: chosenFont; fontSize: 12; color: secondaryText }
             } else if shownSection == "Alphabet" {
+              Text { text: "Edit layout"; color: accent; font: chosenFont; fontSize: 18; padding: [0, 8, 0, 4] }
+              Button {
+                text: "Edit Alphabet layout"
+                onTap: { layoutEditMode = "alphabet"; moveMode = ""; appVelocity = 0; appAnchor = ""; appScroll = 0; browsing = true; activeSide = 0; railHeld = false; close() }
+              }
+              Text { text: "Drag the worm handle to shift the alphabet up or down. Long-press an app for Move app…"; font: chosenFont; fontSize: 12; color: secondaryText }
               Text { text: "Alphabet navigation"; color: accent; font: chosenFont; fontSize: 18; padding: [0, 8, 0, 4] }
               Text { text: "Alphabet position"; font: chosenFont; fontSize: 15 }
               Flow {
@@ -3821,19 +3925,23 @@ face "Omagara" {
             } else {
               Text { text: "Backup & reset"; color: accent; font: chosenFont; fontSize: 18; padding: [0, 8, 0, 4] }
               Text { text: "Export or restore Omagara preferences."; font: chosenFont; fontSize: 13; color: secondaryText }
-        Button { text: "Export Omagara settings to clipboard"; onTap: copy(toJson({version: 1, prefs: cfg, zones: worldZones, hiddenApps: hiddenAppKeys, musicApps: musicAppKeys, compactAlerts: compactAlertApps, hiddenNotifications: hiddenNoticeApps, manualMoves: manualAppMoves, rightAlignedApps: rightAlignedAppKeys, folders: customFolders, folderSerial: folderSerial, pinnedApps: pinnedAppKeys, pinLayouts: pinnedLayouts})) }
+        Button { text: "Export Omagara settings to clipboard"; onTap: copy(toJson({version: 1, prefs: cfg, zones: worldZones, hiddenApps: hiddenAppKeys, musicApps: musicAppKeys, compactAlerts: compactAlertApps, hiddenNotifications: hiddenNoticeApps, manualMoves: manualAppMoves, rightAlignedApps: rightAlignedAppKeys, layout: {rail: alphabetRailShift, header: headerSpacing, notices: noticeSpacing, compact: compactHeader}, folders: customFolders, folderSerial: folderSerial, pinnedApps: pinnedAppKeys, pinLayouts: pinnedLayouts})) }
         Input { text: importText; placeholder: "Paste Omagara settings JSON"; lines: 3; onChange: importText = value }
         Button {
           text: "Import Omagara settings"
           onTap: {
             let imported = parseJson(importText)
-            if imported.version == 1 && all(keys(defaults), k => (k == "shadeHeaderOpacity" || k == "shadeAlphabetOpacity" || k == "shadeNoticeOpacity" || k == "shadeCardOpacity" || k == "shadeAppOpacity" || k == "shadeButtonOpacity") ? get(imported.prefs, k) == null || contains(range(101), get(imported.prefs, k)) : k == "sortMode" ? get(imported.prefs, k) == null || contains(sortModeChoices, get(imported.prefs, k)) || get(imported.prefs, k) == "Manual" : k == "noticeStartPercent" ? get(imported.prefs, k) == null || contains(range(6, 51), get(imported.prefs, k)) : k == "appScale" ? get(imported.prefs, k) == null || contains(appScaleChoices, get(imported.prefs, k)) : k == "hapticFeedback" ? get(imported.prefs, k) == null || contains(hapticChoices, get(imported.prefs, k)) : k == "bubbleBorder" ? get(imported.prefs, k) == null || get(imported.prefs, k) == true || get(imported.prefs, k) == false : k == "iconStyle" ? get(imported.prefs, k) == null || contains(iconStyleChoices, get(imported.prefs, k)) : k == "iconOverlayOpacity" ? get(imported.prefs, k) == null || contains(iconOverlayChoices, get(imported.prefs, k)) : k == "faceFont" ? get(imported.prefs, k) == null || contains(faceFontChoices, get(imported.prefs, k)) : k == "headerAlignment" ? get(imported.prefs, k) == null || contains(headerAlignmentChoices, get(imported.prefs, k)) : k == "textTone" ? get(imported.prefs, k) == null || contains(textToneChoices, get(imported.prefs, k)) : k == "textContrast" ? get(imported.prefs, k) == null || contains(textContrastChoices, get(imported.prefs, k)) : k == "customTextHex" ? get(imported.prefs, k) == null || match(get(imported.prefs, k), "^#[0-9A-Fa-f]{6}$") != null : k == "shadeColorMode" ? get(imported.prefs, k) == null || contains(shadeColorChoices, get(imported.prefs, k)) : k == "shadeCustomHex" ? get(imported.prefs, k) == null || match(get(imported.prefs, k), "^#[0-9A-Fa-f]{6}$") != null : k == "timeFormat" ? get(imported.prefs, k) == null || get(imported.prefs, k) == "System" || contains(timeFormatChoices, get(imported.prefs, k)) : k == "alphabetSide" ? get(imported.prefs, k) == null || contains(["Left", "Right"], get(imported.prefs, k)) : k == "controlSide" ? get(imported.prefs, k) == null || contains(["Left", "Right"], get(imported.prefs, k)) : k == "closeSide" ? get(imported.prefs, k) == null || contains(["Follow search", "Left", "Right"], get(imported.prefs, k)) : k == "showSwipeCue" || k == "holidayEasterEggs" ? get(imported.prefs, k) == null || get(imported.prefs, k) == true || get(imported.prefs, k) == false : get(imported.prefs, k) == true || get(imported.prefs, k) == false || (k == "calculator" || k == "searchContacts" || k == "notificationTimes" || k == "mediaPlayer" || k == "musicShortcuts" || k == "noticeAutoPosition" || k == "compactPins" || k == "batteryPercentage" || k == "dateAbbreviated") && get(imported.prefs, k) == null) && sub(toJson(imported.zones), 0, 1) == "[" && all(imported.zones, z => contains(zoneChoices, z)) && sub(toJson(imported.hiddenApps ?? []), 0, 1) == "[" && sub(toJson(imported.musicApps ?? []), 0, 1) == "[" && sub(toJson(imported.compactAlerts ?? []), 0, 1) == "[" && sub(toJson(imported.hiddenNotifications ?? []), 0, 1) == "[" && sub(toJson(imported.manualMoves ?? []), 0, 1) == "[" && all(imported.manualMoves ?? [], m => m.key != null && m.anchor != null && contains(fullAlphabet, m.letter) && (m.after == true || m.after == false)) && sub(toJson(imported.rightAlignedApps ?? []), 0, 1) == "[" && sub(toJson(imported.pinnedApps ?? []), 0, 1) == "[" && sub(toJson(imported.pinLayouts ?? []), 0, 1) == "[" && all(imported.pinLayouts ?? [], p => p.key != null && (p.showLabel == null || p.showLabel == true || p.showLabel == false) && (p.newRow == null || p.newRow == true || p.newRow == false)) && sub(toJson(imported.folders ?? []), 0, 1) == "[" && all(imported.folders ?? [], f => f.id != null && f.name != null && trim(f.name) != "" && len(f.name) <= 32 && sub(toJson(f.keys ?? []), 0, 1) == "[") && (imported.folderSerial == null || num(imported.folderSerial) >= 0 && num(imported.folderSerial) < 1000000000) {
+            if imported.version == 1 && all(keys(defaults), k => (k == "shadeHeaderOpacity" || k == "shadeAlphabetOpacity" || k == "shadeNoticeOpacity" || k == "shadeCardOpacity" || k == "shadeAppOpacity" || k == "shadeButtonOpacity") ? get(imported.prefs, k) == null || contains(range(101), get(imported.prefs, k)) : k == "sortMode" ? get(imported.prefs, k) == null || contains(sortModeChoices, get(imported.prefs, k)) || get(imported.prefs, k) == "Manual" : k == "noticeStartPercent" ? get(imported.prefs, k) == null || contains(range(6, 51), get(imported.prefs, k)) : k == "appScale" ? get(imported.prefs, k) == null || contains(appScaleChoices, get(imported.prefs, k)) : k == "hapticFeedback" ? get(imported.prefs, k) == null || contains(hapticChoices, get(imported.prefs, k)) : k == "bubbleBorder" ? get(imported.prefs, k) == null || get(imported.prefs, k) == true || get(imported.prefs, k) == false : k == "iconStyle" ? get(imported.prefs, k) == null || contains(iconStyleChoices, get(imported.prefs, k)) : k == "iconOverlayOpacity" ? get(imported.prefs, k) == null || contains(iconOverlayChoices, get(imported.prefs, k)) : k == "faceFont" ? get(imported.prefs, k) == null || contains(faceFontChoices, get(imported.prefs, k)) : k == "headerAlignment" ? get(imported.prefs, k) == null || contains(headerAlignmentChoices, get(imported.prefs, k)) : k == "textTone" ? get(imported.prefs, k) == null || contains(textToneChoices, get(imported.prefs, k)) : k == "textContrast" ? get(imported.prefs, k) == null || contains(textContrastChoices, get(imported.prefs, k)) : k == "customTextHex" ? get(imported.prefs, k) == null || match(get(imported.prefs, k), "^#[0-9A-Fa-f]{6}$") != null : k == "shadeColorMode" ? get(imported.prefs, k) == null || contains(shadeColorChoices, get(imported.prefs, k)) : k == "shadeCustomHex" ? get(imported.prefs, k) == null || match(get(imported.prefs, k), "^#[0-9A-Fa-f]{6}$") != null : k == "timeFormat" ? get(imported.prefs, k) == null || get(imported.prefs, k) == "System" || contains(timeFormatChoices, get(imported.prefs, k)) : k == "alphabetSide" ? get(imported.prefs, k) == null || contains(["Left", "Right"], get(imported.prefs, k)) : k == "controlSide" ? get(imported.prefs, k) == null || contains(["Left", "Right"], get(imported.prefs, k)) : k == "closeSide" ? get(imported.prefs, k) == null || contains(["Follow search", "Left", "Right"], get(imported.prefs, k)) : k == "showSwipeCue" || k == "holidayEasterEggs" ? get(imported.prefs, k) == null || get(imported.prefs, k) == true || get(imported.prefs, k) == false : get(imported.prefs, k) == true || get(imported.prefs, k) == false || (k == "calculator" || k == "searchContacts" || k == "notificationTimes" || k == "mediaPlayer" || k == "musicShortcuts" || k == "noticeAutoPosition" || k == "compactPins" || k == "batteryPercentage" || k == "dateAbbreviated") && get(imported.prefs, k) == null) && sub(toJson(imported.zones), 0, 1) == "[" && all(imported.zones, z => contains(zoneChoices, z)) && sub(toJson(imported.hiddenApps ?? []), 0, 1) == "[" && sub(toJson(imported.musicApps ?? []), 0, 1) == "[" && sub(toJson(imported.compactAlerts ?? []), 0, 1) == "[" && sub(toJson(imported.hiddenNotifications ?? []), 0, 1) == "[" && sub(toJson(imported.manualMoves ?? []), 0, 1) == "[" && all(imported.manualMoves ?? [], m => m.key != null && m.anchor != null && contains(fullAlphabet, m.letter) && (m.after == true || m.after == false)) && sub(toJson(imported.rightAlignedApps ?? []), 0, 1) == "[" && (imported.layout == null || (num(get(imported.layout, "rail", 0)) != null && num(get(imported.layout, "header", 0)) != null && num(get(imported.layout, "notices", 0)) != null && (get(imported.layout, "compact", false) == true || get(imported.layout, "compact", false) == false))) && sub(toJson(imported.pinnedApps ?? []), 0, 1) == "[" && sub(toJson(imported.pinLayouts ?? []), 0, 1) == "[" && all(imported.pinLayouts ?? [], p => p.key != null && (p.showLabel == null || p.showLabel == true || p.showLabel == false) && (p.newRow == null || p.newRow == true || p.newRow == false)) && sub(toJson(imported.folders ?? []), 0, 1) == "[" && all(imported.folders ?? [], f => f.id != null && f.name != null && trim(f.name) != "" && len(f.name) <= 32 && sub(toJson(f.keys ?? []), 0, 1) == "[") && (imported.folderSerial == null || num(imported.folderSerial) >= 0 && num(imported.folderSerial) < 1000000000) {
               letter = highlightedLetter; appTracking = false
               prefs = reduce(keys(defaults), (m, k) => set(m, k, k == "searchContacts" ? false : k == "textContrast" ? "High" : k == "timeFormat" && get(imported.prefs, k) == "System" ? "24-hour" : k == "sortMode" && get(imported.prefs, k) == "Manual" ? "Most used" : (get(imported.prefs, k) ?? get(defaults, k))), {})
               worldZones = unique(imported.zones ?? [])
               hiddenAppKeys = unique(imported.hiddenApps ?? [])
               manualAppMoves = imported.manualMoves ?? []
                rightAlignedAppKeys = unique(imported.rightAlignedApps ?? [])
+               alphabetRailShift = clamp(num(get(imported.layout ?? {}, "rail", 0)), -160, 160)
+               headerSpacing = clamp(num(get(imported.layout ?? {}, "header", 0)), -20, 80)
+               noticeSpacing = clamp(num(get(imported.layout ?? {}, "notices", 0)), 0, 80)
+               compactHeader = get(imported.layout ?? {}, "compact", false) == true
               customFolders = imported.folders ?? []
               folderSerial = imported.folderSerial ?? 0
               pinnedAppKeys = unique(imported.pinnedApps ?? []).filter(k => sub(k, 0, 7) != "folder:" || any(imported.folders ?? [], f => "folder:" + f.id == k))
@@ -3854,7 +3962,7 @@ face "Omagara" {
         if resetConfirm {
           Text { text: "Reset Omagara appearance and world clocks?"; font: chosenFont }
           Row {
-            Button { text: "Confirm reset"; onTap: { letter = highlightedLetter; appTracking = false; prefs = {}; worldZones = []; hiddenAppKeys = []; manualAppMoves = []; rightAlignedAppKeys = []; customFolders = []; folderSerial = 0; pinnedAppKeys = []; pinnedLayouts = []; expandedPinnedKey = ""; pinnedNoticeShown = 4; pinnedMenuKey = ""; pinnedMenuShortcuts = null; musicAppKeys = []; compactAlertApps = []; hiddenNoticeApps = []; appPickerQuery = ""; holidayPreview = "Auto"; holidayAnimPlaying = false; holidayPlayedStamp = ""; resetConfirm = false; importText = ""; customTextEntry = ""; customShadeEntry = ""; importStatus = "" } }
+            Button { text: "Confirm reset"; onTap: { letter = highlightedLetter; appTracking = false; prefs = {}; worldZones = []; hiddenAppKeys = []; manualAppMoves = []; rightAlignedAppKeys = []; alphabetRailShift = 0; headerSpacing = 0; noticeSpacing = 0; compactHeader = false; layoutEditMode = ""; customFolders = []; folderSerial = 0; pinnedAppKeys = []; pinnedLayouts = []; expandedPinnedKey = ""; pinnedNoticeShown = 4; pinnedMenuKey = ""; pinnedMenuShortcuts = null; musicAppKeys = []; compactAlertApps = []; hiddenNoticeApps = []; appPickerQuery = ""; holidayPreview = "Auto"; holidayAnimPlaying = false; holidayPlayedStamp = ""; resetConfirm = false; importText = ""; customTextEntry = ""; customShadeEntry = ""; importStatus = "" } }
             Button { text: "Cancel"; onTap: resetConfirm = false }
           }
         }
