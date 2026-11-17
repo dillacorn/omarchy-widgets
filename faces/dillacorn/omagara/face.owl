@@ -1574,12 +1574,12 @@ face "Omagara" {
                       background: cfg.shadeAppLabels ? appLabelShade : transparent
                       radius: cfg.shadeAppLabels && cfg.roundAppLabels ? 8 : 0
                       onTap: {
-                        let origin = find(pinSourceSlots, p => p.key == moveKey)
+                        let tappedSourceSlot = find(pinSourceSlots, p => p.key == moveKey)
                         let target = find(pinSourceSlots, p => p.key == a.key)
                         moveTargetIndex = indexOf(pinnedAppKeys, a.key)
-                        if origin != null && target != null {
-                          moveDragX = target.x - origin.x
-                          moveDragY = target.y - origin.y
+                        if tappedSourceSlot != null && target != null {
+                          moveDragX = target.x - tappedSourceSlot.x
+                          moveDragY = target.y - tappedSourceSlot.y
                         }
                         moveDragging = false
                       }
@@ -1643,12 +1643,12 @@ face "Omagara" {
                   radius: cfg.shadeAppLabels && cfg.roundAppLabels ? 8 : 0
                   onTap: {
                     if moveMode == "pin" {
-                      let origin = find(pinSourceSlots, p => p.key == moveKey)
+                      let rowSourceSlot = find(pinSourceSlots, p => p.key == moveKey)
                       let target = find(pinSourceSlots, p => p.key == a.key)
                       moveTargetIndex = indexOf(pinnedAppKeys, a.key)
-                      if origin != null && target != null {
-                        moveDragX = target.x - origin.x
-                        moveDragY = target.y - origin.y
+                      if rowSourceSlot != null && target != null {
+                        moveDragX = target.x - rowSourceSlot.x
+                        moveDragY = target.y - rowSourceSlot.y
                       }
                       moveDragging = false
                     } else if moveMode == "" {
