@@ -1369,14 +1369,14 @@ face "Omagara" {
   }
 
   // Minimal actions are part of the moving row, not a fixed screen overlay.
-  component MoveControls(controlHeight = 44) {
+  component MoveControls(controlHeight = 44, compact = false) {
     Row {
-      width: 72
+      width: compact ? 48 : 72
       height: controlHeight
       gap: 0
       align: center
       Box {
-        width: 36
+        width: compact ? 24 : 36
         height: controlHeight
         align: center
         background: alpha(#111827, 0.94)
@@ -1391,10 +1391,10 @@ face "Omagara" {
           moveDragY = 0
           moveDragging = false
         }
-        Text { text: "×"; font: chosenFont; fontSize: 24; color: #FAFAFA; align: center }
+        Text { text: "×"; font: chosenFont; fontSize: compact ? 19 : 24; color: #FAFAFA; align: center }
       }
       Box {
-        width: 36
+        width: compact ? 24 : 36
         height: controlHeight
         align: center
         background: alpha(#111827, 0.94)
@@ -1425,7 +1425,7 @@ face "Omagara" {
           moveDragY = 0
           moveDragging = false
         }
-        Text { text: "✓"; font: chosenFont; fontSize: 22; color: #FAFAFA; align: center }
+        Text { text: "✓"; font: chosenFont; fontSize: compact ? 18 : 22; color: #FAFAFA; align: center }
       }
     }
   }
@@ -1442,16 +1442,19 @@ face "Omagara" {
     let maxX = max(minX, panelWidth - baseX - floatingWidth)
     let minY = -baseY
     let controlsBelow = !alphabetMode && !showText
+    let actionWidth = controlsBelow ? 48 : 72
     let actionHeight = controlsBelow ? 32 : slotHeight - 4
     let maxY = max(minY, viewportHeight - baseY - slotHeight - (controlsBelow ? 36 : 0))
     let visualX = clamp(moveDragging ? moveDragX : snapX, minX, maxX)
     let visualY = clamp(moveDragging ? moveDragY : snapY, minY, maxY)
     let paintedY = clamp(baseY + visualY - hoverLift, 0, max(0, viewportHeight - slotHeight - (controlsBelow ? 36 : 0)))
-    // Keep the icon free to travel edge-to-edge. Icon-only actions sit
-    // underneath, centered when possible, and never cover neighboring pins.
+    // Center compact actions on the rendered icon, not its containing row.
+    // Keep the strip within the panel near screen edges.
     let appX = baseX + visualX
+    let drawnIconSize = min(iconSize, slotHeight - 8)
+    let iconCenterX = appX + 2 + drawnIconSize / 2
     let controlsLeft = !controlsBelow && appX + floatingWidth + 72 > panelWidth && appX >= 72
-    let controlsX = controlsBelow ? clamp(appX + (iconSize - 72) / 2 - 6, 0, max(0, panelWidth - 72)) : controlsLeft ? appX - 72 : min(panelWidth - 72, appX + floatingWidth - 6)
+    let controlsX = controlsBelow ? clamp(iconCenterX - actionWidth / 2, 0, max(0, panelWidth - actionWidth)) : controlsLeft ? appX - 72 : min(panelWidth - 72, appX + floatingWidth - 6)
     let drawnWidth = controlsBelow || controlsLeft ? floatingWidth : min(floatingWidth, max(40, controlsX - appX))
     let controlsY = controlsBelow ? paintedY + slotHeight + 2 : paintedY
     Box {
@@ -1502,13 +1505,13 @@ face "Omagara" {
           }
         }
       }
-      // Beside labeled apps; below icon-only pins, with a separate hit area.
+      // Match the control width to its placement: compact below icons.
       Box {
-        width: 72
+        width: actionWidth
         height: actionHeight
         offset: [controlsX, controlsY]
         animate offset: spring(0.83, 300)
-        MoveControls { controlHeight: actionHeight }
+        MoveControls { controlHeight: actionHeight; compact: controlsBelow }
       }
     }
   }
