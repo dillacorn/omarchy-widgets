@@ -2449,70 +2449,110 @@ face "Omagara" {
     Column {
       width: noticeWidth
       gap: 6
-      // The gesture owner stays mounted while a pin is swapped for its
-      // floating preview. A first swipe therefore selects AND drags it.
-      if layoutEditMode == "home" {
+      // Same home coordinates, with live projected slots. Keys are stable,
+      // so OWL springs slide every OTHER pin aside as the dragged pin snaps.
+      if moveMode == "pin" {
         Box {
           width: noticeWidth
-          onPress: {
-            let touched = first((moveMode == "pin" ? pinTargetSlots : pinSourceSlots).filter(p =>
-              x >= p.x && x < p.x + p.width && y >= p.y && y < p.y + 42))
-            pinDragCandidate = touched == null ? "" : touched.key
+          height: max(48 * len(pinnedRows), 48 * len(pinDraftRows) + (pinDraftControlBelow ? 36 : 0))
+          let destination = find(pinTargetSlots, slot => slot.key == moveKey)
+          let origin = find(pinSourceSlots, slot => slot.key == moveKey)
+          if destination != null {
+            Box {
+              width: max(24, destination.width - 4)
+              height: 38
+              offset: [destination.x + 2, destination.y + 2]
+              animate offset: spring(0.80, 220)
+              background: alpha(accent, 0.06)
+              border: 1
+              borderColor: alpha(accent, 0.52)
+              radius: cfg.roundAppLabels ? 9 : 0
+            }
           }
-          onDrag: {
-            if pinDragCandidate != "" {
-              let candidate = pinDragCandidate
-              let selecting = moveMode != "pin" || moveKey != candidate
-              let candidateIndex = moveMode == "pin" ?
-                indexOf(pinDraftKeys, candidate) : indexOf(pinnedAppKeys, candidate)
-              if candidateIndex >= 0 {
-                // Moving a different pin commits the preceding projection,
-                // but the Home × still rolls back the whole edit session.
-                if selecting && moveMode == "pin" && pinDraftChanged {
-                  pinnedLayouts = pinDraftLayouts
-                  pinnedAppKeys = pinDraftKeys
+          for a in pinnedApps.filter(app => app.key != moveKey) key a.key {
+            let slot = find(pinTargetSlots, p => p.key == a.key)
+            if slot != null {
+              Box {
+                width: slot.width
+                height: 42
+                offset: [slot.x, slot.y]
+                animate offset: spring(0.79, 210)
+                Row {
+                  width: slot.width
+                  height: 42
+                  align: center
+                  gap: 8
+                  padding: [2, 2]
+                  if slot.iconAfterText {
+                    HomePinMoveText { a: a; labelWidth: slot.labelWidth; iconAfterText: true }
+                  }
+                  HomePinIcon { a: a; iconSize: slot.iconSize }
+                  if slot.showLabel && !slot.iconAfterText {
+                    HomePinMoveText { a: a; labelWidth: slot.labelWidth }
+                  }
                 }
-                if selecting {
-                  moveMode = "pin"
-                  moveKey = candidate
-                  moveLetter = ""
-                  moveTargetIndex = candidateIndex
-                  moveDragX = 0
-                  moveDragY = 0
-                  moveLiftStarted = time
-                  expandedPinnedKey = ""
-                  folderOpenId = ""
-                  pinnedMenuKey = ""
-                  pinnedMenuShortcuts = null
-                }
-                moveDragging = true
-                moveDragX = moveDragX + dx
-                moveDragY = moveDragY + dy
-                // Use the same grid hit test as the original floating row.
-                let sourceSlot = find(pinSourceSlots, p => p.key == candidate)
-                let sourceIndex = indexOf(pinnedApps.map(p => p.key), candidate)
-                let originRow = get(pinnedRowNumbers, sourceIndex, 1)
-                let hoverRow = clamp(originRow + (abs(moveDragY) < 36 ? 0 : round(moveDragY / 48)), 1, len(pinnedRows) + 1)
-                let hoverRowY = (hoverRow - 1) * 48
-                let hoverCenterX = get(sourceSlot ?? {}, "x", 0) + moveDragX + 2 +
-                  (get(sourceSlot ?? {}, "iconAfterText", false) ? get(sourceSlot ?? {}, "labelWidth", 0) + 8 : 0) +
-                  get(sourceSlot ?? {}, "iconSize", 34) / 2
-                let beforeRow = count(pinSourceSlots, p => p.key != candidate && p.y < hoverRowY)
-                let beforeIcon = count(pinSourceSlots, p => p.key != candidate && p.y == hoverRowY &&
-                  hoverCenterX > p.x + 2 + (p.iconAfterText ? p.labelWidth + 8 : 0) + p.iconSize / 2)
-                moveTargetIndex = clamp(beforeRow + beforeIcon, 0, max(0, len(pinnedAppKeys) - 1))
               }
             }
           }
-          onDragEnd: {
-            if pinDragCandidate != "" { moveDragging = false }
-            pinDragCandidate = ""
+          // Keep the source anchor, but preview destination icon size,
+          // label visibility and ×/✓ placement before confirmation.
+          if moveApp != null && destination != null && origin != null {
+            FloatingMoveApp {
+              a: moveApp
+              slotWidth: destination.width
+              slotHeight: 42
+              iconSize: destination.iconSize
+              baseX: origin.x
+              baseY: origin.y
+              snapX: destination.x - origin.x
+              snapY: destination.y - origin.y
+              showText: destination.showLabel
+              iconAfterText: destination.iconAfterText
+              viewportHeight: max(48 * len(pinnedRows), 48 * len(pinDraftRows) + (pinDraftControlBelow ? 36 : 0))
+            }
           }
-          HomePinnedRowsContent {}
         }
       } else {
-        HomePinnedRowsContent {}
+      // Each pin owns its own label and row break. Flow wraps if necessary
+      // instead of overflowing the worm on narrow screens.
+      for rowPins in pinnedRows key toJson(rowPins.map(a => a.key)) {
+        let rowRight = get(find(pinnedLayouts, p => p.key == first(rowPins).key) ?? {}, "alignRight", false)
+        let rowJoined = len(rowPins) > 1
+        let rowNamedCount = rowJoined ? 0 : 1
+        let rowIconSize = rowJoined ? max(12, min(36, (noticeWidth - len(rowPins) * 4 - max(0, len(rowPins) - 1) * 6 - 8) / max(1, len(rowPins)))) : 34
+        let rowLabelWidth = min(152, max(42, (noticeWidth - len(rowPins) * (rowIconSize + 12) - max(0, len(rowPins) - 1) * 6 - 8) / max(1, rowNamedCount)))
+        Flow {
+          fill: width
+          justify: rowRight ? "end" : "start"
+          gap: 6
+          for a in rowPins key a.key {
+            let showPinLabel = !rowJoined
+            Row {
+              align: center
+              gap: 8
+              height: max(42, rowIconSize + 6)
+              padding: [2, 2]
+              background: moveMode == "pin" && moveTargetIndex == indexOf(pinnedAppKeys, a.key) ? alpha(accent, 0.19) : transparent
+              radius: cfg.roundAppLabels ? 7 : 0
+              if showPinLabel && rowRight {
+                HomePinRowText { a: a; labelWidth: rowLabelWidth; iconAfterText: true }
+              }
+              HomePinIcon { a: a; iconSize: rowIconSize; showNoticeDot: true }
+              if showPinLabel && !rowRight {
+                HomePinRowText { a: a; labelWidth: rowLabelWidth }
+              }
+            }
+          }
+        }
+        if expandedPinnedKey != "" {
+          let expandedRowApp = find(rowPins, a => a.key == expandedPinnedKey)
+          if expandedRowApp != null {
+            HomePinNotifications { a: expandedRowApp }
+          }
+        }
       }
+      }
+
 
     }
   }
@@ -2633,108 +2673,69 @@ face "Omagara" {
       if mediaNeedsAccess && !cfg.notifications {
         Text { text: "Media controls need notification access. Tap to allow."; font: chosenFont; fontSize: 12; color: accent; onTap: media("open") }
       }
-      // Same home coordinates, with live projected slots. Keys are stable,
-      // so OWL springs slide every OTHER pin aside as the dragged pin snaps.
-      if moveMode == "pin" {
+      // The gesture owner stays mounted while a pin is swapped for its
+      // floating preview. A first swipe therefore selects AND drags it.
+      if layoutEditMode == "home" {
         Box {
           width: noticeWidth
-          height: max(48 * len(pinnedRows), 48 * len(pinDraftRows) + (pinDraftControlBelow ? 36 : 0))
-          let destination = find(pinTargetSlots, slot => slot.key == moveKey)
-          let origin = find(pinSourceSlots, slot => slot.key == moveKey)
-          if destination != null {
-            Box {
-              width: max(24, destination.width - 4)
-              height: 38
-              offset: [destination.x + 2, destination.y + 2]
-              animate offset: spring(0.80, 220)
-              background: alpha(accent, 0.06)
-              border: 1
-              borderColor: alpha(accent, 0.52)
-              radius: cfg.roundAppLabels ? 9 : 0
-            }
+          onPress: {
+            let touched = first((moveMode == "pin" ? pinTargetSlots : pinSourceSlots).filter(p =>
+              x >= p.x && x < p.x + p.width && y >= p.y && y < p.y + 42))
+            pinDragCandidate = touched == null ? "" : touched.key
           }
-          for a in pinnedApps.filter(app => app.key != moveKey) key a.key {
-            let slot = find(pinTargetSlots, p => p.key == a.key)
-            if slot != null {
-              Box {
-                width: slot.width
-                height: 42
-                offset: [slot.x, slot.y]
-                animate offset: spring(0.79, 210)
-                Row {
-                  width: slot.width
-                  height: 42
-                  align: center
-                  gap: 8
-                  padding: [2, 2]
-                  if slot.iconAfterText {
-                    HomePinMoveText { a: a; labelWidth: slot.labelWidth; iconAfterText: true }
-                  }
-                  HomePinIcon { a: a; iconSize: slot.iconSize }
-                  if slot.showLabel && !slot.iconAfterText {
-                    HomePinMoveText { a: a; labelWidth: slot.labelWidth }
-                  }
+          onDrag: {
+            if pinDragCandidate != "" {
+              let candidate = pinDragCandidate
+              let selecting = moveMode != "pin" || moveKey != candidate
+              let candidateIndex = moveMode == "pin" ?
+                indexOf(pinDraftKeys, candidate) : indexOf(pinnedAppKeys, candidate)
+              if candidateIndex >= 0 {
+                // Moving a different pin commits the preceding projection,
+                // but the Home × still rolls back the whole edit session.
+                if selecting && moveMode == "pin" && pinDraftChanged {
+                  pinnedLayouts = pinDraftLayouts
+                  pinnedAppKeys = pinDraftKeys
                 }
+                if selecting {
+                  moveMode = "pin"
+                  moveKey = candidate
+                  moveLetter = ""
+                  moveTargetIndex = candidateIndex
+                  moveDragX = 0
+                  moveDragY = 0
+                  moveLiftStarted = time
+                  expandedPinnedKey = ""
+                  folderOpenId = ""
+                  pinnedMenuKey = ""
+                  pinnedMenuShortcuts = null
+                }
+                moveDragging = true
+                moveDragX = moveDragX + dx
+                moveDragY = moveDragY + dy
+                // Use the same grid hit test as the original floating row.
+                let sourceSlot = find(pinSourceSlots, p => p.key == candidate)
+                let sourceIndex = indexOf(pinnedApps.map(p => p.key), candidate)
+                let originRow = get(pinnedRowNumbers, sourceIndex, 1)
+                let hoverRow = clamp(originRow + (abs(moveDragY) < 36 ? 0 : round(moveDragY / 48)), 1, len(pinnedRows) + 1)
+                let hoverRowY = (hoverRow - 1) * 48
+                let hoverCenterX = get(sourceSlot ?? {}, "x", 0) + moveDragX + 2 +
+                  (get(sourceSlot ?? {}, "iconAfterText", false) ? get(sourceSlot ?? {}, "labelWidth", 0) + 8 : 0) +
+                  get(sourceSlot ?? {}, "iconSize", 34) / 2
+                let beforeRow = count(pinSourceSlots, p => p.key != candidate && p.y < hoverRowY)
+                let beforeIcon = count(pinSourceSlots, p => p.key != candidate && p.y == hoverRowY &&
+                  hoverCenterX > p.x + 2 + (p.iconAfterText ? p.labelWidth + 8 : 0) + p.iconSize / 2)
+                moveTargetIndex = clamp(beforeRow + beforeIcon, 0, max(0, len(pinnedAppKeys) - 1))
               }
             }
           }
-          // Keep the source anchor, but preview destination icon size,
-          // label visibility and ×/✓ placement before confirmation.
-          if moveApp != null && destination != null && origin != null {
-            FloatingMoveApp {
-              a: moveApp
-              slotWidth: destination.width
-              slotHeight: 42
-              iconSize: destination.iconSize
-              baseX: origin.x
-              baseY: origin.y
-              snapX: destination.x - origin.x
-              snapY: destination.y - origin.y
-              showText: destination.showLabel
-              iconAfterText: destination.iconAfterText
-              viewportHeight: max(48 * len(pinnedRows), 48 * len(pinDraftRows) + (pinDraftControlBelow ? 36 : 0))
-            }
+          onDragEnd: {
+            if pinDragCandidate != "" { moveDragging = false }
+            pinDragCandidate = ""
           }
+          HomePinnedRowsContent {}
         }
       } else {
-      // Each pin owns its own label and row break. Flow wraps if necessary
-      // instead of overflowing the worm on narrow screens.
-      for rowPins in pinnedRows key toJson(rowPins.map(a => a.key)) {
-        let rowRight = get(find(pinnedLayouts, p => p.key == first(rowPins).key) ?? {}, "alignRight", false)
-        let rowJoined = len(rowPins) > 1
-        let rowNamedCount = rowJoined ? 0 : 1
-        let rowIconSize = rowJoined ? max(12, min(36, (noticeWidth - len(rowPins) * 4 - max(0, len(rowPins) - 1) * 6 - 8) / max(1, len(rowPins)))) : 34
-        let rowLabelWidth = min(152, max(42, (noticeWidth - len(rowPins) * (rowIconSize + 12) - max(0, len(rowPins) - 1) * 6 - 8) / max(1, rowNamedCount)))
-        Flow {
-          fill: width
-          justify: rowRight ? "end" : "start"
-          gap: 6
-          for a in rowPins key a.key {
-            let showPinLabel = !rowJoined
-            Row {
-              align: center
-              gap: 8
-              height: max(42, rowIconSize + 6)
-              padding: [2, 2]
-              background: moveMode == "pin" && moveTargetIndex == indexOf(pinnedAppKeys, a.key) ? alpha(accent, 0.19) : transparent
-              radius: cfg.roundAppLabels ? 7 : 0
-              if showPinLabel && rowRight {
-                HomePinRowText { a: a; labelWidth: rowLabelWidth; iconAfterText: true }
-              }
-              HomePinIcon { a: a; iconSize: rowIconSize; showNoticeDot: true }
-              if showPinLabel && !rowRight {
-                HomePinRowText { a: a; labelWidth: rowLabelWidth }
-              }
-            }
-          }
-        }
-        if expandedPinnedKey != "" {
-          let expandedRowApp = find(rowPins, a => a.key == expandedPinnedKey)
-          if expandedRowApp != null {
-            HomePinNotifications { a: expandedRowApp }
-          }
-        }
-      }
+        HomePinnedRowsContent {}
       }
       // Always expose an alignment action in Home editing. Select a pin
       // to shift only its logical row; Shift all works without a selection.
