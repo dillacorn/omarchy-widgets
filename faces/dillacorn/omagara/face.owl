@@ -2498,13 +2498,16 @@ face "Omagara" {
         clip: true
         drag: vertical
         onPress: {
+          if moveMode == "" {
           appScroll = appOffset
           appVelocity = 0
           appElastic = appElasticVisual
           appElasticReturning = false
           if appFirst != null { appAnchor = appFirst.id; appAnchorSection = appFirst.section; appAnchorOffset = appOffset - appFirst.top }
+                  }
         }
         onDrag: {
+          if moveMode == "" {
           appVelocity = 0
           appElasticReturning = false
           // Unwind existing stretch before scrolling in the other direction.
@@ -2530,8 +2533,10 @@ face "Omagara" {
           folderOpenId = ""
           // Do not rewrite anchor-derived state on every pointer sample.
           // Press and release capture it; drag updates only position.
+                  }
         }
         onDragEnd: {
+          if moveMode == "" {
           appScroll = appOffset
           appElasticFrom = appElastic
           appElasticStarted = time
@@ -2540,6 +2545,7 @@ face "Omagara" {
           appVelocity = appElasticReturning || !browsing || railHeld || cfg.reduceMotion || abs(vy) < 160 || vy > 0 && appOffset <= 0 || vy < 0 && appOffset >= appMaxScroll ? 0 : clamp(-vy, -6000, 6000)
           if appVelocity != 0 { appGlideStarted = time }
           if appFirst != null { appAnchor = appFirst.id; appAnchorSection = appFirst.section; appAnchorOffset = appOffset - appFirst.top }
+                  }
         }
         // The outlined destination shifts to the exact index ✓ will save.
         let floatingWindowRow = moveMode == "alphabet" ? find(appWindow, r => r.id == moveKey) : null
