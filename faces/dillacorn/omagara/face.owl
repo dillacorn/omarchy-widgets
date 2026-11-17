@@ -1541,11 +1541,13 @@ face "Omagara" {
 
   // Small confirmation controls; no obscuring modal and no duplicate app list.
   component MoveControls() {
+    // The control surface is physically small: it cannot cover drag targets.
     Box {
-      fill: true
-      align: bottomStart
-      padding: [screenLeft + 20, 0, 0, searchBottom + 66]
+      width: min(210, max(150, availableWidth - 45))
+      height: 58
+      offset: [screenLeft + 20, max(screenTop + 60, (tileHeight ?? 800) - searchBottom - 122)]
       Row {
+        fill: width
         gap: 8
         padding: [7, 8]
         background: alpha(surface, 0.92)
@@ -1570,8 +1572,9 @@ face "Omagara" {
                 let relocated = moveTargetIndex != moveOriginIndex
                 // Horizontal rightward placement joins the preceding icon;
                 // ordinary vertical moves keep separate rows.
-                let joinPrevious = moveDragX >= 42 && moveTargetIndex > 0
-                if relocated || joinPrevious {
+                let joinPrevious = moveDragX >= 42 && abs(moveDragX) * 2 >= abs(moveDragY) && moveTargetIndex > 0
+                let alreadyJoined = get(find(pinnedLayouts, p => p.key == moveKey) ?? {}, "newRow", true) == false
+                if relocated || joinPrevious && !alreadyJoined {
                   let previousNext = get(pinnedAppKeys, moveOriginIndex + 1)
                   let newNext = get(movePreviewKeys, moveTargetIndex + 1)
                   let breakKeys = unique([previousNext, newNext].filter(k => k != null && k != moveKey))
@@ -2362,7 +2365,9 @@ face "Omagara" {
           if appVelocity != 0 { appGlideStarted = time }
           if appFirst != null { appAnchor = appFirst.id; appAnchorSection = appFirst.section; appAnchorOffset = appOffset - appFirst.top }
         }
-        for row in appWindow key row.id {
+        // Paint the floating selected app last, above surrounding A–Z rows.
+        // Row geometry is unchanged; this is only visual stacking order.
+        for row in (moveMode == "alphabet" ? appWindow.filter(r => r.id != moveKey) + appWindow.filter(r => r.id == moveKey) : appWindow) key row.id {
           // Preview rows use their own bounded screen positions; ordinary
           // scrolling still uses continuous document coordinates.
           let rowY = appPreviewing ? row.top : row.top - appOffset
