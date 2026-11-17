@@ -1493,15 +1493,25 @@ face "Omagara" {
             pinnedMenuKey = ""
             pinnedMenuShortcuts = null
           }
-        } else if moveMode == "pin" {
-          let origin = find(pinSourceSlots, p => p.key == moveKey)
-          let target = find(pinSourceSlots, p => p.key == a.key)
-          moveTargetIndex = indexOf(moveOtherKeys, a.key)
-          if origin != null && target != null {
-            moveDragX = target.x - origin.x
-            moveDragY = target.y - origin.y
+        } else if moveMode == "pin" && layoutEditMode == "home" && a.key != moveKey {
+          // Selecting another pin saves the current projection automatically.
+          let nextPinIndex = indexOf(pinDraftKeys, a.key)
+          if nextPinIndex >= 0 && moveOriginIndex >= 0 {
+            if pinDraftChanged {
+              pinnedLayouts = pinDraftLayouts
+              pinnedAppKeys = pinDraftKeys
+            }
+            moveKey = a.key
+            moveTargetIndex = nextPinIndex
+            moveDragX = 0
+            moveDragY = 0
+            moveDragging = false
+            moveLiftStarted = time
+            expandedPinnedKey = ""
+            folderOpenId = ""
+            pinnedMenuKey = ""
+            pinnedMenuShortcuts = null
           }
-          moveDragging = false
         } else if moveMode == "" {
           if a.folderId != null {
             folderOpenId = folderOpenId == a.folderId ? "" : a.folderId
@@ -1982,7 +1992,7 @@ face "Omagara" {
     let minX = -baseX
     let maxX = max(minX, panelWidth - baseX - floatingWidth)
     let minY = -baseY
-    let controlsBelow = !alphabetMode && !showText
+    let controlsBelow = false
     let actionWidth = controlsBelow ? 48 : 72
     let actionHeight = controlsBelow ? 32 : slotHeight - 4
     let maxY = max(minY, viewportHeight - baseY - slotHeight - (controlsBelow ? 36 : 0))
@@ -1996,7 +2006,7 @@ face "Omagara" {
     let iconCenterX = appX + 2 + drawnIconSize / 2
     let controlsLeft = !controlsBelow && appX + floatingWidth + 72 > panelWidth && appX >= 72
     let controlsX = controlsBelow ? clamp(iconCenterX - actionWidth / 2, 0, max(0, panelWidth - actionWidth)) : controlsLeft ? appX - 72 : min(panelWidth - 72, appX + floatingWidth - 6)
-    let drawnWidth = controlsBelow || controlsLeft ? floatingWidth : min(floatingWidth, max(40, controlsX - appX))
+    let drawnWidth = !alphabetMode || controlsLeft ? floatingWidth : min(floatingWidth, max(40, controlsX - appX))
     let controlsY = controlsBelow ? paintedY + slotHeight + 2 : paintedY
     Box {
       width: panelWidth
@@ -2233,14 +2243,21 @@ face "Omagara" {
                       background: cfg.shadeAppLabels ? appLabelShade : transparent
                       radius: cfg.shadeAppLabels && cfg.roundAppLabels ? 8 : 0
                       onTap: {
-                        let tappedSourceSlot = find(pinSourceSlots, p => p.key == moveKey)
-                        let target = find(pinSourceSlots, p => p.key == a.key)
-                        moveTargetIndex = indexOf(moveOtherKeys, a.key)
-                        if tappedSourceSlot != null && target != null {
-                          moveDragX = target.x - tappedSourceSlot.x
-                          moveDragY = target.y - tappedSourceSlot.y
+                        if moveMode == "pin" && layoutEditMode == "home" && a.key != moveKey {
+                          let nextPinIndex = indexOf(pinDraftKeys, a.key)
+                          if nextPinIndex >= 0 && moveOriginIndex >= 0 {
+                            if pinDraftChanged {
+                              pinnedLayouts = pinDraftLayouts
+                              pinnedAppKeys = pinDraftKeys
+                            }
+                            moveKey = a.key
+                            moveTargetIndex = nextPinIndex
+                            moveDragX = 0
+                            moveDragY = 0
+                            moveDragging = false
+                            moveLiftStarted = time
+                          }
                         }
-                        moveDragging = false
                       }
                       onLongPress: {
           // Save current preview before selecting the held pin.
