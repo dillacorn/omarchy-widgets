@@ -1080,16 +1080,13 @@ face "Omagara" {
       } else {
         Text { text: upper(sub(trim(a.name), 0, 1)); font: chosenFont; fontSize: 18; color: primaryText; align: center }
       }
+      // Theme-accent notification dot; no count badge or extra label.
+      // The 16dp tap region preserves the existing expand and long-press actions.
       if showNoticeBadge && hasOwnNotices {
-        Text {
-          text: str(len(ownedNotices))
-          font: chosenFont
-          fontSize: 10
-          color: accent
-          padding: [1, 3]
-          background: noticeHeadingShade
-          radius: 6
-          offset: [iconSize - 13, -2]
+        Box {
+          size: 16
+          offset: [max(0, iconSize - 13), -2]
+          align: center
           onTap: {
             expandedPinnedKey = expandedPinnedKey == a.key ? "" : a.key
             pinnedNoticeShown = 4
@@ -1100,6 +1097,13 @@ face "Omagara" {
             pinnedMenuShortcuts = null
             pinnedMenuKey = a.key
             pinnedMenuShortcuts = shortcuts(a.key)
+          }
+          Box {
+            size: 9
+            radius: 5
+            background: accent
+            border: 1
+            borderColor: background
           }
         }
       }
@@ -1413,7 +1417,7 @@ face "Omagara" {
     // underneath, centered when possible, and never cover neighboring pins.
     let appX = baseX + visualX
     let controlsLeft = !controlsBelow && appX + floatingWidth + 72 > panelWidth && appX >= 72
-    let controlsX = controlsBelow ? clamp(appX + (iconSize - 72) / 2, 0, max(0, panelWidth - 72)) : controlsLeft ? appX - 72 : min(panelWidth - 72, appX + floatingWidth)
+    let controlsX = controlsBelow ? clamp(appX + (iconSize - 72) / 2 - 6, 0, max(0, panelWidth - 72)) : controlsLeft ? appX - 72 : min(panelWidth - 72, appX + floatingWidth - 6)
     let drawnWidth = controlsBelow || controlsLeft ? floatingWidth : min(floatingWidth, max(40, controlsX - appX))
     let controlsY = controlsBelow ? paintedY + slotHeight + 2 : paintedY
     Box {
