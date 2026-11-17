@@ -1108,8 +1108,8 @@ face "Omagara" {
       background: transparent
       radius: 7
       onTap: {
-        if interactive && moveMode == "alphabet" && !searchView && !folderView {
-          moveTargetIndex = indexOf(moveKeys, a.key)
+        if interactive && moveMode == "alphabet" && !searchView && !folderView && appLetter == moveLetter && a.key != moveKey {
+          moveTargetIndex = indexOf(moveOtherKeys, a.key)
           moveDragX = 0
           moveDragY = (moveTargetIndex - moveOriginIndex) * appRowHeight
           moveDragging = false
@@ -1130,15 +1130,41 @@ face "Omagara" {
         }
       }
       onLongPress: {
-        if interactive && moveMode == "" {
-        if !folderView {
-          appScroll = appOffset
-          appVelocity = 0
-          if appFirst != null { appAnchor = appFirst.id; appAnchorSection = appFirst.section; appAnchorOffset = appOffset - appFirst.top }
-        }
-        menuShortcuts = null
-        menu = a.key
-        menuShortcuts = shortcuts(a.key)
+        if interactive && moveMode == "alphabet" && !searchView && !folderView && a.key != moveKey {
+          // Commit the active preview, then start a fresh move at the held
+          // app's projected position. Same-letter switches use the preview
+          // index because saving the previous move changes the actual order.
+          let nextIndex = appLetter == moveLetter ?
+            indexOf(movePreviewKeys, a.key) :
+            indexOf(get(groups, appLetter, []).map(x => x.key), a.key)
+          let previousAnchor = moveTargetIndex == 0 ? get(moveOtherKeys, 0) : get(moveOtherKeys, moveTargetIndex - 1)
+          if moveOriginIndex >= 0 && moveTargetIndex >= 0 && moveTargetIndex < len(moveKeys) &&
+             nextIndex >= 0 && (moveTargetIndex == moveOriginIndex || previousAnchor != null) {
+            if moveTargetIndex != moveOriginIndex {
+              manualAppMoves = manualAppMoves + [{letter: moveLetter, key: moveKey, anchor: previousAnchor, after: moveTargetIndex > 0}]
+            }
+            moveKey = a.key
+            moveLetter = appLetter
+            moveTargetIndex = nextIndex
+            moveDragX = 0
+            moveDragY = 0
+            moveDragging = false
+            moveLiftStarted = time
+            appVelocity = 0
+            appScroll = appOffset
+            appAnchor = ""
+            menu = ""
+            menuShortcuts = null
+          }
+        } else if interactive && moveMode == "" {
+          if !folderView {
+            appScroll = appOffset
+            appVelocity = 0
+            if appFirst != null { appAnchor = appFirst.id; appAnchorSection = appFirst.section; appAnchorOffset = appOffset - appFirst.top }
+          }
+          menuShortcuts = null
+          menu = a.key
+          menuShortcuts = shortcuts(a.key)
         }
       }
       Popup {
