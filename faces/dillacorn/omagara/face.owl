@@ -2453,6 +2453,79 @@ face "Omagara" {
     }
   }
 
+  // Stable pinned content, shared by Home edit drag owner and ordinary Home.
+  component HomePinnedRowsContent() {
+    Column {
+      width: noticeWidth
+      gap: 6
+      // The gesture owner stays mounted while a pin is swapped for its
+      // floating preview. A first swipe therefore selects AND drags it.
+      if layoutEditMode == "home" {
+        Box {
+          width: noticeWidth
+          onPress: {
+            let touched = first((moveMode == "pin" ? pinTargetSlots : pinSourceSlots).filter(p =>
+              x >= p.x && x < p.x + p.width && y >= p.y && y < p.y + 42))
+            pinDragCandidate = touched == null ? "" : touched.key
+          }
+          onDrag: {
+            if pinDragCandidate != "" {
+              let candidate = pinDragCandidate
+              let selecting = moveMode != "pin" || moveKey != candidate
+              let candidateIndex = moveMode == "pin" ?
+                indexOf(pinDraftKeys, candidate) : indexOf(pinnedAppKeys, candidate)
+              if candidateIndex >= 0 {
+                // Moving a different pin commits the preceding projection,
+                // but the Home × still rolls back the whole edit session.
+                if selecting && moveMode == "pin" && pinDraftChanged {
+                  pinnedLayouts = pinDraftLayouts
+                  pinnedAppKeys = pinDraftKeys
+                }
+                if selecting {
+                  moveMode = "pin"
+                  moveKey = candidate
+                  moveLetter = ""
+                  moveTargetIndex = candidateIndex
+                  moveDragX = 0
+                  moveDragY = 0
+                  moveLiftStarted = time
+                  expandedPinnedKey = ""
+                  folderOpenId = ""
+                  pinnedMenuKey = ""
+                  pinnedMenuShortcuts = null
+                }
+                moveDragging = true
+                moveDragX = moveDragX + dx
+                moveDragY = moveDragY + dy
+                // Use the same grid hit test as the original floating row.
+                let sourceSlot = find(pinSourceSlots, p => p.key == candidate)
+                let sourceIndex = indexOf(pinnedApps.map(p => p.key), candidate)
+                let originRow = get(pinnedRowNumbers, sourceIndex, 1)
+                let hoverRow = clamp(originRow + (abs(moveDragY) < 36 ? 0 : round(moveDragY / 48)), 1, len(pinnedRows) + 1)
+                let hoverRowY = (hoverRow - 1) * 48
+                let hoverCenterX = get(sourceSlot ?? {}, "x", 0) + moveDragX + 2 +
+                  (get(sourceSlot ?? {}, "iconAfterText", false) ? get(sourceSlot ?? {}, "labelWidth", 0) + 8 : 0) +
+                  get(sourceSlot ?? {}, "iconSize", 34) / 2
+                let beforeRow = count(pinSourceSlots, p => p.key != candidate && p.y < hoverRowY)
+                let beforeIcon = count(pinSourceSlots, p => p.key != candidate && p.y == hoverRowY &&
+                  hoverCenterX > p.x + 2 + (p.iconAfterText ? p.labelWidth + 8 : 0) + p.iconSize / 2)
+                moveTargetIndex = clamp(beforeRow + beforeIcon, 0, max(0, len(pinnedAppKeys) - 1))
+              }
+            }
+          }
+          onDragEnd: {
+            if pinDragCandidate != "" { moveDragging = false }
+            pinDragCandidate = ""
+          }
+          HomePinnedRowsContent {}
+        }
+      } else {
+        HomePinnedRowsContent {}
+      }
+
+    }
+  }
+
   component NotificationPanel() {
     Column {
       width: noticeWidth
