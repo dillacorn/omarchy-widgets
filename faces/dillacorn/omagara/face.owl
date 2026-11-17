@@ -2052,7 +2052,7 @@ face "Omagara" {
   // Slim drag bars. Reset changes only the corresponding position.
   component LayoutSpacingHandle(zone) {
     Row {
-      width: zone == "rail" ? 104 : 136
+      width: zone == "rail" ? 104 : zone == "music" ? 116 : 136
       height: 40
       align: center
       gap: 0
@@ -2070,14 +2070,12 @@ face "Omagara" {
           if zone == "rail" { alphabetRailShift = clamp(alphabetRailShift + dy, -160, 160) }
           if zone == "header" { headerSpacing = clamp(headerSpacing + dy, -48, 80) }
           if zone == "notices" { noticeSpacing = clamp(noticeSpacing + dy, 0, 80) }
-          if zone == "music" {
-            musicAreaExpanded = true
-            musicAreaSize = clamp(musicAreaSize + dy, 0, 80)
-          }
+          // Artwork sizing is independent of the expanded/compact toggle.
+          if zone == "music" { musicAreaSize = clamp(musicAreaSize + dy, 0, 80) }
         }
         onDragEnd: layoutDraggingZone = ""
         Text {
-          text: zone == "rail" ? "↕ Worm" : zone == "header" ? "↕ Clock gap" : zone == "music" ? "↕ Music size" : "↕ Alerts gap"
+          text: zone == "rail" ? "↕ Worm" : zone == "header" ? "↕ Clock gap" : zone == "music" ? "↕ Art size" : "↕ Alerts gap"
           font: chosenFont
           fontSize: 11
           color: primaryText
@@ -2653,18 +2651,19 @@ face "Omagara" {
           background: noticeCardShade
           radius: cfg.roundNotifications ? 12 : 0
           if hasMedia {
-            // Compact remains a single row. Expanded mode gives the artwork
-            // most of the card height, with text ABOVE its transport controls.
+            // Compact artwork can grow a little without switching layouts.
+            // The separate Expand button still selects the full media card.
+            let compactArtSize = 32 + round(musicAreaSize * 0.25)
             Row {
               fill: width
-              height: musicAreaExpanded ? 136 + round(musicAreaSize * 0.55) : 42
+              height: musicAreaExpanded ? 136 + round(musicAreaSize * 0.55) : playback.art != null ? max(42, compactArtSize + 4) : 42
               gap: musicAreaExpanded ? 8 : 3
               align: center
               if playback.art != null {
                 // Reserve room for transport buttons even on narrow columns.
                 Image {
                   src: playback.art
-                  size: musicAreaExpanded ? max(48, min(128 + round(musicAreaSize * 0.55), noticeWidth - 148)) : 32
+                  size: musicAreaExpanded ? max(48, min(128 + round(musicAreaSize * 0.55), noticeWidth - 148)) : compactArtSize
                   label: "Now playing artwork"
                 }
               }
@@ -4546,7 +4545,7 @@ face "Omagara" {
                 Button { text: "Reset alerts gap"; onTap: noticeSpacing = 0 }
               }
               Text { text: "Music / Bluetooth preview"; color: accent; font: chosenFont; fontSize: 16; padding: [0, 10, 0, 2] }
-              Text { text: "Compact is the default. Expanded shows larger media details or the connected audio device. Drag ↕ Music size in Edit Home layout to resize. The music-app shortcuts arrow is separate."; font: chosenFont; fontSize: 12; color: secondaryText }
+              Text { text: "Compact is the default. Drag ↕ Art size in Edit Home layout to enlarge compact artwork slightly without switching modes. Expand preview separately for the large media or Bluetooth view. The shortcuts arrow is independent."; font: chosenFont; fontSize: 12; color: secondaryText }
               Flow {
                 fill: width
                 gap: 8
