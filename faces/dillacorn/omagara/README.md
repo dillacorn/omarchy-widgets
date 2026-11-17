@@ -19,7 +19,7 @@ Time format is selected under **Clock** in Omagara settings; OWL does not expose
 ## v1.9 changes
 
 - Default to **Most used**, with Alphabetical still selectable. A one-time upgrade migration switches existing saved sort choices to Most used; later manual selections are preserved.
-- Long-press any A–Z app to select **Move app…**. A floating editor previews the position; drag the selected handle or tap a destination, then **✓ Save position** or **× Cancel**. Moves stay within the app's letter and do not affect Search.
+- Long-press an A–Z app and select **Move app…**. The actual app row floats over the visible browser; drag it vertically or tap another row to choose a position, then press **✓** to save or **× Cancel**. Other letters and Search are unchanged.
 - A slim accent line marks moved apps; long-press one to **Reset automatic position**.
 - Replay per-app moves without freezing the other apps' automatic sorting. Hidden, work-profile, and cloned apps retain distinct keys; Search is unaffected.
 - Export, import, and reset manual moves in settings; older v1 backups remain accepted.
@@ -27,7 +27,7 @@ Time format is selected under **Clock** in Omagara settings; OWL does not expose
 - Named folder rows follow the last A–Z app section, before Settings, with a folder silhouette and a centered 2×2 preview of installed app icons. Tap a folder to open a floating, scrollable popup with normal app actions; hold the row to edit it.
 - A single folder shortcut above the worm's Settings cog jumps to the folder section. The worm keeps its original overall height regardless of folder count, and the cog stays at the bottom.
 - Fix worm hit testing between the last letter, folder shortcut and settings cog so the letter no longer reactivates at the boundary.
-- Optionally pin up to eight apps. Each new pin starts named on its own row. Long-press a pin or use Apps settings to hide its label, join the previous app, or join the next app. A horizontal group automatically shows icons only; separating a pin restores its individual label preference. Pin long-press opens native shortcuts and app actions, folder assignment, unpinning, or **Move app…**: drag the highlighted handle or tap a destination, then Save or Cancel. Moves preserve unrelated pins, while the moved pin starts a separate row so grouped neighbors do not shift unexpectedly. Notification badges allow long-press editing and expand pinned alerts without changing Android's notification shade.
+- Optionally pin up to eight apps. Pins start named on separate rows. Long-press an icon or use Apps settings to hide its label or join the neighboring icon; joined rows are automatically icon-only. **Move app…** lifts that pin in place on the home screen: drag in the actual layout, tap a destination as needed, then ✓ to save or × to cancel. Moving vertically starts a separate row; a deliberate rightward drag can join the preceding icon. The full native app menu, folder assignment and notification-badge long-press remain available.
 - Home is one vertically lazy-scrolling document: clock, date, calendar event, media, flexible pinned rows and native notification cards move together, while the alphabet worm and Search remain fixed. Clearing an alert reflows the rest upward. The old notification-start setting is retired from the UI but remains accepted in older settings backups.
 - Folders persist in settings backups without removing their apps from the normal app list or Search.
 
