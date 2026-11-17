@@ -112,8 +112,8 @@ face "Omagara" {
   state musicAppKeys = [] persist
   // User-pinned Omagara home apps are independent of the native launcher strip.
   state pinnedAppKeys = [] persist
-  // Per-pin layout: an absent entry means show the name and start a new row.
-  // Pin keys include the Android profile, so profiles never share a setting.
+  // Per-pin layout persists row breaks. Standalone labels are always shown;
+  // joined rows automatically hide them. Legacy showLabel data is ignored.
   state pinnedLayouts = [] persist
   state pinLayoutMigrationDone = false persist
   state expandedPinnedKey = ""
@@ -321,7 +321,6 @@ face "Omagara" {
   let pinnedApps = take(pinnedAppKeys.map(k => find(installed ?? [], a => a.key == k)).filter(a => a != null), 8)
   let pinnedRowNumbers = map(range(len(pinnedApps)), i => sum(take(pinnedApps, i + 1).map((a, j) => j == 0 || get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "newRow", true) != false ? 1 : 0)))
   let pinnedRows = unique(pinnedRowNumbers).map(r => pinnedApps.filter(a => get(pinnedRowNumbers, indexOf(pinnedApps.map(p => p.key), a.key), 0) == r))
-  let pinJoinedKeys = flatten(pinnedRows.filter(row => len(row) > 1).map(row => row.map(a => a.key)))
   // Android notification identity is package + profile, not a launcher key.
   // Multiple activities for one package have only one notification owner.
   let pinnedProfiles = unique(pinnedApps.map(a => toJson([a.package, a.profile])))
@@ -463,7 +462,7 @@ face "Omagara" {
   let pinDraftTargetRow = get(pinnedRowNumbers, pinDraftTargetVisible, -2)
   // The gesture threshold depends on the SOURCE row. Its preview appearance
   // follows the DESTINATION row without stretching every app row.
-  let pinSourceIconOnly = pinDraftActive && (len(get(pinnedRows, pinDraftOriginRow - 1, [])) > 1 || get(find(pinnedLayouts, p => p.key == moveKey) ?? {}, "showLabel", true) == false)
+  let pinSourceIconOnly = pinDraftActive && len(get(pinnedRows, pinDraftOriginRow - 1, [])) > 1
   let pinDragThreshold = pinSourceIconOnly ? 22 : 42
   let pinDraftHorizontal = pinDraftActive && abs(moveDragX) >= pinDragThreshold && abs(moveDragX) * 2 >= abs(moveDragY)
   let pinDraftSameRow = pinDraftHorizontal && pinDraftRelocated && pinDraftOriginRow > 0 && pinDraftOriginRow == pinDraftTargetRow
@@ -501,36 +500,36 @@ face "Omagara" {
   // temporary 36dp lane after that row for the 32dp action controls.
   let pinDraftMoveRow = get(pinDraftRowNumbers, indexOf(pinDraftApps.map(p => p.key), moveKey), 1)
   let pinDraftMoveRowPins = get(pinDraftRows, pinDraftMoveRow - 1, [])
-  let pinDraftControlBelow = pinDraftActive && (len(pinDraftMoveRowPins) > 1 || get(find(pinDraftLayouts, p => p.key == moveKey) ?? {}, "showLabel", true) == false)
+  let pinDraftControlBelow = pinDraftActive && len(pinDraftMoveRowPins) > 1
   // In-place slots use the existing 42dp row + 6dp gap.
   let pinSourceRowGeometry = pinnedRows.map((row, ri) => {
     apps: row, rowIndex: ri,
     iconSize: len(row) > 1 ? max(12, min(36, (noticeWidth - len(row) * 4 - max(0, len(row) - 1) * 6 - 8) / max(1, len(row)))) : 34,
-    namedCount: count(row, a => len(row) == 1 && get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false)
+    namedCount: len(row) == 1 ? 1 : 0
   })
   let pinSourceSlotGeometry = pinSourceRowGeometry.map(r => merge(r, {
     labelWidth: min(152, max(42, (noticeWidth - len(r.apps) * (r.iconSize + 12) - max(0, len(r.apps) - 1) * 6 - 8) / max(1, r.namedCount))),
-    widths: r.apps.map(a => r.iconSize + 4 + (len(r.apps) == 1 && get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false ? 8 + min(152, max(42, (noticeWidth - len(r.apps) * (r.iconSize + 12) - 8) / max(1, r.namedCount))) : 0))
+    widths: r.apps.map(a => r.iconSize + 4 + (len(r.apps) == 1 ? 8 + min(152, max(42, (noticeWidth - len(r.apps) * (r.iconSize + 12) - 8) / max(1, r.namedCount))) : 0))
   }))
   let pinSourceSlots = flatten(pinSourceSlotGeometry.map(r => r.apps.map((a, i) => {
     key: a.key, x: sum(take(r.widths, i)) + i * 6, y: r.rowIndex * 48,
     width: get(r.widths, i, 38), iconSize: r.iconSize, labelWidth: r.labelWidth,
-    showLabel: len(r.apps) == 1 && get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false
+    showLabel: len(r.apps) == 1
   })))
   // In-place slots use the existing 42dp row + 6dp gap.
   let pinTargetRowGeometry = pinDraftRows.map((row, ri) => {
     apps: row, rowIndex: ri,
     iconSize: len(row) > 1 ? max(12, min(36, (noticeWidth - len(row) * 4 - max(0, len(row) - 1) * 6 - 8) / max(1, len(row)))) : 34,
-    namedCount: count(row, a => len(row) == 1 && get(find(pinDraftLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false)
+    namedCount: len(row) == 1 ? 1 : 0
   })
   let pinTargetSlotGeometry = pinTargetRowGeometry.map(r => merge(r, {
     labelWidth: min(152, max(42, (noticeWidth - len(r.apps) * (r.iconSize + 12) - max(0, len(r.apps) - 1) * 6 - 8) / max(1, r.namedCount))),
-    widths: r.apps.map(a => r.iconSize + 4 + (len(r.apps) == 1 && get(find(pinDraftLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false ? 8 + min(152, max(42, (noticeWidth - len(r.apps) * (r.iconSize + 12) - 8) / max(1, r.namedCount))) : 0))
+    widths: r.apps.map(a => r.iconSize + 4 + (len(r.apps) == 1 ? 8 + min(152, max(42, (noticeWidth - len(r.apps) * (r.iconSize + 12) - 8) / max(1, r.namedCount))) : 0))
   }))
   let pinTargetSlots = flatten(pinTargetSlotGeometry.map(r => r.apps.map((a, i) => {
     key: a.key, x: sum(take(r.widths, i)) + i * 6, y: r.rowIndex * 48 + (pinDraftControlBelow && r.rowIndex >= pinDraftMoveRow ? 36 : 0),
     width: get(r.widths, i, 38), iconSize: r.iconSize, labelWidth: r.labelWidth,
-    showLabel: len(r.apps) == 1 && get(find(pinDraftLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false
+    showLabel: len(r.apps) == 1
   })))
 
   // One native vertical document: no separate pin quota or fixed notification
@@ -1148,20 +1147,6 @@ face "Omagara" {
           }
         }
         Text {
-          text: contains(pinJoinedKeys, a.key) ? "Show label (separate)" : get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) == false ? "Show app label" : "Hide app label"
-          fill: width
-          padding: [12, 14]
-          onTap: {
-            let current = find(pinnedLayouts, p => p.key == a.key)
-            let joined = contains(pinJoinedKeys, a.key)
-            let currentShow = get(current ?? {}, "showLabel", true) != false
-            let updated = merge(current ?? {key: a.key, newRow: true}, {showLabel: joined ? true : !currentShow, newRow: joined ? true : get(current ?? {}, "newRow", true)})
-            let nextKey = get(pinnedAppKeys, indexOf(pinnedAppKeys, a.key) + 1)
-            pinnedLayouts = pinnedLayouts.filter(p => p.key != a.key && (!joined || p.key != nextKey)) + [updated] + (joined && nextKey != null ? [merge(find(pinnedLayouts, p => p.key == nextKey) ?? {key: nextKey, showLabel: true}, {newRow: true})] : [])
-            pinnedMenuKey = ""; pinnedMenuShortcuts = null
-          }
-        }
-        Text {
           text: "Add to folder"
           fill: width
           padding: [12, 14]
@@ -1651,14 +1636,14 @@ face "Omagara" {
       // instead of overflowing the worm on narrow screens.
       for rowPins in pinnedRows key toJson(rowPins.map(a => a.key)) {
         let rowJoined = len(rowPins) > 1
-        let rowNamedCount = count(rowPins, a => !rowJoined && get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false)
+        let rowNamedCount = rowJoined ? 0 : 1
         let rowIconSize = rowJoined ? max(12, min(36, (noticeWidth - len(rowPins) * 4 - max(0, len(rowPins) - 1) * 6 - 8) / max(1, len(rowPins)))) : 34
         let rowLabelWidth = min(152, max(42, (noticeWidth - len(rowPins) * (rowIconSize + 12) - max(0, len(rowPins) - 1) * 6 - 8) / max(1, rowNamedCount)))
         Flow {
           fill: width
           gap: 6
           for a in rowPins key a.key {
-            let showPinLabel = !rowJoined && get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false
+            let showPinLabel = !rowJoined
             Row {
               align: center
               gap: 8
@@ -3323,7 +3308,7 @@ face "Omagara" {
               }
               Text { text: "Most used is the default. Long-press an app in the A–Z list to move it within its letter or reset its automatic position. A small line marks moved apps. Search is unaffected."; font: chosenFont; fontSize: 12; color: secondaryText }
               Text { text: "Pinned apps · " + str(len(pinnedAppKeys)) + "/8"; color: accent; font: chosenFont; fontSize: 16; padding: [0, 12, 0, 2] }
-              Text { text: "Each app starts with its label on its own row. Hold a pin to hide its label, place it beside the previous app, move or unpin it."; font: chosenFont; fontSize: 12; color: secondaryText }
+              Text { text: "Standalone pins show their names; stacked pins hide them automatically. Use Move app… to arrange or stack pins."; font: chosenFont; fontSize: 12; color: secondaryText }
               for pinKey in pinnedAppKeys key pinKey {
                 let pinnedEntry = find(installed ?? [], a => a.key == pinKey)
                 Column {
@@ -3339,13 +3324,6 @@ face "Omagara" {
                   Flow {
                     fill: width
                     gap: 6
-                    Button {
-                      text: get(find(pinnedLayouts, p => p.key == pinKey) ?? {}, "showLabel", true) == false ? "Show label" : "Hide label"
-                      onTap: {
-                        let current = find(pinnedLayouts, p => p.key == pinKey)
-                        pinnedLayouts = pinnedLayouts.filter(p => p.key != pinKey) + [merge(current ?? {key: pinKey, newRow: true}, {showLabel: get(current ?? {}, "showLabel", true) == false})]
-                      }
-                    }
                     if indexOf(pinnedAppKeys, pinKey) > 0 {
                       Button {
                         text: get(find(pinnedLayouts, p => p.key == pinKey) ?? {}, "newRow", true) == false ? "New row" : "Join previous"
