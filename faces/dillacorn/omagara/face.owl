@@ -3287,32 +3287,16 @@ face "Omagara" {
     }
   }
 
-  component AppRows(choices, searchView = false) {
-    Column {
-      lazy: true
-      fill: true
-      gap: 0
-      for a in choices key a.key {
-        AppRow { a: a; searchView: searchView }
-      }
-      if len(choices) == 0 {
-        Text { text: installed == null ? "Loading apps…" : "No matching apps"; font: chosenFont; fontSize: 14; color: muted; padding: [4, 20] }
-      }
-    }
-  }
-
-  Box {
-    fill: true
-    ripple: false
-    onPress: { if appVelocity != 0 { appScroll = appOffset; appVelocity = 0; if appFirst != null { appAnchor = appFirst.id; appAnchorSection = appFirst.section; appAnchorOffset = appOffset - appFirst.top } } }
-    onTap: { if moveMode == "" && layoutEditMode != "alphabet" { appVelocity = 0; browsing = false; activeSide = 0; railHeld = false; draggingSide = 0; letter = first(liveAlphabet) ?? "A"; appScroll = 0; appAnchor = ""; queryText = ""; menu = ""; expandedStack = ""; replyKey = ""; replyDraft = "" } }
-    if browsing {
+  // Only one viewport exists at runtime. The editing branch owns free
+  // two-axis dragging; ordinary Alphabet browsing retains vertical-only
+  // scrolling and leaves native horizontal navigation untouched.
+  component AlphabetBrowserViewport() {
+    if layoutEditMode == "alphabet" || moveMode == "alphabet" {
       Box {
         width: appPanelWidth
         height: appPanelHeight
         offset: [screenLeft + appPanelInset, appSafeTop + appElasticVisual]
         clip: true
-        drag: layoutEditMode == "alphabet" || moveMode == "alphabet" ? "both" : "vertical"
         onPress: {
           // Hit the VISIBLE projected row, not its original index. A prior
           // pending move shifts neighbors before they are committed, and
@@ -3446,6 +3430,158 @@ face "Omagara" {
                   }
           alphabetDragCandidate = ""
         }
+        AlphabetBrowserViewportContent {}
+      }
+    } else {
+      Box {
+        width: appPanelWidth
+        height: appPanelHeight
+        offset: [screenLeft + appPanelInset, appSafeTop + appElasticVisual]
+        clip: true
+        drag: vertical
+        onPress: {
+          // Hit the VISIBLE projected row, not its original index. A prior
+          // pending move shifts neighbors before they are committed, and
+          // dragging a second app must target the one under the finger.
+          let touched = first(appWindow.filter(r => r.app != null &&
+            (moveMode != "alphabet" || r.id != moveKey) &&
+            y >= (appPreviewing ? r.top : r.top - appOffset) +
+              (moveMode == "alphabet" && r.section == moveLetter ?
+                (indexOf(movePreviewKeys, r.id) - indexOf(moveKeys, r.id)) * appRowHeight : 0) &&
+            y < (appPreviewing ? r.top : r.top - appOffset) +
+              (moveMode == "alphabet" && r.section == moveLetter ?
+                (indexOf(movePreviewKeys, r.id) - indexOf(moveKeys, r.id)) * appRowHeight : 0) + r.height))
+          alphabetDragCandidate = (layoutEditMode == "alphabet" || moveMode == "alphabet") && touched != null ?
+            touched.id : ""
+          if moveMode == "" {
+          appScroll = appOffset
+          appVelocity = 0
+          appElastic = appElasticVisual
+          appElasticReturning = false
+          if appFirst != null { appAnchor = appFirst.id; appAnchorSection = appFirst.section; appAnchorOffset = appOffset - appFirst.top }
+                  }
+        }
+        onDrag: {
+          if (layoutEditMode == "alphabet" || moveMode == "alphabet") && alphabetDragCandidate != "" {
+            // One gesture selects and moves the app; no preliminary tap.
+            let candidate = alphabetDragCandidate
+            let targetRow = find(appWindow, r => r.id == candidate)
+            let candidateLetter = targetRow == null ? "" : targetRow.section
+            let candidateIndex = candidateLetter == moveLetter && moveMode == "alphabet" ?
+              indexOf(movePreviewKeys, candidate) :
+              indexOf(get(groups, candidateLetter, []).map(a => a.key), candidate)
+            // Capture before changing moveKey. Otherwise the first sample
+            // can reuse the previous app's origin index in this same handler.
+            let selecting = moveMode != "alphabet" || moveKey != candidate
+            let dragOrigin = selecting ? candidateIndex : moveOriginIndex
+            let nextDragX = selecting ? dx : moveDragX + dx
+            let nextDragY = selecting ? dy : moveDragY + dy
+            if candidateIndex >= 0 && candidateLetter != "" {
+              if moveMode == "alphabet" && moveKey != candidate {
+                // Starting a new drag commits the prior app's preview, exactly
+                // like holding another app, but without a selection tap.
+                let previousTarget = moveEffectiveTargetIndex
+                let previousIsDefault = alphabetAtResetPosition
+                let previousAnchor = previousTarget == 0 ? get(moveOtherKeys, 0) : get(moveOtherKeys, previousTarget - 1)
+                if moveOriginIndex >= 0 && previousTarget >= 0 && previousTarget < len(moveKeys) &&
+                   (previousTarget == moveOriginIndex || previousAnchor != null) {
+                  if previousIsDefault {
+                    manualAppMoves = manualAppMoves.filter(m => m.key != moveKey)
+                  } else if previousTarget != moveOriginIndex {
+                    manualAppMoves = manualAppMoves + [{letter: moveLetter, key: moveKey, anchor: previousAnchor, after: previousTarget > 0}]
+                  }
+                  rightAlignedAppKeys = moveSideRight ? unique(rightAlignedAppKeys + [moveKey]) : rightAlignedAppKeys.filter(k => k != moveKey)
+                }
+              }
+              if selecting {
+                let entryScroll = appPreviewing ?
+                  clamp(get(appSectionStarts, indexOf(appSections, candidateLetter), 0) +
+                    appLabelHeight + candidateIndex * appRowHeight - y + dy, 0, appMaxScroll) : appOffset
+                moveEdgeDirection = 0
+                moveMode = "alphabet"
+                moveKey = candidate
+                moveLetter = candidateLetter
+                moveTargetIndex = candidateIndex
+                moveSideRight = contains(rightAlignedAppKeys, candidate)
+                moveDragX = 0
+                moveDragY = 0
+                moveLiftStarted = time
+                appScroll = entryScroll
+                appAnchor = ""
+                railHeld = false
+                activeSide = 0
+                draggingSide = 0
+                railPull = 0
+                menu = ""
+                menuShortcuts = null
+              }
+              // Once the app is floating, the unchanged list container still
+              // owns this touch and can autoscroll at either screen edge.
+              moveDragging = true
+              moveDragX = nextDragX
+              moveDragY = nextDragY
+              appVelocity = 0
+              let pointerY = y
+              let edgeMargin = min(72, appPanelHeight / 6)
+              moveEdgeDirection = pointerY >= appPanelHeight - edgeMargin && appOffset < moveEdgeMax ? 1 :
+                pointerY <= edgeMargin && appOffset > moveEdgeMin ? -1 : 0
+              moveTargetIndex = clamp(dragOrigin + round(nextDragY / appRowHeight), 0, max(0, len(moveKeys) - 1))
+            }
+          } else if moveMode == "" {
+          appVelocity = 0
+          appElasticReturning = false
+          // Unwind existing stretch before scrolling in the other direction.
+          // All local let values are immutable in OWL handlers.
+          let oldElastic = appElastic
+          let nextElastic = oldElastic + dy * 0.55
+          let stillElastic = oldElastic != 0 && sign(nextElastic) == sign(oldElastic)
+          let move = oldElastic == 0 ? dy : stillElastic ? 0 : dy + oldElastic / 0.55
+          if oldElastic != 0 {
+            appElastic = stillElastic ? clamp(nextElastic, -64, 64) : 0
+          }
+          if move != 0 {
+            let nextOffset = appOffset - move
+            appScroll = clamp(nextOffset, 0, appMaxScroll)
+            if !cfg.reduceMotion && nextOffset < 0 {
+              appElastic = min(64, (0 - nextOffset) * 0.55)
+            } else if !cfg.reduceMotion && nextOffset > appMaxScroll {
+              appElastic = -min(64, (nextOffset - appMaxScroll) * 0.55)
+            }
+          }
+          if dy != 0 { appTracking = true }
+          menu = ""
+          folderOpenId = ""
+          // Do not rewrite anchor-derived state on every pointer sample.
+          // Press and release capture it; drag updates only position.
+                  }
+        }
+        onDragEnd: {
+          if moveMode == "alphabet" && alphabetDragCandidate != "" {
+            // Finishing a direct drag leaves the preview ready for ✓ or ×.
+            moveDragging = false
+            moveEdgeDirection = 0
+          } else if moveMode == "" {
+          appScroll = appOffset
+          appElasticFrom = appElastic
+          appElasticStarted = time
+          appElasticReturning = !cfg.reduceMotion && abs(appElastic) > 0.1
+          if cfg.reduceMotion { appElastic = 0 }
+          appVelocity = appElasticReturning || !browsing || railHeld || cfg.reduceMotion || abs(vy) < 160 || vy > 0 && appOffset <= 0 || vy < 0 && appOffset >= appMaxScroll ? 0 : clamp(-vy, -6000, 6000)
+          if appVelocity != 0 { appGlideStarted = time }
+          if appFirst != null { appAnchor = appFirst.id; appAnchorSection = appFirst.section; appAnchorOffset = appOffset - appFirst.top }
+                  }
+          alphabetDragCandidate = ""
+        }
+        AlphabetBrowserViewportContent {}
+      }
+    }
+  }
+
+  // The rows/preview are shared, so changing the gesture owner cannot
+  // duplicate app content or change the list's geometry.
+  component AlphabetBrowserViewportContent() {
+    Box {
+      fill: true
         // The outlined destination shifts to the exact index ✓ will save.
         // Scrolling may virtualize the original row out of appWindow.
         // Keep its floating preview anchored to the original document row.
@@ -3595,7 +3731,30 @@ face "Omagara" {
         if len(apps) == 0 {
           Text { text: installed == null ? "Loading apps…" : "No installed apps"; font: chosenFont; fontSize: 14; color: muted }
         }
+    }
+  }
+
+  component AppRows(choices, searchView = false) {
+    Column {
+      lazy: true
+      fill: true
+      gap: 0
+      for a in choices key a.key {
+        AppRow { a: a; searchView: searchView }
       }
+      if len(choices) == 0 {
+        Text { text: installed == null ? "Loading apps…" : "No matching apps"; font: chosenFont; fontSize: 14; color: muted; padding: [4, 20] }
+      }
+    }
+  }
+
+  Box {
+    fill: true
+    ripple: false
+    onPress: { if appVelocity != 0 { appScroll = appOffset; appVelocity = 0; if appFirst != null { appAnchor = appFirst.id; appAnchorSection = appFirst.section; appAnchorOffset = appOffset - appFirst.top } } }
+    onTap: { if moveMode == "" && layoutEditMode != "alphabet" { appVelocity = 0; browsing = false; activeSide = 0; railHeld = false; draggingSide = 0; letter = first(liveAlphabet) ?? "A"; appScroll = 0; appAnchor = ""; queryText = ""; menu = ""; expandedStack = ""; replyKey = ""; replyDraft = "" } }
+    if browsing {
+      AlphabetBrowserViewport {}
     }
     // The notifications use symmetrical 40dp margins, then shift 20dp
     // away from the visible rail. With idle alphabet hidden, they center.
