@@ -110,7 +110,7 @@ face "Omagara" {
   state customFolders = [] persist
   state folderSerial = 0 persist
   state musicAppKeys = [] persist
-  // User-pinned Omagara home apps are independent of the native launcher strip.
+  // Pinned home shortcuts may be Android apps or custom folders.
   state pinnedAppKeys = [] persist
   // Per-pin layout persists row breaks. Standalone labels are always shown;
   // joined rows automatically hide them. Legacy showLabel data is ignored.
@@ -318,12 +318,14 @@ face "Omagara" {
   let apps = flatten(fullAlphabet.map(c => get(orderedGroups, c, []))).filter(a => !contains(hiddenAppKeys, a.key))
   let pickerApps = (installed ?? []).filter(a => trim(appPickerQuery) == "" || contains(lower(a.name), lower(trim(appPickerQuery))) || contains(lower(a.package), lower(trim(appPickerQuery)))).sortBy(a => lower(a.name)).take(40)
   let selectedMusicApps = (installed ?? []).filter(a => contains(musicAppKeys, a.key)).sortBy(a => lower(a.name)).take(5)
-  let pinnedApps = take(pinnedAppKeys.map(k => find(installed ?? [], a => a.key == k)).filter(a => a != null), 8)
+  // Stable folder IDs survive rename; prefix disambiguates app/profile keys.
+  let folderPins = customFolders.map(f => {key: "folder:" + f.id, name: f.name, folderId: f.id})
+  let pinnedApps = take(pinnedAppKeys.map(k => find(folderPins, p => p.key == k) ?? find(installed ?? [], a => a.key == k)).filter(a => a != null), 8)
   let pinnedRowNumbers = map(range(len(pinnedApps)), i => sum(take(pinnedApps, i + 1).map((a, j) => j == 0 || get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "newRow", true) != false ? 1 : 0)))
   let pinnedRows = unique(pinnedRowNumbers).map(r => pinnedApps.filter(a => get(pinnedRowNumbers, indexOf(pinnedApps.map(p => p.key), a.key), 0) == r))
   // Android notification identity is package + profile, not a launcher key.
   // Multiple activities for one package have only one notification owner.
-  let pinnedProfiles = unique(pinnedApps.map(a => toJson([a.package, a.profile])))
+  let pinnedProfiles = unique(pinnedApps.filter(a => a.folderId == null).map(a => toJson([a.package, a.profile])))
   let hasMedia = cfg.mediaPlayer && playback != null && playback.available != false && trim(playback.title ?? "") != ""
   let mediaNeedsAccess = cfg.mediaPlayer && playback != null && playback.available == false
   let audioConnected = audio != null && contains(["bluetooth", "wired", "usb", "dock"], audio.output.type ?? "")
@@ -335,7 +337,7 @@ face "Omagara" {
   let moveOriginIndex = indexOf(moveKeys, moveKey)
   let moveOtherKeys = moveKeys.filter(k => k != moveKey)
   let movePreviewKeys = moveOriginIndex < 0 ? [] : take(moveOtherKeys, moveTargetIndex) + [moveKey] + drop(moveOtherKeys, moveTargetIndex)
-  let moveApp = find(installed ?? [], a => a.key == moveKey)
+  let moveApp = moveMode == "pin" ? find(pinnedApps, a => a.key == moveKey) : find(installed ?? [], a => a.key == moveKey)
   // Freeze mapping and geometry for the entire touch, even if apps update.
   let liveAlphabet = cfg.hideEmpty ? fullAlphabet.filter(c => len(get(groups, c, [])) > 0) : fullAlphabet
   // Freeze letters through the return, so changing available apps cannot reshape the worm mid-snap.
@@ -493,7 +495,7 @@ face "Omagara" {
       pinDraftBreakKeys.map(k => merge(find(pinnedLayouts, p => p.key == k) ?? {key: k, showLabel: true}, {newRow: k == pinDraftFollowingKey ? (pinDraftJoinAfter ? false : pinDraftJoinBefore ? pinDraftFollowingStartsRow : true) : true})) +
       [merge(pinDraftOldLayout ?? {key: moveKey, showLabel: true}, {newRow: pinDraftJoinBefore ? false : pinDraftJoinAfter ? pinDraftFollowingStartsRow : true})]
   let pinDraftKeys = pinDraftActive && pinDraftChanged ? movePreviewKeys : pinnedAppKeys
-  let pinDraftApps = take(pinDraftKeys.map(k => find(installed ?? [], a => a.key == k)).filter(a => a != null), 8)
+  let pinDraftApps = take(pinDraftKeys.map(k => find(pinnedApps, a => a.key == k)).filter(a => a != null), 8)
   let pinDraftRowNumbers = map(range(len(pinDraftApps)), i => sum(take(pinDraftApps, i + 1).map((a, j) => j == 0 || get(find(pinDraftLayouts, p => p.key == a.key) ?? {}, "newRow", true) != false ? 1 : 0)))
   let pinDraftRows = unique(pinDraftRowNumbers).map(r => pinDraftApps.filter(a => get(pinDraftRowNumbers, indexOf(pinDraftApps.map(p => p.key), a.key), 0) == r))
   // Projected row decides whether the floating app is icon-only. Make one
@@ -1052,9 +1054,9 @@ face "Omagara" {
   // Shortcuts and native app actions are the same APIs as the A-Z context menu.
   component HomePinIcon(a, iconSize = 30, showNoticeDot = false) {
     let identity = toJson([a.package, a.profile])
-    let notificationOwner = first(pinnedApps.filter(p => toJson([p.package, p.profile]) == identity))
+    let notificationOwner = first(pinnedApps.filter(p => p.folderId == null && toJson([p.package, p.profile]) == identity))
     let ownedNotices = get(noticeGroups, identity, [])
-    let hasOwnNotices = cfg.notifications && notices != null && notices.available != false && notificationOwner != null && notificationOwner.key == a.key && len(ownedNotices) > 0
+    let hasOwnNotices = a.folderId == null && cfg.notifications && notices != null && notices.available != false && notificationOwner != null && notificationOwner.key == a.key && len(ownedNotices) > 0
     Box {
       size: iconSize
       onTap: {
@@ -1068,17 +1070,25 @@ face "Omagara" {
           }
           moveDragging = false
         } else if moveMode == "" {
-          androidApp(a.key)
+          if a.folderId != null {
+            folderOpenId = folderOpenId == a.folderId ? "" : a.folderId
+            pinnedMenuKey = ""; pinnedMenuShortcuts = null
+          } else {
+            androidApp(a.key)
+          }
         }
       }
       onLongPress: {
         if moveMode == "" {
+          folderOpenId = ""
           pinnedMenuShortcuts = null
           pinnedMenuKey = a.key
-          pinnedMenuShortcuts = shortcuts(a.key)
+          pinnedMenuShortcuts = a.folderId != null ? [] : shortcuts(a.key)
         }
       }
-      if a.icon != null && a.icon != "" {
+      if a.folderId != null {
+        FolderIcon { f: find(customFolders, f => f.id == a.folderId); side: iconSize }
+      } else if a.icon != null && a.icon != "" {
         Image { src: a.icon; size: iconSize; label: a.name + (a.profile == null ? "" : " · " + a.profile) }
       } else {
         Text { text: upper(sub(trim(a.name), 0, 1)); font: chosenFont; fontSize: 18; color: primaryText; align: center }
@@ -1110,6 +1120,16 @@ face "Omagara" {
           }
         }
       }
+      if a.folderId != null {
+        Popup {
+          visible: moveMode == "" && !browsing && folderOpenId == a.folderId
+          onDismiss: { folderOpenId = ""; menu = "" }
+          position: below
+          width: min(226, max(160, noticeWidth - 28))
+          gap: 0
+          FolderPopupContents { f: find(customFolders, f => f.id == a.folderId) }
+        }
+      }
       Popup {
         visible: moveMode == "" && pinnedMenuKey == a.key && pinnedMenuShortcuts != null
         onDismiss: { pinnedMenuKey = ""; pinnedMenuShortcuts = null }
@@ -1131,6 +1151,7 @@ face "Omagara" {
               moveDragX = 0
               moveDragY = 0
               expandedPinnedKey = ""
+              folderOpenId = ""
               pinnedMenuKey = ""; pinnedMenuShortcuts = null
             }
           }
@@ -1146,17 +1167,34 @@ face "Omagara" {
             pinnedMenuKey = ""; pinnedMenuShortcuts = null
           }
         }
-        Text {
-          text: "Add to folder"
-          fill: width
-          padding: [12, 14]
-          onTap: {
-            pinnedMenuKey = ""; pinnedMenuShortcuts = null
-            folderPickAppKey = a.key
-            folderDraft = ""
-            folderPickReturnMode = "face"
-            screenMode = "folderPick"
-            screen()
+        if a.folderId != null {
+          Text {
+            text: "Edit folder"
+            fill: width
+            padding: [12, 14]
+            onTap: {
+              pinnedMenuKey = ""; pinnedMenuShortcuts = null
+              folderEditId = a.folderId
+              folderEditName = a.name
+              folderAppQuery = ""
+              folderDeleteConfirm = false
+              screenMode = "folderEdit"
+              screen()
+            }
+          }
+        } else {
+          Text {
+            text: "Add to folder"
+            fill: width
+            padding: [12, 14]
+            onTap: {
+              pinnedMenuKey = ""; pinnedMenuShortcuts = null
+              folderPickAppKey = a.key
+              folderDraft = ""
+              folderPickReturnMode = "face"
+              screenMode = "folderPick"
+              screen()
+            }
           }
         }
         for shortcut in pinnedMenuShortcuts ?? [] key shortcut.key {
@@ -1182,12 +1220,12 @@ face "Omagara" {
 
   component HomePinNotifications(a) {
     let identity = toJson([a.package, a.profile])
-    let notificationOwner = first(pinnedApps.filter(p => toJson([p.package, p.profile]) == identity))
+    let notificationOwner = first(pinnedApps.filter(p => p.folderId == null && toJson([p.package, p.profile]) == identity))
     let ownedNotices = get(noticeGroups, identity, [])
     Column {
       fill: width
       gap: 3
-      if cfg.notifications && notices != null && notices.available != false && notificationOwner != null && notificationOwner.key == a.key && expandedPinnedKey == a.key && len(ownedNotices) > 0 {
+      if a.folderId == null && cfg.notifications && notices != null && notices.available != false && notificationOwner != null && notificationOwner.key == a.key && expandedPinnedKey == a.key && len(ownedNotices) > 0 {
         for n in take(ownedNotices, pinnedNoticeShown) key n.key {
           NotificationRow { item: n; stack: identity; summary: false }
         }
@@ -1416,7 +1454,9 @@ face "Omagara" {
           align: center
           padding: [2, 2]
           gap: 6
-          if a.icon != null && a.icon != "" {
+          if a.folderId != null {
+            FolderIcon { f: find(customFolders, f => f.id == a.folderId); side: min(iconSize, slotHeight - 8) }
+          } else if a.icon != null && a.icon != "" {
             Image { src: a.icon; size: min(iconSize, slotHeight - 8); label: a.name }
           } else {
             Text { text: upper(sub(trim(a.name), 0, 1)); font: chosenFont; fontSize: 18; color: primaryText; width: iconSize; align: center }
