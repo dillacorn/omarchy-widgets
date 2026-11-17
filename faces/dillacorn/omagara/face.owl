@@ -319,6 +319,8 @@ face "Omagara" {
   let pickerApps = (installed ?? []).filter(a => trim(appPickerQuery) == "" || contains(lower(a.name), lower(trim(appPickerQuery))) || contains(lower(a.package), lower(trim(appPickerQuery)))).sortBy(a => lower(a.name)).take(40)
   let selectedMusicApps = (installed ?? []).filter(a => contains(musicAppKeys, a.key)).sortBy(a => lower(a.name)).take(5)
   // Stable folder IDs survive rename; prefix disambiguates app/profile keys.
+  // OWL lets are sequential: declare available width before pin geometry.
+  let availableWidth = (tileWidth ?? 400) - screenLeft - screenRight
   // Only the available content width limits an individual horizontal row.
   // The 24dp icon floor leaves 4dp padding and a 6dp gap between pins.
   let noticeWidth = max(0, availableWidth - 80)
@@ -361,7 +363,6 @@ face "Omagara" {
   let searchResults = trim(queryText) == "" ? (lastOpenedApp == null ? searchApps : [lastOpenedApp] + searchApps.filter(a => a.key != lastOpenedApp.key)) : rank(searchApps, trim(queryText))
   let availableHeight = (tileHeight ?? 800) - screenTop - screenInset
   let compact = availableHeight < 560
-  let availableWidth = (tileWidth ?? 400) - screenLeft - screenRight
   // The 44dp right rail is inset by screenRight + 4dp; glyphs are centered
   // 22dp inside it. Keep the glyph fully inside the opposite safe edge.
   let railBaseX = (tileWidth ?? 400) - screenRight - 26
