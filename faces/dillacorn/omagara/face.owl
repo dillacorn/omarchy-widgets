@@ -507,19 +507,11 @@ face "Omagara" {
   // Temporary editor space prevents drag controls from covering Home content.
   let homeEditorVisible = layoutEditMode == "home" || moveMode == "pin"
   let headerEditorLane = homeEditorVisible && len(headerRows) > 0 ? 48 : 0
-  // Keep Worm next to its upper letters, but below the header edit lane.
-  let wormEditorTop = clamp(homeEditorVisible ?
-    max(railTop - 46, screenTop + 12 + (len(headerRows) > 0 ? headerPadTop + headerShapeHeight + headerEditorLane + max(0, headerSpacing) : 0) + 8) :
-    railTop - 42,
+  // Home editing places Worm beside the clock, not over the media or pins.
+  // The Alphabet editor keeps a separate handle beside the upper worm.
+  let wormEditorTop = clamp(railTop - 42,
     screenTop + 8, max(screenTop + 8, screenTop + availableHeight - 44))
-  // During Home editing, relocate the Worm handle away from the first
-  // pinned row if that row is aligned against the alphabet side.
-  let topPinRow = get(pinnedRows, 0, [])
-  let topPinRight = len(topPinRow) > 0 &&
-    get(find(pinnedLayouts, p => p.key == first(topPinRow).key) ?? {}, "alignRight", false)
-  let wormHandleAvoidTopRow = layoutEditMode == "home" && len(topPinRow) > 0 &&
-    ((alphabetSide == 1 && topPinRight) || (alphabetSide == -1 && !topPinRight))
-  let wormHandleOnLeft = wormHandleAvoidTopRow ? alphabetSide == 1 : alphabetSide == -1
+  let wormHandleOnLeft = alphabetSide == -1
   // Clock/date/event rows disappear from the scroll document when disabled.
   // Search and the gesture cue have their own side preference. Close can
   // follow Search or use either edge independently, with the same rail clearance.
@@ -2139,6 +2131,10 @@ face "Omagara" {
                 align: center
                 gap: 8
                 padding: [6, 2]
+                // Reserve the worm-side slot even when Clock is compact.
+                if homeEditorVisible && alphabetSide == -1 {
+                  Spacer { width: 108 }
+                }
                 if cfg.clock {
                   Text {
                     text: headerClockText
@@ -2161,6 +2157,9 @@ face "Omagara" {
                     maxLines: 1
                     onTap: { if cfg.dateTap && layoutEditMode == "" { pickedEvent = null; queryText = ""; screenMode = "calendar"; screen() } }
                   }
+                }
+                if homeEditorVisible && alphabetSide == 1 {
+                  Spacer { width: 108 }
                 }
               }
             }
@@ -2194,6 +2193,8 @@ face "Omagara" {
                 color: primaryText
                 align: center
                 maxLines: 1
+                // In Home edit mode use the space opposite the Worm control.
+                offset: [homeEditorVisible ? (alphabetSide == 1 ? -54 : 54) : 0, 0]
                 onTap: { if cfg.clockTap && layoutEditMode == "" { queryText = ""; screenMode = "clock"; screen() } }
               }
             }
@@ -2211,6 +2212,7 @@ face "Omagara" {
                 color: secondaryText
                 align: center
                 maxLines: 1
+                offset: [homeEditorVisible && !cfg.clock ? (alphabetSide == 1 ? -54 : 54) : 0, 0]
                 onTap: { if cfg.dateTap && layoutEditMode == "" { pickedEvent = null; queryText = ""; screenMode = "calendar"; screen() } }
               }
             }
@@ -2259,6 +2261,17 @@ face "Omagara" {
             height: 40
             offset: [max(0, noticeWidth - 136), headerPadTop + headerShapeHeight + 4 + max(0, headerSpacing)]
             LayoutSpacingHandle { zone: "header" }
+          }
+          // Dock Worm/Reset beside the time, mirroring with Alphabet's side.
+          // It occupies the clock row instead of crossing media or pin rows.
+          Box {
+            width: 104
+            height: 40
+            offset: [
+              alphabetSide == 1 ? max(0, noticeWidth - 104) : 0,
+              headerPadTop + max(0, ((compactHeader ? 44 : cfg.clock ? headerClockHeight : headerDateHeight) - 40) / 2)
+            ]
+            LayoutSpacingHandle { zone: "rail" }
           }
         }
       }
@@ -3943,8 +3956,7 @@ face "Omagara" {
         }
       }
     }
-    if (layoutEditMode == "home" && !browsing && moveMode != "alphabet") ||
-       (layoutEditMode == "alphabet" && browsing) {
+    if layoutEditMode == "alphabet" && browsing {
       Box {
         fill: true
         align: wormHandleOnLeft ? "topStart" : "topEnd"
