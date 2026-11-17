@@ -465,6 +465,7 @@ face "Omagara" {
   let headerBatteryText = cfg.batteryPercentage && headerBatteryLevel != null ? " " + str(clamp(round(headerBatteryLevel), 0, 100)) + "%" : ""
   let headerDatePattern = cfg.dateAbbreviated ? "EEE, MMM d" : cfg.batteryPercentage ? "EEEE, MMM d" : "EEEE, MMMM d"
   let headerDateText = fmtTime(now, headerDatePattern) + headerBatteryText
+  let compactHeaderDateText = fmtTime(now, "EEE, MMM d") + headerBatteryText
   let headerEventText = todayEvent != null ? todayEvent.title + " · " + (todayEvent.allDay ? "Today" : fmtTime(todayEvent.start, timePattern)) : ""
   let headerClockFont = compact ? 36 : 48
   let headerClockHeight = compact ? 47 : 63
@@ -476,7 +477,7 @@ face "Omagara" {
   let headerDateWidth = min(headerShapeMax, 28 + 16 * (cfg.faceFont == "Launcher" ? 0.68 * len(headerDateText) : sum(map(range(len(headerDateText)), i => contains("iltfjI!.,:; '1", sub(headerDateText, i, i + 1)) ? 0.30 : contains("MW@QO", sub(headerDateText, i, i + 1)) ? 0.77 : 0.55))))
   let headerEventWidth = min(headerShapeMax, 26 + 13 * (cfg.faceFont == "Launcher" ? 0.68 * len(headerEventText) : sum(map(range(len(headerEventText)), i => contains("iltfjI!.,:; '1", sub(headerEventText, i, i + 1)) ? 0.30 : contains("MW@QO", sub(headerEventText, i, i + 1)) ? 0.77 : 0.55))))
   let headerRows = (cfg.clock ? [{w: headerClockWidth, h: headerClockHeight}] : []) + (cfg.date ? [{w: headerDateWidth, h: headerDateHeight}] : []) + (cfg.event && todayEvent != null ? [{w: headerEventWidth, h: headerEventHeight}] : [])
-  let headerShapeHeight = sum(map(headerRows, r => r.h))
+  let headerShapeHeight = compactHeader ? ((cfg.clock || cfg.date ? 44 : 0) + (cfg.event && todayEvent != null ? 22 : 0)) : sum(map(headerRows, r => r.h))
   // Clock/date/event rows disappear from the scroll document when disabled.
   // Search and the gesture cue have their own side preference. Close can
   // follow Search or use either edge independently, with the same rail clearance.
@@ -1675,7 +1676,7 @@ face "Omagara" {
             // Restore the compact v1.6 outer-corner treatment, not a capsule.
             let topR = topRounded ? 8 : 0
             let bottomR = bottomRounded ? 8 : 0
-            let shadeWidth = min(headerShapeMax, 16 + max(cfg.clock ? headerClockWidth : 0, max(cfg.date ? headerDateWidth : 0, cfg.event && todayEvent != null ? headerEventWidth : 0)))
+            let shadeWidth = compactHeader ? min(headerShapeMax, 22 + (cfg.clock ? min(headerClockWidth * 0.58, 116) : 0) + (cfg.date ? min(headerDateWidth, 165) : 0)) : min(headerShapeMax, 16 + max(cfg.clock ? headerClockWidth : 0, max(cfg.date ? headerDateWidth : 0, cfg.event && todayEvent != null ? headerEventWidth : 0)))
             let slices = map(range(ceil(headerShapeHeight / 2) + 1), i => min(headerShapeHeight, i * 2))
             let shapeEdge = map(slices, y => {
               y: y,
@@ -1690,6 +1691,55 @@ face "Omagara" {
           fill: width
           gap: 0
           offset: [0, headerPadTop]
+          if compactHeader {
+            if cfg.clock || cfg.date {
+              Row {
+                fill: width
+                height: 44
+                align: center
+                gap: 8
+                padding: [6, 2]
+                if cfg.clock {
+                  Text {
+                    text: headerClockText
+                    width: min(118, noticeWidth * 0.36)
+                    font: chosenFont
+                    fontSize: compact ? 22 : 27
+                    fontWeight: 300
+                    color: primaryText
+                    maxLines: 1
+                    onTap: { if cfg.clockTap && layoutEditMode == "" { queryText = ""; screenMode = "clock"; screen() } }
+                  }
+                }
+                if cfg.date {
+                  Text {
+                    text: compactHeaderDateText
+                    font: chosenFont
+                    fontSize: 12
+                    color: secondaryText
+                    weight: 1
+                    maxLines: 1
+                    onTap: { if cfg.dateTap && layoutEditMode == "" { pickedEvent = null; queryText = ""; screenMode = "calendar"; screen() } }
+                  }
+                }
+              }
+            }
+            if cfg.event && todayEvent != null {
+              Box {
+                fill: width
+                height: 22
+                align: center
+                Text {
+                  text: headerEventText
+                  font: chosenFont
+                  fontSize: 12
+                  color: secondaryText
+                  maxLines: 1
+                  onTap: { if cfg.eventTap && layoutEditMode == "" { pickedEvent = todayEvent; queryText = ""; screenMode = "calendar"; screen() } }
+                }
+              }
+            }
+          } else {
           if cfg.clock {
             Box {
               fill: width
@@ -1704,7 +1754,7 @@ face "Omagara" {
                 color: primaryText
                 align: center
                 maxLines: 1
-                onTap: { if cfg.clockTap { queryText = ""; screenMode = "clock"; screen() } }
+                onTap: { if cfg.clockTap && layoutEditMode == "" { queryText = ""; screenMode = "clock"; screen() } }
               }
             }
           }
@@ -1721,7 +1771,7 @@ face "Omagara" {
                 color: secondaryText
                 align: center
                 maxLines: 1
-                onTap: { if cfg.dateTap { pickedEvent = null; queryText = ""; screenMode = "calendar"; screen() } }
+                onTap: { if cfg.dateTap && layoutEditMode == "" { pickedEvent = null; queryText = ""; screenMode = "calendar"; screen() } }
               }
             }
           }
@@ -1738,9 +1788,24 @@ face "Omagara" {
                 color: secondaryText
                 align: center
                 maxLines: 1
-                onTap: { if cfg.eventTap { pickedEvent = todayEvent; queryText = ""; screenMode = "calendar"; screen() } }
+                onTap: { if cfg.eventTap && layoutEditMode == "" { pickedEvent = todayEvent; queryText = ""; screenMode = "calendar"; screen() } }
               }
             }
+          }
+          }
+        }
+        // A small always-available button collapses/expands the clock/date.
+        if cfg.clock || cfg.date {
+          Box {
+            size: 26
+            offset: [max(0, noticeWidth - 30), headerPadTop + (compactHeader ? 8 : cfg.clock ? max(3, headerClockHeight / 2 - 13) : 3)]
+            radius: cfg.roundDate ? 6 : 0
+            background: alpha(surface, 0.84)
+            border: 1
+            borderColor: alpha(accent, 0.52)
+            align: center
+            onTap: compactHeader = !compactHeader
+            Text { text: compactHeader ? "▢" : "▤"; font: chosenFont; fontSize: 17; color: accent; align: center }
           }
         }
       }
