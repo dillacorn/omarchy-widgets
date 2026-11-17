@@ -125,8 +125,9 @@ face "Omagara" {
   state moveKey = ""
   state moveLetter = ""
   state moveTargetIndex = 0
-  state moveDragBaseIndex = 0
-  state moveDragDistance = 0
+  // Floating selected row follows the finger in the original list.
+  state moveDragX = 0
+  state moveDragY = 0
   // Manual quick-launch expansion: never follows play/pause or Bluetooth refreshes.
   state musicAppsExpanded = false
   state compactAlertApps = [] persist
@@ -1449,147 +1450,107 @@ face "Omagara" {
     }
   }
 
-  // A modal reorder overlay keeps the real app list and pins unchanged
-  // until the checkmark is tapped. The selected card follows the drag in
-  // bounded steps; any destination row can also be tapped after scrolling.
-  component MoveEditor() {
+  // The selected application floats over its ORIGINAL home/A-Z position.
+  // Its neighboring rows remain visible. No separate reorder screen.
+  component FloatingMoveApp(a, alphabetMode = false, slotWidth = 180, slotHeight = 48) {
+    let floatingWidth = alphabetMode ? min(slotWidth - 10, 230) : min(noticeWidth, max(142, slotWidth + 48))
     Box {
-      fill: true
-      align: center
-      background: alpha(background, 0.88)
-      onTap: moveDragDistance = 0
-      Column {
-        width: min(338, max(220, (tileWidth ?? 400) - screenLeft - screenRight - 44))
-        height: min(max(240, appSafeBottom - screenTop - 32), max(280, (tileHeight ?? 800) - screenTop - screenInset - 32))
-        background: alpha(surface, 0.97)
-        border: 1
+      width: slotWidth
+      height: slotHeight
+      radius: 7
+      border: 1
+      borderColor: alpha(accent, 0.55)
+      background: alpha(accent, 0.07)
+      Box {
+        width: floatingWidth
+        height: slotHeight
+        offset: [moveDragX, moveDragY]
+        scale: 1.07
+        background: alpha(surface, 0.94)
+        border: 2
         borderColor: accent
-        radius: 10
-        padding: [10, 12]
-        gap: 8
-        Text {
-          text: "Move " + (moveApp == null ? "app" : moveApp.name)
-          font: chosenFont
-          fontSize: 18
-          color: primaryText
-          maxLines: 1
-        }
-        Text {
-          text: moveMode == "alphabet" ? "Move within " + moveLetter + ". Drag the highlighted handle or tap a destination." : "Drag the highlighted handle or tap a destination. Horizontal rows can be adjusted after saving."
-          font: chosenFont
-          fontSize: 12
-          color: secondaryText
-          maxLines: 3
-        }
-        Column {
-          fill: width
-          weight: 1
-          lazy: true
-          gap: 3
-          for candidateKey in movePreviewKeys key candidateKey {
-            let candidateApp = find(installed ?? [], a => a.key == candidateKey)
-            let candidateIsMoving = candidateKey == moveKey
-            let candidateIndex = indexOf(movePreviewKeys, candidateKey)
-            Row {
-              fill: width
-              height: 48
-              gap: 10
-              padding: [5, 4]
-              align: center
-              background: candidateIsMoving ? alpha(accent, 0.25) : alpha(surface, 0.26)
-              border: candidateIsMoving ? 2 : 0
-              borderColor: accent
-              radius: candidateIsMoving ? 8 : 4
-              scale: candidateIsMoving ? 1.035 : 1
-              offset: candidateIsMoving ? [6, clamp(moveDragDistance - (moveTargetIndex - moveDragBaseIndex) * 48, -24, 24)] : [0, 0]
-              onTap: {
-                if !candidateIsMoving {
-                  moveTargetIndex = candidateIndex
-                  moveDragBaseIndex = candidateIndex
-                  moveDragDistance = 0
-                }
-              }
-              if candidateApp != null && candidateApp.icon != null && candidateApp.icon != "" {
-                Image { src: candidateApp.icon; size: 30; label: candidateApp.name }
-              } else {
-                Text { text: candidateApp == null ? "?" : upper(sub(trim(candidateApp.name), 0, 1)); font: chosenFont; fontSize: 16; color: primaryText; width: 30 }
-              }
-              Text {
-                text: candidateApp == null ? candidateKey : candidateApp.name
-                font: chosenFont
-                fontSize: 14
-                color: candidateIsMoving ? accent : primaryText
-                maxLines: 1
-                weight: 1
-              }
-              if candidateIsMoving {
-                Box {
-                  size: 38
-                  align: center
-                  background: alpha(accent, 0.18)
-                  radius: 6
-                  drag: vertical
-                  onPress: {
-                    moveDragBaseIndex = moveTargetIndex
-                    moveDragDistance = 0
-                  }
-                  onDrag: {
-                    moveDragDistance = moveDragDistance + dy
-                    moveTargetIndex = clamp(moveDragBaseIndex + round(moveDragDistance / 48), 0, max(0, len(moveKeys) - 1))
-                  }
-                  onDragEnd: {
-                    moveDragDistance = 0
-                    moveDragBaseIndex = moveTargetIndex
-                  }
-                  Text { text: "⠿"; font: chosenFont; fontSize: 24; color: accent; align: center }
-                }
-              } else {
-                Text { text: "○"; font: chosenFont; fontSize: 16; color: muted; width: 28; align: center }
-              }
-            }
-          }
+        radius: 8
+        ripple: false
+        onDrag: {
+          moveDragX = moveDragX + dx
+          moveDragY = moveDragY + dy
+          // A-Z stays within its letter; pins can also move sideways.
+          let shift = alphabetMode ? round(moveDragY / appRowHeight) : abs(moveDragY) >= 24 ? round(moveDragY / 52) : round(moveDragX / 60)
+          moveTargetIndex = clamp(moveOriginIndex + shift, 0, max(0, len(moveKeys) - 1))
         }
         Row {
           fill: width
-          gap: 8
-          justify: spaceBetween
-          Button {
-            text: "× Cancel"
-            onTap: {
-              moveMode = ""
-              moveKey = ""
-              moveLetter = ""
-              moveDragDistance = 0
-            }
+          height: slotHeight
+          align: center
+          padding: [4, 8]
+          gap: 9
+          if a.icon != null && a.icon != "" {
+            Image { src: a.icon; size: min(34, slotHeight - 8); label: a.name }
+          } else {
+            Text { text: upper(sub(trim(a.name), 0, 1)); font: chosenFont; fontSize: 19; color: primaryText; width: 34; align: center }
           }
-          Button {
-            text: "✓ Save position"
-            onTap: {
-              if moveOriginIndex >= 0 && moveTargetIndex >= 0 && moveTargetIndex < len(moveKeys) {
-                if moveMode == "pin" && moveTargetIndex != moveOriginIndex {
-                  let previousNext = get(pinnedAppKeys, moveOriginIndex + 1)
-                  let newNext = get(movePreviewKeys, moveTargetIndex + 1)
-                  let breakKeys = unique([moveKey, previousNext, newNext].filter(k => k != null))
-                  pinnedLayouts = pinnedLayouts.filter(p => !contains(breakKeys, p.key)) + breakKeys.map(k => merge(find(pinnedLayouts, p => p.key == k) ?? {key: k, showLabel: true}, {newRow: true}))
-                  pinnedAppKeys = movePreviewKeys
-                } else if moveMode == "alphabet" && moveTargetIndex != moveOriginIndex {
-                  let neighbor = moveTargetIndex == 0 ? get(moveOtherKeys, 0) : get(moveOtherKeys, moveTargetIndex - 1)
-                  if neighbor != null {
-                    // Replay the relocation AFTER earlier moves, including
-                    // moves that use this app as their anchor. Removing its
-                    // history would unexpectedly rearrange other moved apps.
-                    manualAppMoves = manualAppMoves + [{letter: moveLetter, key: moveKey, anchor: neighbor, after: moveTargetIndex > 0}]
-                    appVelocity = 0
-                    appScroll = appOffset
-                    appAnchor = ""
-                  }
+          Text {
+            text: a.name
+            font: chosenFont
+            fontSize: 15
+            color: primaryText
+            maxLines: 1
+            weight: 1
+          }
+          Text { text: "⠿"; font: chosenFont; fontSize: 22; color: accent }
+        }
+      }
+    }
+  }
+
+  // Small confirmation controls; no obscuring modal and no duplicate app list.
+  component MoveControls() {
+    Box {
+      fill: true
+      align: bottomStart
+      padding: [screenLeft + 20, 0, 0, searchBottom + 66]
+      Row {
+        gap: 8
+        padding: [7, 8]
+        background: alpha(surface, 0.92)
+        border: 1
+        borderColor: accent
+        radius: 8
+        Button {
+          text: "× Cancel"
+          onTap: {
+            moveMode = ""
+            moveKey = ""
+            moveLetter = ""
+            moveDragX = 0
+            moveDragY = 0
+          }
+        }
+        Button {
+          text: "✓"
+          onTap: {
+            if moveOriginIndex >= 0 && moveTargetIndex >= 0 && moveTargetIndex < len(moveKeys) {
+              if moveMode == "pin" && moveTargetIndex != moveOriginIndex {
+                let previousNext = get(pinnedAppKeys, moveOriginIndex + 1)
+                let newNext = get(movePreviewKeys, moveTargetIndex + 1)
+                let breakKeys = unique([moveKey, previousNext, newNext].filter(k => k != null))
+                pinnedLayouts = pinnedLayouts.filter(p => !contains(breakKeys, p.key)) + breakKeys.map(k => merge(find(pinnedLayouts, p => p.key == k) ?? {key: k, showLabel: true}, {newRow: true}))
+                pinnedAppKeys = movePreviewKeys
+              } else if moveMode == "alphabet" && moveTargetIndex != moveOriginIndex {
+                let neighbor = moveTargetIndex == 0 ? get(moveOtherKeys, 0) : get(moveOtherKeys, moveTargetIndex - 1)
+                if neighbor != null {
+                  manualAppMoves = manualAppMoves + [{letter: moveLetter, key: moveKey, anchor: neighbor, after: moveTargetIndex > 0}]
+                  appVelocity = 0
+                  appScroll = appOffset
+                  appAnchor = ""
                 }
               }
-              moveMode = ""
-              moveKey = ""
-              moveLetter = ""
-              moveDragDistance = 0
             }
+            moveMode = ""
+            moveKey = ""
+            moveLetter = ""
+            moveDragX = 0
+            moveDragY = 0
           }
         }
       }
@@ -2738,9 +2699,9 @@ face "Omagara" {
         }
       }
     }
-    // Keep the editor above the worm, notification cards and Search controls.
+    // Only a small checkmark/cancel strip overlays the actual app layout.
     if moveMode != "" {
-      MoveEditor {}
+      MoveControls {}
     }
   }
 
