@@ -3314,10 +3314,17 @@ face "Omagara" {
         clip: true
         drag: layoutEditMode == "alphabet" || moveMode == "alphabet" ? "both" : "vertical"
         onPress: {
-          // Never start the move on a heading, folder, or blank list area.
+          // Hit the VISIBLE projected row, not its original index. A prior
+          // pending move shifts neighbors before they are committed, and
+          // dragging a second app must target the one under the finger.
           let touched = first(appWindow.filter(r => r.app != null &&
-            y >= (appPreviewing ? r.top : r.top - appOffset) &&
-            y < (appPreviewing ? r.top : r.top - appOffset) + r.height))
+            (moveMode != "alphabet" || r.id != moveKey) &&
+            y >= (appPreviewing ? r.top : r.top - appOffset) +
+              (moveMode == "alphabet" && r.section == moveLetter ?
+                (indexOf(movePreviewKeys, r.id) - indexOf(moveKeys, r.id)) * appRowHeight : 0) &&
+            y < (appPreviewing ? r.top : r.top - appOffset) +
+              (moveMode == "alphabet" && r.section == moveLetter ?
+                (indexOf(movePreviewKeys, r.id) - indexOf(moveKeys, r.id)) * appRowHeight : 0) + r.height))
           alphabetDragCandidate = (layoutEditMode == "alphabet" || moveMode == "alphabet") && touched != null ?
             touched.id : ""
           if moveMode == "" {
