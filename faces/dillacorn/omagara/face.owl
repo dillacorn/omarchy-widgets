@@ -136,6 +136,8 @@ face "Omagara" {
   // Continuous same-letter autoscroll while the selected app is HELD near
   // a screen edge. Its clock runs only during an active edge drag.
   state moveEdgeDirection = 0
+  // Start of the current edge-scroll segment. Derived time stays dormant when idle.
+  state moveEdgeStartedAt = 0
   // Track a gesture's first app before the editor swaps to its floating
   // preview; the parent list remains mounted for the entire drag.
   state alphabetDragCandidate = ""
@@ -702,8 +704,8 @@ face "Omagara" {
   let appGliding = browsing && !railHeld && menu == "" && appVelocity != 0
   let appGlideAge = appGliding ? max(0, time - appGlideStarted) : 0
   let appDecay = pow(2.718281828459045, -5 * min(appGlideAge, 1.6))
-  // The previous time-derived value did not reliably advance while a finger
-  // was stationary. An OWL 21 frame handler below now advances actual state.
+  // Read time only while the selected app is held near an edge, rather than
+  // using an unconditional frame trigger that keeps the face awake at 60 FPS.
   let moveEdgeSection = moveMode == "alphabet" ? indexOf(appSections, moveLetter) : -1
   let moveEdgeTop = get(appSectionStarts, moveEdgeSection, 0)
   let moveEdgeHeight = appLabelHeight + len(get(groups, moveLetter, [])) * appRowHeight
@@ -711,28 +713,24 @@ face "Omagara" {
   let moveEdgeMax = clamp(max(moveEdgeMin, moveEdgeTop + moveEdgeHeight - appPanelHeight + appEdgeSpace), moveEdgeMin, appMaxScroll)
   let moveEdgeActive = moveMode == "alphabet" && browsing && moveDragging &&
     moveEdgeDirection != 0 && moveEdgeSection >= 0 && moveEdgeHeight > appPanelHeight - 2 * appEdgeSpace
-  let appOffset = clamp(appScroll + (appGliding ? appVelocity * (1 - appDecay) / 5 : 0), 0, appMaxScroll)
-  // Updating moveTargetIndex in the frame also moves the actual snap outline.
-  let moveEffectiveTargetIndex = moveTargetIndex
-  every frame {
-    if moveEdgeActive {
-      let step = moveEdgeDirection * 300 * dt
-      // Directional bounds cannot jump outside the selected letter, even
-      // when the original list was opened from a worm preview.
-      let nextScroll = moveEdgeDirection > 0 ?
-        min(moveEdgeMax, appOffset + step) : max(moveEdgeMin, appOffset + step)
-      let travelled = moveEdgeDirection > 0 ? max(0, nextScroll - appOffset) : min(0, nextScroll - appOffset)
-      if abs(travelled) > 0.001 {
-        // Anchor the floating row under the stationary finger while the
-        // document travels underneath. Use the SAME delta for insertion.
-        let nextDragY = moveDragY + travelled
-        appScroll = appOffset + travelled
-        moveDragY = nextDragY
-        moveTargetIndex = clamp(moveOriginIndex + round(nextDragY / appRowHeight), 0, max(0, len(moveKeys) - 1))
-      } else {
-        moveEdgeDirection = 0
-      }
-    }
+  // Derive smooth 300dp/s edge motion from time while a finger remains held.
+  // The scrolling document and the dragged app advance by the same distance,
+  // so the selected row stays beneath the stationary finger.
+  let moveEdgeDistance = moveEdgeDirection > 0 ? max(0, moveEdgeMax - appScroll) : max(0, appScroll - moveEdgeMin)
+  let moveEdgeTravel = moveEdgeActive ?
+    moveEdgeDirection * min(moveEdgeDistance, max(0, time - moveEdgeStartedAt) * 300) : 0
+  let appOffset = clamp(appScroll + moveEdgeTravel + (appGliding ? appVelocity * (1 - appDecay) / 5 : 0), 0, appMaxScroll)
+  let moveEffectiveTargetIndex = moveEdgeActive ?
+    clamp(moveOriginIndex + round((moveDragY + moveEdgeTravel) / appRowHeight), 0, max(0, len(moveKeys) - 1)) :
+    moveTargetIndex
+  // Stop reading time once the selected letter's scroll boundary is reached.
+  // This trigger fires only at the boundary, not on every animation frame.
+  let moveEdgeReachedEnd = moveEdgeActive && abs(moveEdgeTravel) >= moveEdgeDistance - 0.001
+  when moveEdgeReachedEnd {
+    appScroll = appOffset
+    moveDragY = moveDragY + moveEdgeTravel
+    moveTargetIndex = moveEffectiveTargetIndex
+    moveEdgeDirection = 0
   }
   let movePreviewKeys = moveOriginIndex < 0 ? [] :
     take(moveOtherKeys, moveEffectiveTargetIndex) + [moveKey] + drop(moveOtherKeys, moveEffectiveTargetIndex)
@@ -2379,7 +2377,7 @@ face "Omagara" {
     let minY = -baseY
     let maxY = max(minY, viewportHeight - baseY - slotHeight)
     let visualX = clamp(moveDragging ? moveDragX : snapX, minX, maxX)
-    let visualY = clamp(moveDragging ? moveDragY : snapY, minY, maxY)
+    let visualY = clamp(moveDragging ? moveDragY + (alphabetMode ? moveEdgeTravel : 0) : snapY, minY, maxY)
     let paintedY = clamp(baseY + visualY - hoverLift, 0, max(0, viewportHeight - slotHeight))
     // Alphabet's confirmation buttons now live beside Search, so its
     // floating row can use the full width reserved for its own label.
@@ -2395,10 +2393,10 @@ face "Omagara" {
         scale: cfg.reduceMotion ? 1 : 1 + liftPhase * (0.025 + 0.006 * sin(hoverAge * 4.8))
         animate scale: spring(0.84, 210)
         onDrag: {
-          // This handler records WHERE the finger is. A separate frame
-          // callback advances scrolling while the finger remains still.
+          // Accumulate any time-derived scroll before rebasing a new drag
+          // segment. This keeps the floating app at the finger without jumps.
           let nextX = (moveDragging ? moveDragX : visualX) + dx
-          let nextY = (moveDragging ? moveDragY : visualY) + dy
+          let nextY = (moveDragging ? moveDragY : visualY) + (alphabetMode ? moveEdgeTravel : 0) + dy
           moveDragging = true
           moveDragX = nextX
           moveDragY = nextY
@@ -2413,6 +2411,8 @@ face "Omagara" {
             pointerY <= edgeMargin && appOffset > moveEdgeMin ? -1 : 0 : 0
           if alphabetMode {
             appVelocity = 0
+            appScroll = appOffset
+            moveEdgeStartedAt = time
             moveEdgeDirection = wantEdge
           }
           // Hit-test actual icon centers on the hovered row. The old
@@ -2436,9 +2436,14 @@ face "Omagara" {
           }
         }
         onDragEnd: {
-          // Every frame has already committed the latest scroll/target.
-          // Do not apply it again on release.
-          if alphabetMode { moveEdgeDirection = 0 }
+          // Materialize the final time-derived position before stopping the
+          // edge clock; the projected slot must remain unchanged on release.
+          if alphabetMode {
+            appScroll = appOffset
+            moveDragY = moveDragY + moveEdgeTravel
+            moveTargetIndex = moveEffectiveTargetIndex
+            moveEdgeDirection = 0
+          }
           moveDragging = false
         }
         Row {
@@ -3616,7 +3621,7 @@ face "Omagara" {
             let selecting = moveMode != "alphabet" || moveKey != candidate
             let dragOrigin = selecting ? candidateIndex : moveOriginIndex
             let nextDragX = selecting ? dx : moveDragX + dx
-            let nextDragY = selecting ? dy : moveDragY + dy
+            let nextDragY = selecting ? dy : moveDragY + moveEdgeTravel + dy
             if candidateIndex >= 0 && candidateLetter != "" {
               if moveMode == "alphabet" && moveKey != candidate {
                 // Starting a new drag commits the prior app's preview, exactly
@@ -3664,6 +3669,8 @@ face "Omagara" {
               appVelocity = 0
               let pointerY = y
               let edgeMargin = min(72, appPanelHeight / 6)
+              if !selecting { appScroll = appOffset }
+              moveEdgeStartedAt = time
               moveEdgeDirection = pointerY >= appPanelHeight - edgeMargin && appOffset < moveEdgeMax ? 1 :
                 pointerY <= edgeMargin && appOffset > moveEdgeMin ? -1 : 0
               moveTargetIndex = clamp(dragOrigin + round(nextDragY / appRowHeight), 0, max(0, len(moveKeys) - 1))
@@ -3699,6 +3706,9 @@ face "Omagara" {
         onDragEnd: {
           if moveMode == "alphabet" && alphabetDragCandidate != "" {
             // Finishing a direct drag leaves the preview ready for ✓ or ×.
+            appScroll = appOffset
+            moveDragY = moveDragY + moveEdgeTravel
+            moveTargetIndex = moveEffectiveTargetIndex
             moveDragging = false
             moveEdgeDirection = 0
           } else if moveMode == "" {
@@ -3758,7 +3768,7 @@ face "Omagara" {
             let selecting = moveMode != "alphabet" || moveKey != candidate
             let dragOrigin = selecting ? candidateIndex : moveOriginIndex
             let nextDragX = selecting ? dx : moveDragX + dx
-            let nextDragY = selecting ? dy : moveDragY + dy
+            let nextDragY = selecting ? dy : moveDragY + moveEdgeTravel + dy
             if candidateIndex >= 0 && candidateLetter != "" {
               if moveMode == "alphabet" && moveKey != candidate {
                 // Starting a new drag commits the prior app's preview, exactly
@@ -3806,6 +3816,8 @@ face "Omagara" {
               appVelocity = 0
               let pointerY = y
               let edgeMargin = min(72, appPanelHeight / 6)
+              if !selecting { appScroll = appOffset }
+              moveEdgeStartedAt = time
               moveEdgeDirection = pointerY >= appPanelHeight - edgeMargin && appOffset < moveEdgeMax ? 1 :
                 pointerY <= edgeMargin && appOffset > moveEdgeMin ? -1 : 0
               moveTargetIndex = clamp(dragOrigin + round(nextDragY / appRowHeight), 0, max(0, len(moveKeys) - 1))
@@ -3841,6 +3853,9 @@ face "Omagara" {
         onDragEnd: {
           if moveMode == "alphabet" && alphabetDragCandidate != "" {
             // Finishing a direct drag leaves the preview ready for ✓ or ×.
+            appScroll = appOffset
+            moveDragY = moveDragY + moveEdgeTravel
+            moveTargetIndex = moveEffectiveTargetIndex
             moveDragging = false
             moveEdgeDirection = 0
           } else if moveMode == "" {
