@@ -2689,6 +2689,8 @@ face "Omagara" {
               let selecting = moveMode != "pin" || moveKey != candidate
               let candidateIndex = moveMode == "pin" ?
                 indexOf(pinDraftKeys, candidate) : indexOf(pinnedAppKeys, candidate)
+              let nextDragX = selecting ? dx : moveDragX + dx
+              let nextDragY = selecting ? dy : moveDragY + dy
               if candidateIndex >= 0 {
                 // Moving a different pin commits the preceding projection,
                 // but the Home × still rolls back the whole edit session.
@@ -2710,15 +2712,15 @@ face "Omagara" {
                   pinnedMenuShortcuts = null
                 }
                 moveDragging = true
-                moveDragX = moveDragX + dx
-                moveDragY = moveDragY + dy
+                moveDragX = nextDragX
+                moveDragY = nextDragY
                 // Use the same grid hit test as the original floating row.
                 let sourceSlot = find(pinSourceSlots, p => p.key == candidate)
                 let sourceIndex = indexOf(pinnedApps.map(p => p.key), candidate)
                 let originRow = get(pinnedRowNumbers, sourceIndex, 1)
-                let hoverRow = clamp(originRow + (abs(moveDragY) < 36 ? 0 : round(moveDragY / 48)), 1, len(pinnedRows) + 1)
+                let hoverRow = clamp(originRow + (abs(nextDragY) < 36 ? 0 : round(nextDragY / 48)), 1, len(pinnedRows) + 1)
                 let hoverRowY = (hoverRow - 1) * 48
-                let hoverCenterX = get(sourceSlot ?? {}, "x", 0) + moveDragX + 2 +
+                let hoverCenterX = get(sourceSlot ?? {}, "x", 0) + nextDragX + 2 +
                   (get(sourceSlot ?? {}, "iconAfterText", false) ? get(sourceSlot ?? {}, "labelWidth", 0) + 8 : 0) +
                   get(sourceSlot ?? {}, "iconSize", 34) / 2
                 let beforeRow = count(pinSourceSlots, p => p.key != candidate && p.y < hoverRowY)
@@ -3335,6 +3337,12 @@ face "Omagara" {
             let candidateIndex = candidateLetter == moveLetter && moveMode == "alphabet" ?
               indexOf(movePreviewKeys, candidate) :
               indexOf(get(groups, candidateLetter, []).map(a => a.key), candidate)
+            // Capture before changing moveKey. Otherwise the first sample
+            // can reuse the previous app's origin index in this same handler.
+            let selecting = moveMode != "alphabet" || moveKey != candidate
+            let dragOrigin = selecting ? candidateIndex : moveOriginIndex
+            let nextDragX = selecting ? dx : moveDragX + dx
+            let nextDragY = selecting ? dy : moveDragY + dy
             if candidateIndex >= 0 && candidateLetter != "" {
               if moveMode == "alphabet" && moveKey != candidate {
                 // Starting a new drag commits the prior app's preview, exactly
@@ -3352,7 +3360,7 @@ face "Omagara" {
                   rightAlignedAppKeys = moveSideRight ? unique(rightAlignedAppKeys + [moveKey]) : rightAlignedAppKeys.filter(k => k != moveKey)
                 }
               }
-              if moveMode != "alphabet" || moveKey != candidate {
+              if selecting {
                 let entryScroll = appPreviewing ?
                   clamp(get(appSectionStarts, indexOf(appSections, candidateLetter), 0) +
                     appLabelHeight + candidateIndex * appRowHeight - y + dy, 0, appMaxScroll) : appOffset
@@ -3377,14 +3385,14 @@ face "Omagara" {
               // Once the app is floating, the unchanged list container still
               // owns this touch and can autoscroll at either screen edge.
               moveDragging = true
-              moveDragX = moveDragX + dx
-              moveDragY = moveDragY + dy
+              moveDragX = nextDragX
+              moveDragY = nextDragY
               appVelocity = 0
               let pointerY = y
               let edgeMargin = min(72, appPanelHeight / 6)
               moveEdgeDirection = pointerY >= appPanelHeight - edgeMargin && appOffset < moveEdgeMax ? 1 :
                 pointerY <= edgeMargin && appOffset > moveEdgeMin ? -1 : 0
-              moveTargetIndex = clamp(moveOriginIndex + round(moveDragY / appRowHeight), 0, max(0, len(moveKeys) - 1))
+              moveTargetIndex = clamp(dragOrigin + round(nextDragY / appRowHeight), 0, max(0, len(moveKeys) - 1))
             }
           } else if moveMode == "" {
           appVelocity = 0
