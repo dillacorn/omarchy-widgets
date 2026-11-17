@@ -1369,11 +1369,16 @@ face "Omagara" {
           gap: 6
           for a in rowPins key a.key {
             let showPinLabel = !rowJoined && get(find(pinnedLayouts, p => p.key == a.key) ?? {}, "showLabel", true) != false
+            if moveMode == "pin" && moveKey == a.key {
+              FloatingMoveApp { a: a; slotWidth: rowIconSize + (showPinLabel ? rowLabelWidth + 8 : 0) + 4; slotHeight: max(42, rowIconSize + 6) }
+            } else {
             Row {
               align: center
               gap: 8
               height: max(42, rowIconSize + 6)
               padding: [2, 2]
+              background: moveMode == "pin" && moveTargetIndex == indexOf(pinnedAppKeys, a.key) ? alpha(accent, 0.19) : transparent
+              radius: 7
               HomePinIcon { a: a; iconSize: rowIconSize; showNoticeBadge: true }
               if showPinLabel {
                 Text {
@@ -1402,6 +1407,7 @@ face "Omagara" {
                   }
                 }
               }
+            }
             }
           }
         }
