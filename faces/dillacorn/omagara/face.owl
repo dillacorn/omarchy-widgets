@@ -1244,6 +1244,69 @@ face "Omagara" {
       }
   }
 
+  // The selected application floats over its ORIGINAL home/A-Z position.
+  // Its neighboring rows remain visible. No separate reorder screen.
+  component FloatingMoveApp(a, alphabetMode = false, slotWidth = 180, slotHeight = 48) {
+    let floatingWidth = alphabetMode ? min(slotWidth - 10, 230) : min(noticeWidth, max(142, slotWidth + 48))
+    Box {
+      width: slotWidth
+      height: slotHeight
+      radius: 7
+      border: 1
+      borderColor: alpha(accent, 0.55)
+      background: alpha(accent, 0.07)
+      Box {
+        width: floatingWidth
+        height: slotHeight
+        offset: [moveDragX, moveDragY]
+        scale: 1.07
+        background: alpha(surface, 0.94)
+        border: 2
+        borderColor: accent
+        radius: 8
+        ripple: false
+        onDrag: {
+          let nextX = moveDragX + dx
+          let nextY = moveDragY + dy
+          moveDragX = nextX
+          moveDragY = nextY
+          // A-Z rows share one height. Pinned rows may contain several icons,
+          // so map vertical travel by the REAL grouped rows, not key count.
+          let displayIndex = indexOf(pinnedApps.map(p => p.key), moveKey)
+          let originRow = get(pinnedRowNumbers, displayIndex, 1)
+          let destinationRow = clamp(originRow + round(nextY / 48), 1, max(1, len(pinnedRows)))
+          let destinationItems = get(pinnedRows, destinationRow - 1, [])
+          let destinationPin = nextX >= 42 ? last(destinationItems) : first(destinationItems)
+          let destinationIndex = destinationPin == null ? moveOriginIndex : indexOf(pinnedAppKeys, destinationPin.key)
+          let directPinIndex = abs(nextY) >= 24 ? destinationIndex : moveOriginIndex + round(nextX / 60)
+          let nextIndex = alphabetMode ? moveOriginIndex + round(nextY / appRowHeight) : directPinIndex
+          moveTargetIndex = clamp(nextIndex, 0, max(0, len(moveKeys) - 1))
+        }
+        Row {
+          fill: width
+          height: slotHeight
+          align: center
+          padding: [4, 8]
+          gap: 9
+          if a.icon != null && a.icon != "" {
+            Image { src: a.icon; size: min(34, slotHeight - 8); label: a.name }
+          } else {
+            Text { text: upper(sub(trim(a.name), 0, 1)); font: chosenFont; fontSize: 19; color: primaryText; width: 34; align: center }
+          }
+          Text {
+            text: a.name
+            font: chosenFont
+            fontSize: 15
+            color: primaryText
+            maxLines: 1
+            weight: 1
+          }
+          Text { text: "⠿"; font: chosenFont; fontSize: 22; color: accent }
+        }
+      }
+    }
+  }
+
   component NotificationPanel() {
     Column {
       width: noticeWidth
@@ -1473,69 +1536,6 @@ face "Omagara" {
         NotificationRow { item: noticeRow.item; stack: noticeRow.stack; summary: noticeRow.summary }
       }
       Spacer { width: noticeWidth; height: 20 }
-    }
-  }
-
-  // The selected application floats over its ORIGINAL home/A-Z position.
-  // Its neighboring rows remain visible. No separate reorder screen.
-  component FloatingMoveApp(a, alphabetMode = false, slotWidth = 180, slotHeight = 48) {
-    let floatingWidth = alphabetMode ? min(slotWidth - 10, 230) : min(noticeWidth, max(142, slotWidth + 48))
-    Box {
-      width: slotWidth
-      height: slotHeight
-      radius: 7
-      border: 1
-      borderColor: alpha(accent, 0.55)
-      background: alpha(accent, 0.07)
-      Box {
-        width: floatingWidth
-        height: slotHeight
-        offset: [moveDragX, moveDragY]
-        scale: 1.07
-        background: alpha(surface, 0.94)
-        border: 2
-        borderColor: accent
-        radius: 8
-        ripple: false
-        onDrag: {
-          let nextX = moveDragX + dx
-          let nextY = moveDragY + dy
-          moveDragX = nextX
-          moveDragY = nextY
-          // A-Z rows share one height. Pinned rows may contain several icons,
-          // so map vertical travel by the REAL grouped rows, not key count.
-          let displayIndex = indexOf(pinnedApps.map(p => p.key), moveKey)
-          let originRow = get(pinnedRowNumbers, displayIndex, 1)
-          let destinationRow = clamp(originRow + round(nextY / 48), 1, max(1, len(pinnedRows)))
-          let destinationItems = get(pinnedRows, destinationRow - 1, [])
-          let destinationPin = nextX >= 42 ? last(destinationItems) : first(destinationItems)
-          let destinationIndex = destinationPin == null ? moveOriginIndex : indexOf(pinnedAppKeys, destinationPin.key)
-          let directPinIndex = abs(nextY) >= 24 ? destinationIndex : moveOriginIndex + round(nextX / 60)
-          let nextIndex = alphabetMode ? moveOriginIndex + round(nextY / appRowHeight) : directPinIndex
-          moveTargetIndex = clamp(nextIndex, 0, max(0, len(moveKeys) - 1))
-        }
-        Row {
-          fill: width
-          height: slotHeight
-          align: center
-          padding: [4, 8]
-          gap: 9
-          if a.icon != null && a.icon != "" {
-            Image { src: a.icon; size: min(34, slotHeight - 8); label: a.name }
-          } else {
-            Text { text: upper(sub(trim(a.name), 0, 1)); font: chosenFont; fontSize: 19; color: primaryText; width: 34; align: center }
-          }
-          Text {
-            text: a.name
-            font: chosenFont
-            fontSize: 15
-            color: primaryText
-            maxLines: 1
-            weight: 1
-          }
-          Text { text: "⠿"; font: chosenFont; fontSize: 22; color: accent }
-        }
-      }
     }
   }
 
