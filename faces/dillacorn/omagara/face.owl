@@ -1578,7 +1578,7 @@ face "Omagara" {
                 let targetRow = get(pinnedRowNumbers, targetVisibleIndex, -2)
                 let sameIconRow = horizontalIntent && relocated && originRow > 0 && originRow == targetRow
                 let joinPrevious = horizontalIntent && moveDragX >= 42 && moveTargetIndex > 0
-                let joinNext = horizontalIntent && moveDragX <= -42 && moveTargetIndex < len(moveKeys) - 1
+                let joinNext = horizontalIntent && moveDragX <= -42 && moveTargetIndex < moveOriginIndex
                 let priorLayout = find(pinnedLayouts, p => p.key == moveKey)
                 let alreadyJoined = get(priorLayout ?? {}, "newRow", true) == false
                 if sameIconRow {
