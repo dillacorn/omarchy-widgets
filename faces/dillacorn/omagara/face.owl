@@ -1981,13 +1981,44 @@ face "Omagara" {
   }
 
   component HomePinNotifications(a) {
+    // The same package may exist in multiple Android profiles. Dismiss only
+    // notifications belonging to this exact pinned app/profile identity.
     let identity = toJson([a.package, a.profile])
     let notificationOwner = first(pinnedApps.filter(p => p.folderId == null && toJson([p.package, p.profile]) == identity))
     let ownedNotices = get(noticeGroups, identity, [])
+    let clearablePinnedNotices = ownedNotices.filter(n => n.clearable)
     Column {
       fill: width
       gap: 3
       if a.folderId == null && cfg.notifications && notices != null && notices.available != false && notificationOwner != null && notificationOwner.key == a.key && expandedPinnedKey == a.key && len(ownedNotices) > 0 {
+        // Never use native global notification("clear"). Only submit this
+        // app/profile's dismissible keys, including items below Show more.
+        if len(clearablePinnedNotices) > 0 {
+          Row {
+            fill: width
+            height: 34
+            align: center
+            gap: 8
+            Text {
+              text: a.name + " · " + str(len(ownedNotices)) + (len(ownedNotices) == 1 ? " notification" : " notifications")
+              font: chosenFont
+              fontSize: 12
+              color: secondaryText
+              weight: 1
+              maxLines: 1
+            }
+            Text {
+              text: "Clear all"
+              font: chosenFont
+              fontSize: 12
+              color: primaryText
+              padding: [6, 8]
+              background: cfg.shadeNoticeLabels ? noticeHeadingShade : transparent
+              radius: cfg.roundClearAll ? 7 : 0
+              onTap: pendingStackDismiss = clearablePinnedNotices.map(n => n.key)
+            }
+          }
+        }
         for n in take(ownedNotices, pinnedNoticeShown) key n.key {
           NotificationRow { item: n; stack: identity; summary: false }
         }
