@@ -809,7 +809,8 @@ face "Omagara" {
   // three leading rows and five trailing rows around the viewport.
   // The shared document translation below still moves every frame.
   let appWindowStride = appRowHeight * 2
-  let appRenderTop = max(0, floor(appOffset / appWindowStride) * appWindowStride - 3 * appRowHeight)
+  let appWindowOrigin = floor(appOffset / appWindowStride) * appWindowStride
+  let appRenderTop = max(0, appWindowOrigin - 3 * appRowHeight)
   let appRenderBottom = min(appDocumentHeight, appRenderTop + appPanelHeight + 10 * appRowHeight)
   let visibleSections = appDocument.filter(s => s.top + s.height > appRenderTop && s.top < appRenderBottom).map(s => merge(s, {firstRow: max(0, floor((appRenderTop - s.top - appLabelHeight) / appRowHeight))}))
   let appMenuRows = [
@@ -3603,12 +3604,14 @@ face "Omagara" {
             radius: cfg.roundAppLabels ? 7 : 0
           }
         }
-        // Translate the whole document once per frame, rather than applying
-        // the changing scroll position to every keyed row separately.
-        // Rail-held previews use screen coordinates and stay untranslated.
+        // Translate one viewport-sized document window rather than each row.
+        // Keep the parent hit-testable across every scroll position: its origin
+        // follows the two-row window stride, and its height covers the maximum
+        // two-row negative displacement. Rail previews remain screen-relative.
         Box {
-          fill: true
-          offset: [0, appPreviewing ? 0 : -appOffset]
+          width: appPanelWidth
+          height: appPanelHeight + appWindowStride
+          offset: [0, appPreviewing ? 0 : appWindowOrigin - appOffset]
           // Paint selected app last, above neighbors flowing to final slots.
           for row in (moveMode == "alphabet" ? appWindow.filter(r => r.id != moveKey) : appWindow) key row.id {
           // Preview rows use their own bounded screen positions; ordinary
@@ -3621,7 +3624,7 @@ face "Omagara" {
           Box {
             width: appPanelWidth
             height: row.height
-            offset: [0, row.top]
+            offset: [0, appPreviewing ? row.top : row.top - appWindowOrigin]
             opacity: rowAlpha
             // Offscreen buffer rows retain only lightweight keyed boxes:
             // avoid composing their icon and text subtrees every frame.
