@@ -723,7 +723,11 @@ face "Omagara" {
   on appElasticDone { if value { appElasticReturning = false; appElastic = 0; appElasticFrom = 0 } }
   let appGliding = browsing && !railHeld && menu == "" && appVelocity != 0
   let appGlideAge = appGliding ? max(0, time - appGlideStarted) : 0
-  let appDecay = pow(2.718281828459045, -5 * min(appGlideAge, 1.6))
+  // Match a native-feeling fling: preserve 1:1 finger drag but allow a longer
+  // release coast. Keep one analytic curve so travel does not depend on FPS.
+  let appGlideFriction = 3.1
+  let appGlideMaxAge = 2.2
+  let appDecay = pow(2.718281828459045, -appGlideFriction * min(appGlideAge, appGlideMaxAge))
   // Read time only while the selected app is held near an edge, rather than
   // using an unconditional frame trigger that keeps the face awake at 60 FPS.
   let moveEdgeSection = moveMode == "alphabet" ? indexOf(appSections, moveLetter) : -1
@@ -739,7 +743,7 @@ face "Omagara" {
   let moveEdgeDistance = moveEdgeDirection > 0 ? max(0, moveEdgeMax - appScroll) : max(0, appScroll - moveEdgeMin)
   let moveEdgeTravel = moveEdgeActive ?
     moveEdgeDirection * min(moveEdgeDistance, max(0, time - moveEdgeStartedAt) * 300) : 0
-  let appOffset = clamp(appScroll + moveEdgeTravel + (appGliding ? appVelocity * (1 - appDecay) / 5 : 0), 0, appMaxScroll)
+  let appOffset = clamp(appScroll + moveEdgeTravel + (appGliding ? appVelocity * (1 - appDecay) / appGlideFriction : 0), 0, appMaxScroll)
   let moveEffectiveTargetIndex = moveEdgeActive ?
     clamp(moveOriginIndex + round((moveDragY + moveEdgeTravel) / appRowHeight), 0, max(0, len(moveKeys) - 1)) :
     moveTargetIndex
@@ -765,7 +769,7 @@ face "Omagara" {
           + drop(rows.filter(a => a.key != m.key), indexOf(rows.filter(a => a.key != m.key).map(a => a.key), m.anchor) + (m.after ? 1 : 0)),
       get(automaticGroups, moveLetter, [])).filter(a => !contains(hiddenAppKeys, a.key)).map(a => a.key) : []
   let alphabetAtResetPosition = moveMode == "alphabet" && toJson(movePreviewKeys) == toJson(alphabetResetKeys)
-  let appGlideDone = appGliding && (appGlideAge >= 1.6 || abs(appVelocity) * appDecay <= 30 || appVelocity < 0 && appOffset <= 0 || appVelocity > 0 && appOffset >= appMaxScroll)
+  let appGlideDone = appGliding && (appGlideAge >= appGlideMaxAge || abs(appVelocity) * appDecay <= 24 || appVelocity < 0 && appOffset <= 0 || appVelocity > 0 && appOffset >= appMaxScroll)
   on appGlideDone {
     if value {
       appScroll = appOffset
@@ -3893,7 +3897,7 @@ face "Omagara" {
           appElasticStarted = time
           appElasticReturning = !cfg.reduceMotion && abs(appElastic) > 0.1
           if cfg.reduceMotion { appElastic = 0 }
-          appVelocity = appElasticReturning || !browsing || railHeld || cfg.reduceMotion || abs(vy) < 160 || vy > 0 && appOffset <= 0 || vy < 0 && appOffset >= appMaxScroll ? 0 : clamp(-vy, -6000, 6000)
+          appVelocity = appElasticReturning || !browsing || railHeld || cfg.reduceMotion || abs(vy) < 110 || vy > 0 && appOffset <= 0 || vy < 0 && appOffset >= appMaxScroll ? 0 : clamp(-vy, -7500, 7500)
           if appVelocity != 0 { appGlideStarted = time }
           if appFirst != null { appAnchor = appFirst.id; appAnchorSection = appFirst.section; appAnchorOffset = appOffset - appFirst.top }
                   }
@@ -4040,7 +4044,7 @@ face "Omagara" {
           appElasticStarted = time
           appElasticReturning = !cfg.reduceMotion && abs(appElastic) > 0.1
           if cfg.reduceMotion { appElastic = 0 }
-          appVelocity = appElasticReturning || !browsing || railHeld || cfg.reduceMotion || abs(vy) < 160 || vy > 0 && appOffset <= 0 || vy < 0 && appOffset >= appMaxScroll ? 0 : clamp(-vy, -6000, 6000)
+          appVelocity = appElasticReturning || !browsing || railHeld || cfg.reduceMotion || abs(vy) < 110 || vy > 0 && appOffset <= 0 || vy < 0 && appOffset >= appMaxScroll ? 0 : clamp(-vy, -7500, 7500)
           if appVelocity != 0 { appGlideStarted = time }
           if appFirst != null { appAnchor = appFirst.id; appAnchorSection = appFirst.section; appAnchorOffset = appOffset - appFirst.top }
                   }
