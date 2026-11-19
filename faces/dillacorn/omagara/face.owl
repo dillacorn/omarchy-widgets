@@ -804,13 +804,13 @@ face "Omagara" {
   let appKeyGroups = reduce(appSections, (m, c) => set(m, c, get(groups, c, []).map(a => a.key)), {})
   // Render a continuous slice of the WHOLE document, with two guard rows
   // beyond each edge. Never derive this span from letter or railHeld.
-  // Keep the keyed rows alive across longer flings without regenerating
-  // the section/row window every few frames. Buffer three rows above and
-  // at least three below even at the end of a five-row stride. The actual
-  // row offset still follows every drag event and time-based glide frame.
-  let appWindowStride = appRowHeight * 5
+  // Advance the row window in two-row increments instead of inserting
+  // five fresh keyed rows at once during a fast fling. Retain at least
+  // three leading rows and five trailing rows around the viewport.
+  // The shared document translation below still moves every frame.
+  let appWindowStride = appRowHeight * 2
   let appRenderTop = max(0, floor(appOffset / appWindowStride) * appWindowStride - 3 * appRowHeight)
-  let appRenderBottom = min(appDocumentHeight, appRenderTop + appPanelHeight + 11 * appRowHeight)
+  let appRenderBottom = min(appDocumentHeight, appRenderTop + appPanelHeight + 10 * appRowHeight)
   let visibleSections = appDocument.filter(s => s.top + s.height > appRenderTop && s.top < appRenderBottom).map(s => merge(s, {firstRow: max(0, floor((appRenderTop - s.top - appLabelHeight) / appRowHeight))}))
   let appMenuRows = [
     {id: "heading:settings", section: "Settings", heading: true, top: appMenuTop, height: appLabelHeight},
@@ -3603,8 +3603,14 @@ face "Omagara" {
             radius: cfg.roundAppLabels ? 7 : 0
           }
         }
-        // Paint selected app last, above neighbors flowing to final slots.
-        for row in (moveMode == "alphabet" ? appWindow.filter(r => r.id != moveKey) : appWindow) key row.id {
+        // Translate the whole document once per frame, rather than applying
+        // the changing scroll position to every keyed row separately.
+        // Rail-held previews use screen coordinates and stay untranslated.
+        Box {
+          fill: true
+          offset: [0, appPreviewing ? 0 : -appOffset]
+          // Paint selected app last, above neighbors flowing to final slots.
+          for row in (moveMode == "alphabet" ? appWindow.filter(r => r.id != moveKey) : appWindow) key row.id {
           // Preview rows use their own bounded screen positions; ordinary
           // scrolling still uses continuous document coordinates.
           let rowY = appPreviewing ? row.top : row.top - appOffset
@@ -3615,7 +3621,7 @@ face "Omagara" {
           Box {
             width: appPanelWidth
             height: row.height
-            offset: [0, rowY]
+            offset: [0, row.top]
             opacity: rowAlpha
             // Offscreen buffer rows retain only lightweight keyed boxes:
             // avoid composing their icon and text subtrees every frame.
@@ -3715,6 +3721,7 @@ face "Omagara" {
               }
             }
           }
+        }
         }
         // Give the selected app a full-viewport touch region so buttons stay
         // attached and usable after it leaves its original alphabetical row.
