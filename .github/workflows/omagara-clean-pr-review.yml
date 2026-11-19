@@ -1,0 +1,23 @@
+name: Omagara v1.9.3 clean PR review
+
+on:
+  push:
+    branches:
+      - test/omagara-v1.9.3-upstream-review
+    paths:
+      - .github/workflows/omagara-clean-pr-review.yml
+
+permissions:
+  contents: read
+
+jobs:
+  owl-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Check Omagara with the upstream OWL reviewer
+        run: java -jar tools/owl.jar review . faces/dillacorn/omagara/face.owl
