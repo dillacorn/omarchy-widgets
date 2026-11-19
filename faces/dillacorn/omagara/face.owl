@@ -689,6 +689,7 @@ face "Omagara" {
   let appSafeBottom = max(appSafeTop, (tileHeight ?? 800) - screenInset)
   let appPanelHeight = max(0, appSafeBottom - appSafeTop)
   let appFade = min(60, appPanelHeight / 5)
+  let appFullFadeThreshold = max(1, appFade)
   let appEdgeSpace = appFade + 8
   // Keep icons clear whenever Search or Close occupies the left edge.
   // Both controls on the right preserve the original app-list placement.
@@ -812,6 +813,7 @@ face "Omagara" {
   let appWindowOrigin = floor(appOffset / appWindowStride) * appWindowStride
   let appRenderTop = max(0, appWindowOrigin - 3 * appRowHeight)
   let appRenderBottom = min(appDocumentHeight, appRenderTop + appPanelHeight + 10 * appRowHeight)
+  let appWindowRowLimit = ceil((appRenderBottom - appRenderTop) / appRowHeight) + 1
   let visibleSections = appDocument.filter(s => s.top + s.height > appRenderTop && s.top < appRenderBottom).map(s => merge(s, {firstRow: max(0, floor((appRenderTop - s.top - appLabelHeight) / appRowHeight))}))
   let appMenuRows = [
     {id: "heading:settings", section: "Settings", heading: true, top: appMenuTop, height: appLabelHeight},
@@ -820,7 +822,7 @@ face "Omagara" {
   ]
   let fullAppWindow = flatten(visibleSections.map(s => (
     s.top + appLabelHeight > appRenderTop ? [{id: "heading:" + s.section, section: s.section, heading: true, top: s.top, height: appLabelHeight}] : []
-  ) + map(take(drop(get(groups, s.section, []), s.firstRow), ceil((appRenderBottom - appRenderTop) / appRowHeight) + 1), (a, j) => {id: a.key, section: s.section, heading: false, app: a, top: s.top + appLabelHeight + (s.firstRow + j) * appRowHeight, height: appRowHeight}).filter(r => r.top + r.height > appRenderTop && r.top < appRenderBottom))) + appFolderRows.filter(r => r.top + r.height > appRenderTop && r.top < appRenderBottom) + appMenuRows.filter(r => r.top + r.height > appRenderTop && r.top < appRenderBottom)
+  ) + map(take(drop(get(groups, s.section, []), s.firstRow), appWindowRowLimit), (a, j) => {id: a.key, section: s.section, heading: false, app: a, top: s.top + appLabelHeight + (s.firstRow + j) * appRowHeight, height: appRowHeight}).filter(r => r.top + r.height > appRenderTop && r.top < appRenderBottom))) + appFolderRows.filter(r => r.top + r.height > appRenderTop && r.top < appRenderBottom) + appMenuRows.filter(r => r.top + r.height > appRenderTop && r.top < appRenderBottom)
   // While touching the worm, center the selected letter's app group alongside
   // its actual glyph position, not a fixed 33%-height focus line. A long
   // group moves up to keep its rows in view. The normal continuous browser
@@ -861,8 +863,9 @@ face "Omagara" {
   let appFolderPreviewRows = appFolderRows.map(r => merge(r, {top: appFolderPreviewTop + r.top - appFolderTop})).filter(r => r.top + r.height > 0 && r.top < appPanelHeight)
   let appWindow = appPreviewing ? (railSettingsSelected ? appSettingsPreviewRows : railFolderSelected >= 0 ? appFolderPreviewRows : appPreviewRows) : fullAppWindow
   // Anchoring must use the unfiltered document even during a preview.
-  let appVisibleRows = fullAppWindow.filter(r => r.top + r.height > appOffset && r.top < appOffset + appPanelHeight)
-  let appFirst = first(appVisibleRows)
+  // Search only until the first intersecting row; don't allocate a complete
+  // filtered viewport list on each drag or glide frame.
+  let appFirst = find(fullAppWindow, r => r.top + r.height > appOffset && r.top < appOffset + appPanelHeight)
   // A single focus line serves section alignment and manual-scroll tracking.
   // Explicit rail selection remains authoritative until a real list drag.
   let appFocusY = appPanelHeight * 0.33
@@ -3619,8 +3622,10 @@ face "Omagara" {
           let rowY = appPreviewing ? row.top : row.top - appOffset
           // Fade by row centre: a partly clipped row must not vanish whole.
           let rowCentre = rowY + row.height / 2
-          let edge = clamp(min(rowCentre, appPanelHeight - rowCentre) / max(1, appFade), 0, 1)
-          let rowAlpha = edge * edge * (3 - 2 * edge)
+          // Fully opaque interior rows skip the fade calculation. Only
+          // rows entering or leaving the viewport need the smoothstep.
+          let edge = clamp(min(rowCentre, appPanelHeight - rowCentre) / appFullFadeThreshold, 0, 1)
+          let rowAlpha = rowCentre >= appFullFadeThreshold && rowCentre <= appPanelHeight - appFullFadeThreshold ? 1 : edge * edge * (3 - 2 * edge)
           Box {
             width: appPanelWidth
             height: row.height
