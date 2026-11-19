@@ -1,4 +1,12 @@
-# Omagara v1.9.2
+# Omagara v1.9.3
+
+## v1.9.3 performance test
+
+- **Worm entrance:** Reuse time-independent cosine coefficients, vertical contour points and cap angles during the 160 ms entrance and 110 ms return. Alphabet appearance, gestures, haptics and customization are unchanged.
+- **App list:** Use a linear pass rather than sorting by launch score on each letter press/drag; retain first-in-list tie behavior. Update the highlighted scrolling section without allocating filtered section lists each frame.
+- **Engine:** Keep the 60 FPS OWL cap and slow-frame governor intact. Phone testing is required before treating frame pacing as improved.
+
+
 
 Niagara-inspired OWL 21 home face for [Omalauncher](https://github.com/SimonSchubert/omalauncher). No additional packages required.
 

@@ -1,5 +1,5 @@
 face "Omagara" {
-  meta { owl: 21; description: "Niagara-inspired transparent home face with elastic alphabetical navigation, app search, notifications, calendar, timers and world clocks"; version: "1.9.2"; license: "MIT"; category: "home" }
+  meta { owl: 21; description: "Niagara-inspired transparent home face with elastic alphabetical navigation, app search, notifications, calendar, timers and world clocks"; version: "1.9.3"; license: "MIT"; category: "home" }
   // Omalauncher OWL time animations are capped at 60 FPS, regardless of display Hz.
   // Keep the highest supported rate; reduce work rather than reducing responsiveness.
   fps: 60
@@ -836,7 +836,8 @@ face "Omagara" {
   // position of a crowded letter's MOST USED app toward the thumb, without
   // changing alphabetical order, asking permissions, or tracking users here.
   // Small groups retain their ordinary letter-centered positioning.
-  let appPreviewFavorite = first(appPreviewApps.filter(a => (a.score ?? 0) > 0).sortBy(a => -(a.score ?? 0)))
+  // Choose the same highest positive score, with first-in-list ties, in one pass.
+  let appPreviewFavorite = reduce(appPreviewApps, (best, a) => (a.score ?? 0) > (best == null ? 0 : (best.score ?? 0)) ? a : best, null)
   let appPreviewFavoriteIndex = appPreviewFavorite == null ? -1 : indexOf(appPreviewApps.map(a => a.key), appPreviewFavorite.key)
   let appPreviewBias = appPreviewFavorite == null ? 0 : clamp(((appPreviewFavorite.score ?? 0) / 4), 0, 1) * clamp((appPreviewHeight - appPanelHeight * 0.50) / max(1, appPanelHeight * 0.30), 0, 1) * appPreviewAlphabetWeight
   let appPreviewTargetY = clamp(appPreviewCenter * 0.84, appEdgeSpace + appLabelHeight + appRowHeight / 2, max(appEdgeSpace + appLabelHeight + appRowHeight / 2, appPanelHeight - appEdgeSpace - appRowHeight / 2))
@@ -864,7 +865,8 @@ face "Omagara" {
   // A single focus line serves section alignment and manual-scroll tracking.
   // Explicit rail selection remains authoritative until a real list drag.
   let appFocusY = appPanelHeight * 0.33
-  let focusLetter = (last(appDocument.filter(s => s.top <= appOffset + appFocusY)) ?? first(appDocument)).section ?? "A"
+  // Find the active section without allocating a list during each scroll/glide frame.
+  let focusLetter = reduce(appDocument, (section, s) => s.top <= appOffset + appFocusY ? s.section : section, first(appSections) ?? "A")
   let selectedSection = max(0, indexOf(appSections, letter))
   let selectedTop = get(appSectionStarts, selectedSection, 0)
   let railScroll = clamp(selectedTop - appFocusY, 0, appMaxScroll)
@@ -3215,7 +3217,7 @@ face "Omagara" {
           let pressedHeight = appLabelHeight + len(pressedApps) * appRowHeight
           let pressedCenter = railTop + railOverpull + (max(0, indexOf(alphabet, pressedLetter)) + 0.5) * railStep - appSafeTop
           let pressedBaseTop = clamp(pressedCenter - pressedHeight / 2, appEdgeSpace, max(appEdgeSpace, appPanelHeight - appEdgeSpace - pressedHeight))
-          let pressedFavorite = first(pressedApps.filter(a => (a.score ?? 0) > 0).sortBy(a => -(a.score ?? 0)))
+          let pressedFavorite = reduce(pressedApps, (best, a) => (a.score ?? 0) > (best == null ? 0 : (best.score ?? 0)) ? a : best, null)
           let pressedFavoriteIndex = pressedFavorite == null ? -1 : indexOf(pressedApps.map(a => a.key), pressedFavorite.key)
           let pressedAlphabetWeight = 0.80 + 0.20 * max(0, indexOf(alphabet, pressedLetter)) / max(1, len(alphabet) - 1)
           let pressedBias = pressedFavorite == null ? 0 : clamp(((pressedFavorite.score ?? 0) / 4), 0, 1) * clamp((pressedHeight - appPanelHeight * 0.50) / max(1, appPanelHeight * 0.30), 0, 1) * pressedAlphabetWeight
@@ -3264,7 +3266,7 @@ face "Omagara" {
           let nextHeight = appLabelHeight + len(nextApps) * appRowHeight
           let nextCenter = railTop + railOverpull + (max(0, indexOf(alphabet, nextLetter)) + 0.5) * railStep - appSafeTop
           let nextBaseTop = clamp(nextCenter - nextHeight / 2, appEdgeSpace, max(appEdgeSpace, appPanelHeight - appEdgeSpace - nextHeight))
-          let nextFavorite = first(nextApps.filter(a => (a.score ?? 0) > 0).sortBy(a => -(a.score ?? 0)))
+          let nextFavorite = reduce(nextApps, (best, a) => (a.score ?? 0) > (best == null ? 0 : (best.score ?? 0)) ? a : best, null)
           let nextFavoriteIndex = nextFavorite == null ? -1 : indexOf(nextApps.map(a => a.key), nextFavorite.key)
           let nextAlphabetWeight = 0.80 + 0.20 * max(0, indexOf(alphabet, nextLetter)) / max(1, len(alphabet) - 1)
           let nextBias = nextFavorite == null ? 0 : clamp(((nextFavorite.score ?? 0) / 4), 0, 1) * clamp((nextHeight - appPanelHeight * 0.50) / max(1, appPanelHeight * 0.30), 0, 1) * nextAlphabetWeight
@@ -3369,7 +3371,18 @@ face "Omagara" {
           // Compute the wave once; letter centers reuse the same Canvas samples.
           let wiggleActive = railWiggling && !cfg.reduceMotion
           let contourSteps = wiggleActive ? 2 : 4
-          let wigglePhases = wiggleActive ? map(range((len(alphabet) + len(folderStops) + 1) * contourSteps + 1), j => railWiggleAge - abs(j / contourSteps - 0.5 - railWiggleOrigin) * 0.015) : []
+          // Finger position changes on touch, not each animation frame.
+          // Cache the cosine profile and static ribbon geometry for the
+          // timed entrance/return, shared by Canvas and the letter glyphs.
+          let contourCount = (len(alphabet) + len(folderStops) + 1) * contourSteps
+          let contourRadius = max(10, min(14, len(alphabet) * 0.58))
+          let contourWeights = map(range(contourCount + 1), j =>
+            (1 + cos(rad(min(abs(j / contourSteps - 0.5 - fingerPosition) / contourRadius, 1) * 180))) / 2)
+          let contourCapInset = cfg.roundAlphabet ? min(3, railStep * 0.15) : 0
+          let contourY = map(range(contourCount + 1), j =>
+            12 + j * railStep / contourSteps + contourCapInset * max(0, 1 - j / contourSteps) - contourCapInset * max(0, 1 - (contourCount - j) / contourSteps))
+          let contourCapAngles = map(range(16), i => rad((i + 1) * 11.25))
+          let wigglePhases = wiggleActive ? map(range(contourCount + 1), j => railWiggleAge - abs(j / contourSteps - 0.5 - railWiggleOrigin) * 0.015) : []
           let wiggleOffsets = wiggleActive ? map(wigglePhases, phase => phase > 0 && phase < 1.34 ? railWiggleDirection * 11 * railWiggleStrength * pow(1 - phase / 1.34, 2) * sin(phase * 36) : 0) : []
           if cfg.shadeAlphabet && len(alphabet) > 0 {
             Canvas {
@@ -3380,12 +3393,10 @@ face "Omagara" {
               // In idle/drag states, retain the original four-point contour.
               // Rounded mode trims only the two end clearances; square mode
               // keeps its original coordinates and the glyphs never move.
-              let wormCapInset = cfg.roundAlphabet ? min(3, railStep * 0.15) : 0
-              let wormSamples = map(range((len(alphabet) + len(folderStops) + 1) * contourSteps + 1), j => {
+              let wormSamples = map(contourY, (sampleY, j) => {
                 x: (alphabetSide == 1 ? railMaxReach + 22 : 22) - alphabetSide * railCurvePull *
-                  (railCurveStrength > 0 ? (1 + cos(rad(min(abs(j / contourSteps - 0.5 - fingerPosition) / max(10, min(14, len(alphabet) * 0.58)), 1) * 180))) / 2 * railCurveStrength : 0) - alphabetSide * (wiggleActive ? wiggleOffsets[j] : 0),
-                // Fade each inset over one cell so the cap and letter share a smooth outline.
-                y: 12 + j * railStep / contourSteps + wormCapInset * max(0, 1 - j / contourSteps) - wormCapInset * max(0, 1 - ((len(alphabet) + len(folderStops) + 1) * contourSteps - j) / contourSteps)
+                  (railCurveStrength > 0 ? contourWeights[j] * railCurveStrength : 0) - alphabetSide * (wiggleActive ? wiggleOffsets[j] : 0),
+                y: sampleY
               })
               // Round each end as a real half-circle, sheared to follow the
               // ribbon's local tangent when the thumb bends the alphabet.
@@ -3400,9 +3411,8 @@ face "Omagara" {
               let wormLeft = map(wormSamples, p => [p.x - 12, p.y])
               let wormRight = drop(reverse(map(wormSamples, p => [p.x + 12, p.y])), 1)
               // Include the 180-degree end exactly, then skip its duplicate on the right edge.
-              let capAngles = map(range(16), i => rad((i + 1) * 11.25))
-              let wormBottomArc = map(capAngles, a => [wormBottom.x - 12 * cos(a) + 12 * wormBottomSlope * sin(a), wormBottom.y + 12 * sin(a)])
-              let wormTopArc = map(capAngles, a => [wormTop.x + 12 * cos(a) - 12 * wormTopSlope * sin(a), wormTop.y - 12 * sin(a)])
+              let wormBottomArc = map(contourCapAngles, a => [wormBottom.x - 12 * cos(a) + 12 * wormBottomSlope * sin(a), wormBottom.y + 12 * sin(a)])
+              let wormTopArc = map(contourCapAngles, a => [wormTop.x + 12 * cos(a) - 12 * wormTopSlope * sin(a), wormTop.y - 12 * sin(a)])
               // The square worm keeps its bottom right corner, which the rounded one leaves to the cap.
               path(cfg.roundAlphabet ? wormLeft + wormBottomArc + wormRight + wormTopArc : wormLeft + reverse(map(wormSamples, p => [p.x + 12, p.y])), closed: true, fill: alphabetShade)
             }
@@ -3415,9 +3425,7 @@ face "Omagara" {
               // outward travel across many adjacent letters instead of making a
               // sharp kink at the selected letter. The curve follows the finger
               // continuously; unchanged cells keep the same touch targets.
-              let distance = abs(i - fingerPosition)
-              let radius = max(10, min(14, len(alphabet) * 0.58))
-              let curve = railCurveStrength > 0 ? (1 + cos(rad(min(distance / radius, 1) * 180))) / 2 * railCurveStrength : 0
+              let curve = railCurveStrength > 0 ? contourWeights[i * contourSteps + contourSteps / 2] * railCurveStrength : 0
               // Sample the shared contour at this glyph's exact center.
               let wiggleX = wiggleActive ? wiggleOffsets[i * contourSteps + contourSteps / 2] : 0
               Box {
