@@ -1,4 +1,6 @@
-# Omagara v1.9.3
+# Omagara v1.9.3 — experimental high-refresh engine only
+
+**Do not install this branch on the released Omalauncher.** This variant opts into owl 26 and `fps: 120`, which requires the matching unmerged engine experiment in `dillacorn/omalauncher:test/owl-high-refresh`. The regular Omagara v1.9.3 test branch remains at `owl: 21` and `fps: 60`. The current engine's frame-rate governor may still halve the requested refresh rate under load.
 
 ## v1.9.3 performance test
 

@@ -1,8 +1,9 @@
 face "Omagara" {
-  meta { owl: 21; description: "Niagara-inspired transparent home face with elastic alphabetical navigation, app search, notifications, calendar, timers and world clocks"; version: "1.9.3"; license: "MIT"; category: "home" }
-  // Omalauncher OWL time animations are capped at 60 FPS, regardless of display Hz.
-  // Keep the highest supported rate; reduce work rather than reducing responsiveness.
-  fps: 60
+  meta { owl: 26; description: "Niagara-inspired transparent home face with elastic alphabetical navigation, app search, notifications, calendar, timers and world clocks"; version: "1.9.3"; license: "MIT"; category: "home" }
+  // Experimental Omalauncher engine branch test/owl-high-refresh ONLY.
+  // Requires owl 26; do not install on a released launcher that supports owl 25.
+  // Default 60 FPS behavior remains in the normal Omagara v1.9.3 test branch.
+  fps: 120
   page: 0
   edge: true
   padding: 0
